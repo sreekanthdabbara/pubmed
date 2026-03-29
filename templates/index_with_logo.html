@@ -1,0 +1,168 @@
+{% extends "base_with_logo.html" %}
+
+{% block title %}Search PubMed - Abstract Scraper{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="hero">
+        <div class="hero-logo">
+            <img src="{{ url_for('static', filename='images/episciencelogo.png') }}" alt="EpiScience Logo" class="hero-logo-image">
+        </div>
+        <h1><i class="fas fa-microscope"></i> PubMed Abstract Scraper</h1>
+        <p class="subtitle">Search and extract research article abstracts from PubMed</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">
+        <i class="fas fa-exclamation-circle"></i>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="search-container">
+        <form method="POST" action="{{ url_for('search') }}" class="search-form">
+            <div class="form-group">
+                <label for="query">
+                    <i class="fas fa-search"></i> Search Query
+                </label>
+                <input 
+                    type="text" 
+                    id="query" 
+                    name="query" 
+                    class="form-control"
+                    placeholder="e.g., lung cancer, breast cancer treatment, BRCA1 mutation..."
+                    required
+                    autofocus
+                >
+                <small class="form-hint">
+                    Use PubMed syntax: AND, OR, NOT, quotes for phrases, [field] tags
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="max_results">
+                    <i class="fas fa-list-ol"></i> Number of Results
+                </label>
+                <input 
+                    type="number" 
+                    id="max_results" 
+                    name="max_results" 
+                    class="form-control"
+                    value="20"
+                    min="1"
+                    max="500"
+                    required
+                >
+                <small class="form-hint">Maximum: 500 articles</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Search PubMed
+            </button>
+        </form>
+
+        <div class="search-examples">
+            <h3><i class="fas fa-lightbulb"></i> Example Searches</h3>
+            <div class="examples-grid">
+                <div class="example-card" onclick="fillSearch('lung cancer')">
+                    <i class="fas fa-lungs"></i>
+                    <span>lung cancer</span>
+                </div>
+                <div class="example-card" onclick="fillSearch('breast cancer AND immunotherapy')">
+                    <i class="fas fa-syringe"></i>
+                    <span>breast cancer AND immunotherapy</span>
+                </div>
+                <div class="example-card" onclick="fillSearch('CRISPR gene editing')">
+                    <i class="fas fa-dna"></i>
+                    <span>CRISPR gene editing</span>
+                </div>
+                <div class="example-card" onclick="fillSearch('COVID-19 AND 2023[pdat]')">
+                    <i class="fas fa-virus"></i>
+                    <span>COVID-19 AND 2023[pdat]</span>
+                </div>
+                <div class="example-card" onclick="fillSearch('machine learning AND cancer')">
+                    <i class="fas fa-brain"></i>
+                    <span>machine learning AND cancer</span>
+                </div>
+                <div class="example-card" onclick="fillSearch('alzheimer disease[Title]')">
+                    <i class="fas fa-head-side-virus"></i>
+                    <span>alzheimer disease[Title]</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if recent_searches %}
+    <div class="recent-searches">
+        <h3><i class="fas fa-history"></i> Recent Searches</h3>
+        <div class="recent-list">
+            {% for search in recent_searches %}
+            <div class="recent-item" onclick="fillSearch('{{ search.query }}')">
+                <div class="recent-query">{{ search.query }}</div>
+                <div class="recent-meta">
+                    <span class="badge">{{ search.count }} results</span>
+                    <span class="timestamp">{{ search.timestamp }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="features">
+        <h3><i class="fas fa-star"></i> Features</h3>
+        <div class="features-grid">
+            <div class="feature-card">
+                <i class="fas fa-bolt"></i>
+                <h4>Fast & Reliable</h4>
+                <p>Uses official NCBI E-utilities API for quick and accurate results</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-download"></i>
+                <h4>Export Data</h4>
+                <p>Download results in CSV, JSON, or Excel format</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-filter"></i>
+                <h4>Advanced Search</h4>
+                <p>Use PubMed's powerful search syntax with filters and operators</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-file-alt"></i>
+                <h4>Full Abstracts</h4>
+                <p>Extract complete abstracts, authors, journals, and publication dates</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.hero-logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.hero-logo-image {
+    height: 80px;
+    width: auto;
+    object-fit: contain;
+}
+
+@media (max-width: 768px) {
+    .hero-logo-image {
+        height: 60px;
+    }
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fillSearch(query) {
+    document.getElementById('query').value = query;
+    document.getElementById('query').focus();
+}
+</script>
+{% endblock %}

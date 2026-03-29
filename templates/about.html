@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}About - PubMed Scraper{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="about-content">
+        <h1><i class="fas fa-info-circle"></i> About PubMed Abstract Scraper</h1>
+        
+        <div class="about-section">
+            <h2>What is this?</h2>
+            <p>
+                This web application allows you to search <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PubMed</a>, 
+                the premier database of biomedical literature, and extract article abstracts in bulk. 
+                It uses the official NCBI E-utilities API to provide fast, reliable access to millions of research articles.
+            </p>
+        </div>
+
+        <div class="about-section">
+            <h2>How to Use</h2>
+            <ol class="usage-steps">
+                <li>
+                    <strong>Enter your search query</strong>
+                    <p>Type any medical or scientific term. Use AND, OR, NOT operators for complex searches.</p>
+                </li>
+                <li>
+                    <strong>Set the number of results</strong>
+                    <p>Choose how many articles to retrieve (1-500).</p>
+                </li>
+                <li>
+                    <strong>Click Search</strong>
+                    <p>The app will fetch articles from PubMed and display full abstracts.</p>
+                </li>
+                <li>
+                    <strong>Export your data</strong>
+                    <p>Download results in CSV, JSON, or Excel format for further analysis.</p>
+                </li>
+            </ol>
+        </div>
+
+        <div class="about-section">
+            <h2>Advanced Search Tips</h2>
+            <div class="tips-grid">
+                <div class="tip-card">
+                    <h4><i class="fas fa-quote-left"></i> Phrase Search</h4>
+                    <code>"lung cancer"</code>
+                    <p>Use quotes to search for exact phrases</p>
+                </div>
+                <div class="tip-card">
+                    <h4><i class="fas fa-plus"></i> Boolean Operators</h4>
+                    <code>cancer AND treatment</code>
+                    <p>Combine terms with AND, OR, NOT</p>
+                </div>
+                <div class="tip-card">
+                    <h4><i class="fas fa-tag"></i> Field Tags</h4>
+                    <code>smith[Author]</code>
+                    <p>Search specific fields: [Title], [Author], [Journal]</p>
+                </div>
+                <div class="tip-card">
+                    <h4><i class="fas fa-calendar"></i> Date Filters</h4>
+                    <code>2020:2023[pdat]</code>
+                    <p>Filter by publication date range</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="about-section">
+            <h2>API Access</h2>
+            <p>
+                You can also access this scraper programmatically using our REST API.
+            </p>
+            
+            <div class="code-block">
+                <h4>Example API Request:</h4>
+                <pre><code>POST /api/search
+Content-Type: application/json
+
+{
+  "query": "lung cancer",
+  "max_results": 20
+}</code></pre>
+            </div>
+
+            <div class="code-block">
+                <h4>Example Response:</h4>
+                <pre><code>{
+  "query": "lung cancer",
+  "count": 20,
+  "results": [
+    {
+      "pmid": "12345678",
+      "title": "Article Title",
+      "abstract": "Abstract text...",
+      "authors": "John Doe, Jane Smith",
+      "journal": "Nature",
+      "publication_date": "2023 Jan",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/12345678/"
+    }
+  ]
+}</code></pre>
+            </div>
+        </div>
+
+        <div class="about-section">
+            <h2>Technology Stack</h2>
+            <div class="tech-stack">
+                <div class="tech-item">
+                    <i class="fab fa-python"></i>
+                    <span>Python</span>
+                </div>
+                <div class="tech-item">
+                    <i class="fas fa-flask"></i>
+                    <span>Flask</span>
+                </div>
+                <div class="tech-item">
+                    <i class="fas fa-database"></i>
+                    <span>Biopython</span>
+                </div>
+                <div class="tech-item">
+                    <i class="fas fa-table"></i>
+                    <span>Pandas</span>
+                </div>
+                <div class="tech-item">
+                    <i class="fas fa-code"></i>
+                    <span>NCBI E-utilities API</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="about-section">
+            <h2>Disclaimer</h2>
+            <p class="disclaimer">
+                This tool is for educational and research purposes only. All data is retrieved from the 
+                <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PubMed database</a> using the 
+                official NCBI E-utilities API. Please respect PubMed's 
+                <a href="https://www.ncbi.nlm.nih.gov/home/about/policies/" target="_blank">terms of service</a> 
+                and do not overload their servers.
+            </p>
+        </div>
+
+        <div class="about-section">
+            <h2>Resources</h2>
+            <ul class="resources-list">
+                <li>
+                    <i class="fas fa-book"></i>
+                    <a href="https://pubmed.ncbi.nlm.nih.gov/help/" target="_blank">PubMed Search Tips</a>
+                </li>
+                <li>
+                    <i class="fas fa-code"></i>
+                    <a href="https://www.ncbi.nlm.nih.gov/books/NBK25501/" target="_blank">NCBI E-utilities API Documentation</a>
+                </li>
+                <li>
+                    <i class="fas fa-flask"></i>
+                    <a href="https://flask.palletsprojects.com/" target="_blank">Flask Documentation</a>
+                </li>
+                <li>
+                    <i class="fas fa-dna"></i>
+                    <a href="https://biopython.org/" target="_blank">Biopython Documentation</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

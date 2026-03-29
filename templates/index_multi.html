@@ -1,0 +1,198 @@
+{% extends "base_with_logo.html" %}
+
+{% block title %}Multi-Keyword Search - PubMed Scraper{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="hero">
+        <div class="hero-logo">
+            <img src="{{ url_for('static', filename='images/episciencelogo.png') }}" alt="EpiScience Logo" class="hero-logo-image">
+        </div>
+        <h1><i class="fas fa-search-plus"></i> Multi-Keyword PubMed Search</h1>
+        <p class="subtitle">Search multiple keywords and compare results sorted by article count</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">
+        <i class="fas fa-exclamation-circle"></i>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="search-container">
+        <form method="POST" action="{{ url_for('search') }}" class="search-form">
+            <div class="form-group">
+                <label for="keywords">
+                    <i class="fas fa-list"></i> Search Keywords
+                </label>
+                <textarea 
+                    id="keywords" 
+                    name="keywords" 
+                    class="form-control"
+                    rows="5"
+                    placeholder="Enter keywords (one per line or comma-separated):
+lung cancer
+breast cancer
+prostate cancer
+
+OR: lung cancer, breast cancer, prostate cancer"
+                    required
+                    autofocus
+                ></textarea>
+                <small class="form-hint">
+                    💡 Enter one keyword per line OR separate with commas. You can use PubMed syntax for each keyword.
+                </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Search All Keywords
+            </button>
+        </form>
+
+        <div class="search-examples">
+            <h3><i class="fas fa-lightbulb"></i> Example Multi-Keyword Searches</h3>
+            <div class="examples-grid">
+                <div class="example-card" onclick="fillMultiSearch('lung cancer\nbreast cancer\nprostate cancer')">
+                    <i class="fas fa-disease"></i>
+                    <span>Compare Cancer Types</span>
+                </div>
+                <div class="example-card" onclick="fillMultiSearch('COVID-19 AND vaccine\nCOVID-19 AND treatment\nCOVID-19 AND symptoms')">
+                    <i class="fas fa-virus"></i>
+                    <span>COVID-19 Topics</span>
+                </div>
+                <div class="example-card" onclick="fillMultiSearch('diabetes type 1\ndiabetes type 2\ngestational diabetes')">
+                    <i class="fas fa-heartbeat"></i>
+                    <span>Diabetes Subtypes</span>
+                </div>
+                <div class="example-card" onclick="fillMultiSearch('CRISPR, gene therapy, RNA interference, gene editing')">
+                    <i class="fas fa-dna"></i>
+                    <span>Gene Editing Methods</span>
+                </div>
+                <div class="example-card" onclick="fillMultiSearch('alzheimer disease\nparkinson disease\nhuntington disease\nALS')">
+                    <i class="fas fa-brain"></i>
+                    <span>Neurodegenerative Diseases</span>
+                </div>
+                <div class="example-card" onclick="fillMultiSearch('aspirin, ibuprofen, acetaminophen, naproxen')">
+                    <i class="fas fa-pills"></i>
+                    <span>Pain Medications</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if recent_searches %}
+    <div class="recent-searches">
+        <h3><i class="fas fa-history"></i> Recent Searches</h3>
+        <div class="recent-list">
+            {% for search in recent_searches %}
+            <div class="recent-item">
+                <div class="recent-query">{{ search.query }}</div>
+                <div class="recent-meta">
+                    <span class="badge">{{ search.count }} total articles</span>
+                    <span class="timestamp">{{ search.timestamp }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="features">
+        <h3><i class="fas fa-star"></i> Multi-Keyword Features</h3>
+        <div class="features-grid">
+            <div class="feature-card">
+                <i class="fas fa-layer-group"></i>
+                <h4>Batch Search</h4>
+                <p>Search multiple keywords in one go - save time!</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-sort-amount-up"></i>
+                <h4>Smart Sorting</h4>
+                <p>Results sorted by article count - see which topics have more research</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-chart-bar"></i>
+                <h4>Compare Topics</h4>
+                <p>Easily compare research volume across different keywords</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-download"></i>
+                <h4>Grouped Export</h4>
+                <p>Export with results organized by keyword in separate sheets</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <h3><i class="fas fa-info-circle"></i> How It Works</h3>
+        <ol>
+            <li><strong>Enter multiple keywords</strong> - one per line or comma-separated</li>
+            <li><strong>Set max results per keyword</strong> - how many articles to fetch for each</li>
+            <li><strong>Choose sort order</strong> - ascending (fewest first) or descending (most first)</li>
+            <li><strong>View organized results</strong> - see articles grouped by keyword, sorted by count</li>
+            <li><strong>Export everything</strong> - download with keywords in separate Excel sheets</li>
+        </ol>
+    </div>
+</div>
+
+<style>
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.info-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: var(--border-radius);
+    margin-top: 3rem;
+}
+
+.info-box h3 {
+    color: white;
+    margin-bottom: 1rem;
+}
+
+.info-box ol {
+    margin-left: 1.5rem;
+    line-height: 1.8;
+}
+
+.info-box li {
+    margin-bottom: 0.5rem;
+}
+
+.hero-logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.hero-logo-image {
+    height: 80px;
+    width: auto;
+    object-fit: contain;
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .hero-logo-image {
+        height: 60px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fillMultiSearch(keywords) {
+    document.getElementById('keywords').value = keywords;
+    document.getElementById('keywords').focus();
+}
+</script>
+{% endblock %}

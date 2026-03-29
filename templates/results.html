@@ -1,0 +1,146 @@
+{% extends "base_with_logo.html" %}
+
+{% block title %}Results: {{ query }} - PubMed Scraper{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="results-header">
+        <h1><i class="fas fa-file-medical-alt"></i> Search Results</h1>
+        <div class="results-meta">
+            <p class="query-display">
+                <strong>Query:</strong> <span class="highlight">{{ query }}</span>
+            </p>
+            <p class="results-count">
+                Found <strong>{{ total }}</strong> article{% if total != 1 %}s{% endif %}
+            </p>
+        </div>
+
+        <div class="action-bar">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> New Search
+            </a>
+            <div class="export-buttons">
+                <span class="export-label">Export:</span>
+                <a href="{{ url_for('export', format='csv', query=query, max_results=total) }}" class="btn btn-export">
+                    <i class="fas fa-file-csv"></i> CSV
+                </a>
+                <a href="{{ url_for('export', format='json', query=query, max_results=total) }}" class="btn btn-export">
+                    <i class="fas fa-file-code"></i> JSON
+                </a>
+                <a href="{{ url_for('export', format='excel', query=query, max_results=total) }}" class="btn btn-export">
+                    <i class="fas fa-file-excel"></i> Excel
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="results-container">
+        {% for article in results %}
+        <div class="article-card">
+            <div class="article-header">
+                <h2 class="article-title">
+                    <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">
+                        {{ article.title }}
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </h2>
+                <span class="pmid-badge">PMID: {{ article.pmid }}</span>
+            </div>
+
+            <div class="article-meta">
+                {% if article.authors != 'N/A' %}
+                <div class="meta-item">
+                    <i class="fas fa-users"></i>
+                    <strong>Authors:</strong> {{ article.authors }}
+                </div>
+                {% endif %}
+
+                {% if article.country != 'N/A' %}
+                <div class="meta-item">
+                    <i class="fas fa-globe"></i>
+                    <strong>Country:</strong> <span class="country-highlight">{{ article.country }}</span>
+                </div>
+                {% endif %}
+
+                {% if article.affiliation != 'N/A' %}
+                <div class="meta-item">
+                    <i class="fas fa-building"></i>
+                    <strong>Affiliation:</strong> {{ article.affiliation[:200] }}{% if article.affiliation|length > 200 %}...{% endif %}
+                </div>
+                {% endif %}
+
+                {% if article.journal != 'N/A' %}
+                <div class="meta-item">
+                    <i class="fas fa-book"></i>
+                    <strong>Journal:</strong> {{ article.journal }}
+                </div>
+                {% endif %}
+
+                {% if article.publication_date != 'N/A' %}
+                <div class="meta-item">
+                    <i class="fas fa-calendar"></i>
+                    <strong>Published:</strong> {{ article.publication_date }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="article-abstract">
+                <div class="abstract-header">
+                    <i class="fas fa-align-left"></i>
+                    <strong>Abstract</strong>
+                </div>
+                {% if article.abstract != 'N/A' %}
+                <p class="abstract-text">{{ article.abstract }}</p>
+                {% else %}
+                <p class="abstract-text no-abstract">No abstract available</p>
+                {% endif %}
+            </div>
+
+            <div class="article-actions">
+                <a href="{{ article.url }}" target="_blank" class="btn btn-link">
+                    <i class="fas fa-eye"></i> View on PubMed
+                </a>
+                <button onclick="copyAbstract('{{ loop.index }}')" class="btn btn-link">
+                    <i class="fas fa-copy"></i> Copy Abstract
+                </button>
+                <textarea id="abstract-{{ loop.index }}" style="display:none;">{{ article.abstract }}</textarea>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="results-footer">
+        <a href="{{ url_for('index') }}" class="btn btn-primary">
+            <i class="fas fa-search"></i> Perform Another Search
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyAbstract(index) {
+    const textarea = document.getElementById('abstract-' + index);
+    textarea.style.display = 'block';
+    textarea.select();
+    document.execCommand('copy');
+    textarea.style.display = 'none';
+    
+    // Show feedback
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    btn.style.color = '#28a745';
+    
+    setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.style.color = '';
+    }, 2000);
+}
+
+// Add search functionality for filtering results
+document.addEventListener('DOMContentLoaded', function() {
+    // Could add a filter/search box here to filter results client-side
+});
+</script>
+{% endblock %}
