@@ -754,7 +754,7 @@ app.config['SECRET_KEY'] = 'your-secret-key-here'
 
 # ── NCBI credentials ──────────────────────────────────────────────────────────
 # REQUIRED: change to your email
-NCBI_EMAIL = "your.email@example.com"
+NCBI_EMAIL = "sreekanth.dabbara@gmail.com"
 
 # OPTIONAL but RECOMMENDED: free API key from https://www.ncbi.nlm.nih.gov/account/
 # Adding a key raises the rate limit from 3 → 10 req/s and cuts search time ~3x
@@ -1666,4 +1666,4 @@ if __name__ == '__main__':
     print("Press Ctrl+C to stop")
     print("=" * 60)
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)
