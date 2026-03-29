@@ -17,3 +17,5 @@ lxml>=4.9.0
 # flask-caching>=2.0.0  # Uncomment for caching
 # flask-limiter>=3.3.0  # Uncomment for rate limiting
 pdfplumber>=0.10.0  # PDF text extraction for Excel full-text export
+
+gunicorn>=21.2.0
