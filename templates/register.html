@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EpiLite AI Platform — Create Account</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #fff; min-height: 100vh; display: flex; flex-direction: column;
+        }
+        .navbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1rem 2.5rem; border-bottom: 1px solid #e8edf2;
+            background: #fff; position: sticky; top: 0; z-index: 100;
+        }
+        .brand img { height: 36px; width: auto; object-fit: contain; }
+        .nav-links { display: flex; align-items: center; gap: 2.5rem; }
+        .nav-links a { text-decoration: none; color: #4a5568; font-size: .95rem; font-weight: 500; }
+        .nav-links a:hover { color: #1a73e8; }
+
+        .main {
+            flex: 1; display: grid; grid-template-columns: 1fr 480px;
+            min-height: calc(100vh - 65px);
+        }
+        .hero {
+            background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: flex-start;
+            padding: 3rem 3.5rem;
+        }
+        .hero-title { font-size: 2rem; font-weight: 700; color: #1a202c; margin-bottom: 1rem; }
+        .hero-title span { color: #1a73e8; font-style: italic; }
+        .hero-subtitle { font-size: 1rem; color: #4a5568; line-height: 1.6; max-width: 480px; }
+
+        .feature-list { margin-top: 2rem; display: flex; flex-direction: column; gap: .85rem; }
+        .feature-item { display: flex; align-items: center; gap: .75rem; font-size: .9rem; color: #2d3748; }
+        .feature-item i { color: #1a73e8; width: 20px; text-align: center; }
+
+        .register-panel {
+            background: #fff; display: flex; flex-direction: column;
+            justify-content: center; padding: 3rem;
+            border-left: 1px solid #e8edf2;
+        }
+        .register-box { max-width: 380px; width: 100%; margin: 0 auto; }
+        .register-title { font-size: 1.5rem; font-weight: 700; color: #1a202c; margin-bottom: 1.75rem; }
+
+        .alert {
+            padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1.25rem;
+            font-size: .88rem; display: flex; align-items: center; gap: .5rem;
+        }
+        .alert-error { background: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+
+        .form-group { margin-bottom: 1.1rem; }
+        .form-group label { display: block; font-size: .88rem; font-weight: 600; color: #4a5568; margin-bottom: .4rem; }
+        .form-group input {
+            width: 100%; border: 1.5px solid #cbd5e0; border-radius: 8px;
+            padding: .75rem .9rem; font-size: .95rem; color: #2d3748;
+            background: #fff; transition: border-color .2s, box-shadow .2s;
+        }
+        .form-group input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,.12); }
+
+        .btn-register {
+            width: 100%; padding: .85rem; background: #1a73e8; color: #fff;
+            border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;
+            cursor: pointer; transition: background .2s; margin-top: .5rem;
+        }
+        .btn-register:hover { background: #1557b0; }
+
+        .login-row { text-align: center; margin-top: 1.5rem; font-size: .88rem; color: #718096; }
+        .login-row a { color: #1a73e8; font-weight: 600; text-decoration: none; }
+        .login-row a:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            .main { grid-template-columns: 1fr; }
+            .hero { display: none; }
+            .register-panel { border-left: none; padding: 2rem 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="/" class="brand">
+        <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
+             alt="EpiScience" onerror="this.style.display='none'">
+    </a>
+    <div class="nav-links">
+        <a href="#">Home</a>
+        <a href="#">About Us</a>
+        <a href="/login">Log-In</a>
+        <a href="#">Contact Us</a>
+    </div>
+</nav>
+
+<div class="main">
+
+    <!-- Left hero -->
+    <div class="hero">
+        <h1 class="hero-title"><span>EpiLite</span> AI Platform</h1>
+        <p class="hero-subtitle">
+            Join thousands of researchers using AI to accelerate evidence synthesis
+            across PubMed, Embase, RWE, and Conference literature.
+        </p>
+        <div class="feature-list">
+            <div class="feature-item"><i class="fas fa-search"></i> Multi-source literature search</div>
+            <div class="feature-item"><i class="fas fa-robot"></i> AI-powered article scoring</div>
+            <div class="feature-item"><i class="fas fa-file-excel"></i> One-click Excel / CSV export</div>
+            <div class="feature-item"><i class="fas fa-unlock-alt"></i> Full text extraction for free PMC articles</div>
+            <div class="feature-item"><i class="fas fa-chart-bar"></i> Keyword hit analysis & visualisation</div>
+        </div>
+    </div>
+
+    <!-- Right register panel -->
+    <div class="register-panel">
+        <div class="register-box">
+            <h2 class="register-title">Create an Account</h2>
+
+            {% if error %}
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i> {{ error }}
+            </div>
+            {% endif %}
+
+            <form action="/register" method="POST">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email"
+                           placeholder="your@email.com"
+                           value="{{ email or '' }}" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password"
+                           placeholder="Min. 6 characters" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password"
+                           placeholder="Repeat password" required>
+                </div>
+
+                <button type="submit" class="btn-register">Create Account</button>
+            </form>
+
+            <div class="login-row">
+                Already have an account? <a href="/login">Log in &rsaquo;</a>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

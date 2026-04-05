@@ -3,366 +3,437 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Search Results — PubMed Multi-Keyword Scraper</title>
+    <title>Search Results — EpiLite AI Platform</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f0f4f8; color: #2d3748; min-height: 100vh;
+            display: flex; flex-direction: column;
         }
 
         /* ── Navbar ─────────────────────────────── */
         .navbar {
-            background: #1a365d; padding: 0.75rem 1.5rem;
+            background: #1a365d; padding: 0 1.5rem;
             display: flex; align-items: center; justify-content: space-between;
-            box-shadow: 0 2px 8px rgba(0,0,0,.25);
-            position: sticky; top: 0; z-index: 200;
+            height: 52px; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+            position: sticky; top: 0; z-index: 200; flex-shrink: 0;
         }
-        .nav-brand { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: #fff; }
-        .logo-image { height: 50px; width: auto; object-fit: contain; }
-        .nav-brand span { font-size: 1.2rem; font-weight: 600; }
-        .nav-links { display: flex; gap: 1.5rem; }
-        .nav-links a {
-            color: #bee3f8; text-decoration: none; font-size: 0.9rem;
-            display: flex; align-items: center; gap: 0.4rem; transition: color .2s;
+        .nav-brand { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; color: #fff; }
+        .logo-image { height: 36px; width: auto; object-fit: contain; }
+        .nav-brand-title { font-size: 1.1rem; font-weight: 700; }
+        .nav-brand-title span { color: #63b3ed; font-style: italic; }
+        .nav-right { display: flex; align-items: center; gap: 1rem; }
+        .nav-right a {
+            color: #bee3f8; text-decoration: none; font-size: .88rem;
+            display: flex; align-items: center; gap: .35rem;
         }
-        .nav-links a:hover { color: #fff; }
+        .nav-right a:hover { color: #fff; }
+        .btn-logout {
+            background: #e53e3e; color: #fff; border: none; border-radius: 6px;
+            padding: .35rem .85rem; font-size: .82rem; font-weight: 600;
+            cursor: pointer; text-decoration: none;
+            display: flex; align-items: center; gap: .35rem;
+        }
+        .btn-logout:hover { background: #c53030; }
 
         /* ── Page header ─────────────────────────── */
         .page-header {
             background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
-            color: #fff; padding: 2rem 1.5rem; text-align: center;
+            color: #fff; padding: 1.5rem 1.5rem; text-align: center;
         }
-        .header-logo { margin-bottom: 1rem; }
+        .header-logo { margin-bottom: .75rem; }
         .header-logo-image {
-            height: 70px; width: auto; object-fit: contain;
+            height: 60px; width: auto; object-fit: contain;
             filter: drop-shadow(0 2px 6px rgba(0,0,0,.25));
         }
-        .page-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 0.4rem; }
-        .page-header p  { opacity: 0.85; font-size: 0.95rem; }
+        .page-header h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: .3rem; }
+        .page-header p  { opacity: 0.85; font-size: .88rem; }
 
-        /* ── Sticky filter bar ──────────────────── */
+        /* ── Body layout: sidebar + content ─────── */
+        .page-body {
+            display: flex;
+            flex: 1;
+            align-items: flex-start;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 1.25rem 1rem;
+            gap: 1.25rem;
+        }
+
+        /* ════════════════════════════════════════════
+           LEFT SIDEBAR FILTERS
+        ════════════════════════════════════════════ */
+        .sidebar {
+            width: 200px;
+            flex-shrink: 0;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,.07);
+            padding: 0 0 1rem;
+            position: sticky;
+            top: 64px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: .75rem 1rem .5rem;
+            font-size: .7rem;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #718096;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-clear {
+            font-size: .7rem; font-weight: 600; color: #e53e3e;
+            cursor: pointer; text-transform: none; letter-spacing: 0;
+        }
+        .sidebar-clear:hover { text-decoration: underline; }
+
+        /* Filter group */
+        .filter-group {
+            padding: .75rem 1rem .5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .filter-group:last-child { border-bottom: none; }
+
+        .filter-group-title {
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: #4a5568;
+            margin-bottom: .55rem;
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+        }
+
+        /* Radio + checkbox items */
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: .45rem;
+            margin-bottom: .38rem;
+            cursor: pointer;
+            font-size: .82rem;
+            color: #4a5568;
+            line-height: 1.3;
+        }
+        .filter-item:hover { color: #2b6cb0; }
+
+        .filter-item input[type="radio"],
+        .filter-item input[type="checkbox"] {
+            accent-color: #2b6cb0;
+            width: 13px;
+            height: 13px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        /* Custom date range */
+        .date-range-wrap {
+            display: none;
+            gap: .35rem;
+            margin-top: .4rem;
+            flex-direction: column;
+        }
+        .date-range-wrap.visible { display: flex; }
+        .date-range-wrap input {
+            width: 100%;
+            border: 1.5px solid #cbd5e0;
+            border-radius: 6px;
+            padding: .3rem .5rem;
+            font-size: .78rem;
+            color: #2d3748;
+        }
+        .date-range-wrap input:focus { outline: none; border-color: #2b6cb0; }
+
+        .see-more-link {
+            font-size: .75rem;
+            color: #2b6cb0;
+            cursor: pointer;
+            margin-top: .25rem;
+            display: inline-block;
+        }
+        .see-more-link:hover { text-decoration: underline; }
+
+        /* Active filters badge */
+        .active-filters-bar {
+            display: none;
+            flex-wrap: wrap;
+            gap: .4rem;
+            padding: .6rem 1rem;
+            background: #ebf8ff;
+            border-bottom: 1px solid #bee3f8;
+            font-size: .78rem;
+        }
+        .active-filters-bar.visible { display: flex; align-items: center; }
+        .filter-badge {
+            background: #2b6cb0; color: #fff;
+            border-radius: 12px; padding: .2rem .6rem;
+            display: flex; align-items: center; gap: .3rem; font-size: .72rem;
+        }
+        .filter-badge button {
+            background: none; border: none; color: #fff; cursor: pointer;
+            padding: 0; font-size: .72rem; line-height: 1;
+        }
+
+        /* ════════════════════════════════════════════
+           MAIN CONTENT AREA
+        ════════════════════════════════════════════ */
+        .content { flex: 1; min-width: 0; }
+
+        /* Summary banner */
+        .summary-banner {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            color: #fff; border-radius: 12px; padding: 1rem 1.25rem;
+            margin-bottom: 1rem; display: flex; flex-wrap: wrap;
+            align-items: center; gap: .85rem;
+            box-shadow: 0 4px 16px rgba(26,54,93,.2);
+        }
+        .sb-stat { display: flex; flex-direction: column; align-items: center; min-width: 80px; }
+        .sb-num { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+        .sb-label { font-size: .68rem; opacity: .8; text-transform: uppercase; letter-spacing: .05em; text-align: center; margin-top: .1rem; }
+        .sb-divider { width: 1px; height: 44px; background: rgba(255,255,255,.2); flex-shrink: 0; }
+        .sb-note { flex: 1; font-size: .8rem; opacity: .85; line-height: 1.55; min-width: 160px; }
+
+        /* Bulk download */
+        .bulk-panel {
+            background: #fff; border-radius: 10px; padding: .85rem 1.1rem;
+            margin-bottom: 1rem; box-shadow: 0 1px 6px rgba(0,0,0,.07);
+            display: flex; flex-wrap: wrap; align-items: center; gap: .75rem;
+        }
+        .bulk-panel-title { font-size: .85rem; font-weight: 700; color: #1a365d; white-space: nowrap; display: flex; align-items: center; gap: .4rem; }
+        .bulk-input { border: 1.5px solid #cbd5e0; border-radius: 7px; padding: .38rem .6rem; font-size: .82rem; color: #2d3748; width: 100px; }
+        .btn-bulk {
+            display: inline-flex; align-items: center; gap: .4rem;
+            background: linear-gradient(135deg, #276749, #22543d); color: #fff;
+            border: none; border-radius: 7px; padding: .45rem 1rem;
+            font-size: .82rem; font-weight: 600; cursor: pointer; text-decoration: none;
+        }
+        .btn-bulk:hover { opacity: .88; }
+        .bulk-note { font-size: .75rem; color: #718096; flex: 1; }
+
+        /* Filter bar */
         .filter-bar {
             background: #fff; border-bottom: 2px solid #e2e8f0;
             box-shadow: 0 2px 10px rgba(0,0,0,.08);
-            position: sticky; top: 68px; z-index: 100; padding: 0.75rem 1.5rem;
+            position: sticky; top: 52px; z-index: 100; padding: .65rem 1rem;
+            border-radius: 10px; margin-bottom: 1rem;
         }
-        .filter-inner {
-            max-width: 1100px; margin: 0 auto;
-            display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem;
-        }
-        .filter-label {
-            font-size: 0.85rem; font-weight: 700; color: #4a5568;
-            display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
-        }
-        .filter-group { display: flex; align-items: center; gap: 0.4rem; flex-wrap: nowrap; }
-        .filter-group label { font-size: 0.82rem; font-weight: 600; color: #4a5568; white-space: nowrap; }
-        .filter-group input[type="number"],
-        .filter-group select {
+        .filter-inner { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
+        .filter-group-inline { display: flex; align-items: center; gap: .4rem; flex-wrap: nowrap; }
+        .filter-group-inline label { font-size: .8rem; font-weight: 600; color: #4a5568; white-space: nowrap; }
+        .filter-group-inline input[type="number"],
+        .filter-group-inline select {
             border: 1.5px solid #cbd5e0; border-radius: 7px;
-            padding: 0.4rem 0.65rem; font-size: 0.85rem; color: #2d3748;
-            background: #fff; transition: border-color .2s;
+            padding: .35rem .6rem; font-size: .82rem; color: #2d3748; background: #fff;
         }
-        .filter-group input[type="number"] { width: 90px; }
-        .filter-group input[type="number"]:focus,
-        .filter-group select:focus {
-            outline: none; border-color: #2b6cb0;
-            box-shadow: 0 0 0 3px rgba(43,108,176,.1);
-        }
-        .filter-divider { width: 1px; height: 28px; background: #e2e8f0; flex-shrink: 0; }
+        .filter-group-inline input[type="number"] { width: 85px; }
+        .filter-divider { width: 1px; height: 24px; background: #e2e8f0; flex-shrink: 0; }
         .btn-apply {
             background: linear-gradient(135deg, #2b6cb0, #1a365d); color: #fff;
-            border: none; border-radius: 7px; padding: 0.45rem 1rem;
-            font-size: 0.85rem; font-weight: 600; cursor: pointer;
-            display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
-            transition: opacity .15s;
+            border: none; border-radius: 7px; padding: .38rem .9rem;
+            font-size: .82rem; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: .35rem;
         }
-        .btn-apply:hover { opacity: 0.88; }
-        .filter-showing { margin-left: auto; font-size: 0.8rem; color: #718096; white-space: nowrap; }
+        .btn-apply:hover { opacity: .88; }
+        .filter-showing { margin-left: auto; font-size: .78rem; color: #718096; white-space: nowrap; }
         .filter-showing strong { color: #2b6cb0; }
 
-        /* ── Container ──────────────────────────── */
-        .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
-
-        /* ── Top summary banner ─────────────────── */
-        .summary-banner {
-            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
-            color: #fff;
-            border-radius: 12px;
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1.25rem;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 1rem;
-            box-shadow: 0 4px 16px rgba(26,54,93,.25);
-        }
-        .summary-banner .sb-stat {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: 100px;
-        }
-        .summary-banner .sb-num {
-            font-size: 1.9rem;
-            font-weight: 800;
-            line-height: 1.1;
-            letter-spacing: -.5px;
-        }
-        .summary-banner .sb-label {
-            font-size: 0.72rem;
-            opacity: 0.8;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-            margin-top: .15rem;
-            text-align: center;
-        }
-        .sb-divider {
-            width: 1px; height: 50px;
-            background: rgba(255,255,255,.2);
-            flex-shrink: 0;
-        }
-        .sb-note {
-            flex: 1;
-            font-size: 0.82rem;
-            opacity: 0.85;
-            line-height: 1.55;
-            min-width: 200px;
-        }
-        .sb-note strong { opacity: 1; }
-
-        /* ── Bulk download panel ────────────────── */
-        .bulk-panel {
-            background: #fff;
-            border-radius: 10px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 1px 6px rgba(0,0,0,.07);
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.85rem;
-        }
-        .bulk-panel-title {
-            font-size: 0.88rem; font-weight: 700; color: #1a365d;
-            display: flex; align-items: center; gap: 0.4rem;
-            white-space: nowrap;
-        }
-        .bulk-input {
-            border: 1.5px solid #cbd5e0; border-radius: 7px;
-            padding: 0.4rem 0.65rem; font-size: 0.85rem;
-            color: #2d3748; width: 110px;
-        }
-        .bulk-input:focus { outline: none; border-color: #2b6cb0; }
-        .btn-bulk {
-            display: inline-flex; align-items: center; gap: 0.4rem;
-            background: linear-gradient(135deg, #276749, #22543d);
-            color: #fff; border: none; border-radius: 7px;
-            padding: 0.5rem 1.1rem; font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; text-decoration: none; white-space: nowrap;
-            transition: opacity .15s;
-        }
-        .btn-bulk:hover { opacity: 0.88; }
-        .bulk-note { font-size: 0.78rem; color: #718096; flex: 1; min-width: 180px; }
+        /* Action bar */
         .action-bar {
-            display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
-            background: #fff; border-radius: 10px; padding: 0.85rem 1.25rem;
+            display: flex; flex-wrap: wrap; align-items: center; gap: .65rem;
+            background: #fff; border-radius: 10px; padding: .75rem 1.1rem;
             margin-bottom: 1rem; box-shadow: 0 1px 6px rgba(0,0,0,.07);
         }
-        .action-bar p { font-size: 0.9rem; color: #4a5568; flex: 1; }
+        .action-bar p { font-size: .88rem; color: #4a5568; flex: 1; }
         .btn-new {
             background: linear-gradient(135deg, #2b6cb0, #1a365d); color: #fff;
-            text-decoration: none; padding: 0.5rem 1.1rem; border-radius: 8px;
-            font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;
+            text-decoration: none; padding: .45rem 1rem; border-radius: 8px;
+            font-size: .82rem; font-weight: 600; display: flex; align-items: center; gap: .35rem;
         }
-        .btn-new:hover { opacity: 0.9; }
+        .btn-new:hover { opacity: .9; }
 
-        /* ── Export bar ─────────────────────────── */
+        /* Export bar */
         .export-bar {
-            background: #fff; border-radius: 10px; padding: 0.85rem 1.25rem;
-            margin-bottom: 1.5rem; display: flex; align-items: center;
-            gap: 0.75rem; flex-wrap: wrap; box-shadow: 0 1px 6px rgba(0,0,0,.07);
+            background: #fff; border-radius: 10px; padding: .75rem 1.1rem;
+            margin-bottom: 1.25rem; display: flex; align-items: center;
+            gap: .65rem; flex-wrap: wrap; box-shadow: 0 1px 6px rgba(0,0,0,.07);
         }
-        .export-bar > span:first-child { font-size: 0.88rem; font-weight: 600; color: #4a5568; }
+        .export-bar > span:first-child { font-size: .85rem; font-weight: 600; color: #4a5568; }
         .btn-export {
-            display: inline-flex; align-items: center; gap: 0.35rem;
-            padding: 0.45rem 0.9rem; border-radius: 7px;
-            font-size: 0.83rem; font-weight: 600; text-decoration: none; transition: opacity .15s;
+            display: inline-flex; align-items: center; gap: .35rem;
+            padding: .38rem .85rem; border-radius: 7px;
+            font-size: .8rem; font-weight: 600; text-decoration: none; transition: opacity .15s;
         }
-        .btn-export:hover { opacity: 0.85; }
+        .btn-export:hover { opacity: .85; }
         .btn-csv   { background: #e6fffa; color: #234e52; }
         .btn-json  { background: #fefcbf; color: #744210; }
         .btn-excel { background: #f0fff4; color: #22543d; }
 
-        /* ── Keyword summary cards ──────────────── */
-        .kw-summary { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 2rem; }
+        /* Keyword summary cards */
+        .kw-summary { display: flex; flex-wrap: wrap; gap: .65rem; margin-bottom: 1.5rem; }
         .kw-card {
-            background: #fff; border-radius: 10px; padding: 0.85rem 1.1rem;
+            background: #fff; border-radius: 10px; padding: .75rem 1rem;
             box-shadow: 0 2px 8px rgba(0,0,0,.07); cursor: pointer;
             transition: transform .15s, box-shadow .15s;
-            min-width: 160px; border-top: 4px solid #2b6cb0;
+            min-width: 140px; border-top: 4px solid #2b6cb0;
             text-decoration: none; color: inherit; display: block;
         }
         .kw-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
-        .kw-card .kw-name  { font-size: 0.82rem; font-weight: 600; color: #4a5568; margin-bottom: 0.3rem; word-break: break-word; }
-        .kw-card .kw-total { font-size: 1.5rem; font-weight: 700; color: #2b6cb0; }
-        .kw-card .kw-shown { font-size: 0.8rem; color: #718096; }
+        .kw-name  { font-size: .78rem; font-weight: 600; color: #4a5568; margin-bottom: .25rem; word-break: break-word; }
+        .kw-total { font-size: 1.35rem; font-weight: 700; color: #2b6cb0; }
+        .kw-shown { font-size: .75rem; color: #718096; }
         .kw-free-badge {
-            display: inline-flex; align-items: center; gap: 0.25rem;
+            display: inline-flex; align-items: center; gap: .2rem;
             background: #f0fff4; color: #276749; border-radius: 10px;
-            padding: 0.15rem 0.5rem; font-size: 0.72rem; font-weight: 600; margin-top: 0.4rem;
+            padding: .12rem .45rem; font-size: .68rem; font-weight: 600; margin-top: .3rem;
         }
 
-        /* ── Keyword section ────────────────────── */
-        .kw-section { margin-bottom: 2.5rem; }
+        /* Keyword sections */
+        .kw-section { margin-bottom: 2rem; }
         .kw-section-header {
-            display: flex; align-items: center; gap: 0.75rem; background: #fff;
-            border-radius: 10px 10px 0 0; padding: 0.9rem 1.25rem;
+            display: flex; align-items: center; gap: .65rem; background: #fff;
+            border-radius: 10px 10px 0 0; padding: .8rem 1.1rem;
             border-left: 5px solid #2b6cb0; box-shadow: 0 1px 4px rgba(0,0,0,.06);
         }
-        .kw-section-header h2 { font-size: 1.05rem; font-weight: 700; color: #1a365d; flex: 1; }
-        .badge { border-radius: 12px; padding: 0.25rem 0.7rem; font-size: 0.78rem; font-weight: 600; }
+        .kw-section-header h2 { font-size: 1rem; font-weight: 700; color: #1a365d; flex: 1; }
+        .badge { border-radius: 12px; padding: .2rem .65rem; font-size: .75rem; font-weight: 600; }
         .badge-blue   { background: #ebf8ff; color: #2b6cb0; }
         .badge-green  { background: #f0fff4; color: #276749; }
         .badge-grey   { background: #edf2f7; color: #718096; }
         .badge-orange { background: #fffaf0; color: #c05621; }
 
-        /* ── Article card ───────────────────────── */
+        /* Article card */
         .article-list { display: flex; flex-direction: column; }
         .article-card {
             background: #fff; border-left: 4px solid transparent;
-            padding: 1.1rem 1.25rem; border-bottom: 1px solid #e2e8f0; transition: background .15s;
+            padding: 1rem 1.1rem; border-bottom: 1px solid #e2e8f0; transition: background .15s;
         }
         .article-card:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
         .article-card:hover { background: #f7fafc; }
-        .article-card.is-pmc     { border-left-color: #48bb78; }
-        .article-card.multi-kw   { border-left-color: #ed8936; }  /* orange = matched multiple keywords */
-        .article-card.is-pmc.multi-kw { border-left-color: #38a169; } /* both */
+        .article-card.is-pmc   { border-left-color: #48bb78; }
+        .article-card.multi-kw { border-left-color: #ed8936; }
 
-        .article-top {
-            display: flex; align-items: flex-start; gap: 0.75rem;
-            margin-bottom: 0.5rem; flex-wrap: wrap;
-        }
-        .article-title { flex: 1; font-weight: 600; font-size: 0.95rem; color: #1a365d; line-height: 1.45; }
+        .article-top { display: flex; align-items: flex-start; gap: .65rem; margin-bottom: .45rem; flex-wrap: wrap; }
+        .article-title { flex: 1; font-weight: 600; font-size: .9rem; color: #1a365d; line-height: 1.45; }
         .article-title a { color: inherit; text-decoration: none; }
         .article-title a:hover { color: #2b6cb0; text-decoration: underline; }
 
-        /* ── Right-side badges row ──────────────── */
-        .article-badges {
-            display: flex; flex-wrap: wrap; gap: 0.4rem;
-            align-items: flex-start; flex-shrink: 0;
-        }
+        .article-badges { display: flex; flex-wrap: wrap; gap: .35rem; align-items: flex-start; flex-shrink: 0; }
         .pmc-tag {
-            display: inline-flex; align-items: center; gap: 0.3rem;
+            display: inline-flex; align-items: center; gap: .25rem;
             background: #f0fff4; color: #276749; border: 1px solid #9ae6b4;
-            border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.76rem; font-weight: 700; white-space: nowrap;
+            border-radius: 6px; padding: .2rem .5rem; font-size: .72rem; font-weight: 700; white-space: nowrap;
         }
         .kw-match-tag {
-            display: inline-flex; align-items: center; gap: 0.3rem;
+            display: inline-flex; align-items: center; gap: .25rem;
             background: #fffaf0; color: #c05621; border: 1px solid #fbd38d;
-            border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.76rem; font-weight: 700; white-space: nowrap;
+            border-radius: 6px; padding: .2rem .5rem; font-size: .72rem; font-weight: 700; white-space: nowrap;
         }
         .kw-hits-tag {
-            display: inline-flex; align-items: center; gap: 0.3rem;
+            display: inline-flex; align-items: center; gap: .25rem;
             background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8;
-            border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.76rem; font-weight: 600; white-space: nowrap;
+            border-radius: 6px; padding: .2rem .5rem; font-size: .72rem; font-weight: 600; white-space: nowrap;
         }
-        /* Publication type badge — mirrors PubMed's grey pill */
         .pub-type-tag {
-            display: inline-flex; align-items: center; gap: 0.3rem;
+            display: inline-flex; align-items: center; gap: .25rem;
             background: #edf2f7; color: #4a5568; border: 1px solid #cbd5e0;
-            border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.76rem; font-weight: 600; white-space: nowrap;
+            border-radius: 6px; padding: .2rem .5rem; font-size: .72rem; font-weight: 600; white-space: nowrap;
         }
-        .pub-type-tag.review       { background: #ebf8ff; color: #2b6cb0; border-color: #bee3f8; }
-        .pub-type-tag.clinical     { background: #f0fff4; color: #276749; border-color: #9ae6b4; }
-        .pub-type-tag.meta         { background: #faf5ff; color: #553c9a; border-color: #d6bcfa; }
-        .pub-type-tag.rct          { background: #fffaf0; color: #c05621; border-color: #fbd38d; }
-        .pub-type-tag.case         { background: #fff5f5; color: #c53030; border-color: #feb2b2; }
-        .pmc-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; }
+        .pub-type-tag.review    { background: #ebf8ff; color: #2b6cb0; border-color: #bee3f8; }
+        .pub-type-tag.clinical  { background: #f0fff4; color: #276749; border-color: #9ae6b4; }
+        .pub-type-tag.meta      { background: #faf5ff; color: #553c9a; border-color: #d6bcfa; }
+        .pub-type-tag.rct       { background: #fffaf0; color: #c05621; border-color: #fbd38d; }
+        .pub-type-tag.case      { background: #fff5f5; color: #c53030; border-color: #feb2b2; }
 
-        /* ── Keyword hits breakdown panel ───────── */
-        .kw-hits-panel {
-            margin-top: 0.6rem;
-            background: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 0.6rem 0.85rem;
-            font-size: 0.8rem;
-        }
-        .kw-hits-panel-title {
-            font-weight: 700; color: #4a5568; margin-bottom: 0.45rem;
-            display: flex; align-items: center; gap: 0.35rem;
-        }
-        .kw-hit-row {
-            display: flex; align-items: center; gap: 0.6rem;
-            margin-bottom: 0.3rem;
-        }
-        .kw-hit-row:last-child { margin-bottom: 0; }
-        .kw-hit-label { color: #4a5568; min-width: 140px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
-        .kw-hit-bar-wrap { flex: 1; background: #e2e8f0; border-radius: 4px; height: 8px; min-width: 60px; }
-        .kw-hit-bar { height: 8px; border-radius: 4px; background: #2b6cb0; transition: width .3s; }
-        .kw-hit-count { font-weight: 700; color: #2b6cb0; min-width: 28px; text-align: right; flex-shrink: 0; }
+        .pmc-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .25rem; }
         .btn-pmc {
-            display: inline-flex; align-items: center; gap: 0.3rem;
-            border-radius: 6px; padding: 0.3rem 0.7rem;
-            font-size: 0.76rem; font-weight: 600; text-decoration: none; white-space: nowrap; transition: opacity .15s;
+            display: inline-flex; align-items: center; gap: .25rem;
+            border-radius: 6px; padding: .25rem .6rem;
+            font-size: .72rem; font-weight: 600; text-decoration: none; white-space: nowrap; transition: opacity .15s;
         }
-        .btn-pmc:hover { opacity: 0.82; }
+        .btn-pmc:hover { opacity: .82; }
         .btn-fulltext { background: #2b6cb0; color: #fff; }
         .btn-pdf      { background: #e53e3e; color: #fff; }
 
-        .article-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; font-size: 0.8rem; color: #718096; margin-bottom: 0.5rem; }
-        .article-meta span { display: flex; align-items: center; gap: 0.3rem; }
+        .article-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .77rem; color: #718096; margin-bottom: .4rem; }
+        .article-meta span { display: flex; align-items: center; gap: .25rem; }
 
-        .abstract-wrap { margin-top: 0.5rem; }
+        /* Keyword hits panel */
+        .kw-hits-panel {
+            margin-top: .5rem; background: #f7fafc;
+            border: 1px solid #e2e8f0; border-radius: 8px; padding: .5rem .75rem; font-size: .78rem;
+        }
+        .kw-hits-panel-title { font-weight: 700; color: #4a5568; margin-bottom: .35rem; display: flex; align-items: center; gap: .3rem; }
+        .kw-hit-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem; }
+        .kw-hit-label { color: #4a5568; min-width: 120px; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+        .kw-hit-bar-wrap { flex: 1; background: #e2e8f0; border-radius: 4px; height: 7px; min-width: 50px; }
+        .kw-hit-bar { height: 7px; border-radius: 4px; background: #2b6cb0; }
+        .kw-hit-count { font-weight: 700; color: #2b6cb0; min-width: 24px; text-align: right; flex-shrink: 0; }
+
+        .abstract-wrap { margin-top: .45rem; }
         .abstract-text {
-            font-size: 0.85rem; color: #4a5568; line-height: 1.65;
+            font-size: .82rem; color: #4a5568; line-height: 1.6;
             display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
         }
         .abstract-text.expanded { display: block; -webkit-line-clamp: unset; }
         .toggle-abstract {
-            background: none; border: none; color: #2b6cb0; font-size: 0.78rem;
-            cursor: pointer; padding: 0.2rem 0; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.3rem;
+            background: none; border: none; color: #2b6cb0; font-size: .75rem;
+            cursor: pointer; padding: .15rem 0; margin-top: .2rem; display: flex; align-items: center; gap: .25rem;
         }
         .toggle-abstract:hover { text-decoration: underline; }
 
-        /* ── Section dividers ───────────────────── */
+        /* Section dividers */
         .section-divider {
-            display: flex; align-items: center; gap: 0.75rem;
-            padding: 0.55rem 1.25rem; background: #f7fafc; border-bottom: 1px solid #e2e8f0;
-            font-size: 0.78rem; font-weight: 600; color: #718096;
+            display: flex; align-items: center; gap: .65rem;
+            padding: .5rem 1.1rem; background: #f7fafc; border-bottom: 1px solid #e2e8f0;
+            font-size: .75rem; font-weight: 600; color: #718096;
         }
         .section-divider::before, .section-divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
         .section-divider.orange { color: #c05621; background: #fffaf0; }
-        .section-divider.grey   { color: #718096; }
 
-        .no-results-msg { padding: 1.5rem; background: #fff; color: #718096; font-size: .9rem; border-radius: 0 0 10px 10px; text-align: center; }
-
-        /* ── Load More ──────────────────────────── */
+        /* Load more */
         .load-more-bar {
             background: #f7fafc; border-top: 1px solid #e2e8f0;
-            padding: 0.85rem 1.25rem; border-radius: 0 0 10px 10px;
-            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+            padding: .75rem 1.1rem; border-radius: 0 0 10px 10px;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem;
         }
-        .load-more-info { font-size: 0.82rem; color: #718096; }
+        .load-more-info { font-size: .78rem; color: #718096; }
         .load-more-info strong { color: #2b6cb0; }
         .btn-load-more {
-            display: inline-flex; align-items: center; gap: 0.5rem;
-            background: linear-gradient(135deg, #2b6cb0, #1a365d);
-            color: #fff; border: none; border-radius: 8px;
-            padding: 0.5rem 1.1rem; font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; transition: opacity .15s;
+            display: inline-flex; align-items: center; gap: .45rem;
+            background: linear-gradient(135deg, #2b6cb0, #1a365d); color: #fff;
+            border: none; border-radius: 8px; padding: .45rem 1rem;
+            font-size: .82rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
         }
-        .btn-load-more:hover  { opacity: 0.88; }
-        .btn-load-more:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-load-more:hover   { opacity: .88; }
+        .btn-load-more:disabled { opacity: .5; cursor: not-allowed; }
         .load-spinner { display: none; }
         .btn-load-more.loading .load-spinner { display: inline; }
         .btn-load-more.loading .load-icon   { display: none; }
 
-        /* ── Footer ─────────────────────────────── */
-        footer { text-align: center; padding: 2rem 1rem; color: #718096; font-size: 0.82rem; }
-        .footer-logo-image { height: 36px; width: auto; object-fit: contain; opacity: 0.7; display: block; margin: 0 auto 0.6rem; }
+        .no-results-msg { padding: 1.25rem; background: #fff; color: #718096; font-size: .88rem; border-radius: 0 0 10px 10px; text-align: center; }
+
+        /* Footer */
+        footer { text-align: center; padding: 1.5rem 1rem; color: #718096; font-size: .78rem; }
+        .footer-logo { height: 32px; width: auto; opacity: .7; display: block; margin: 0 auto .5rem; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .page-body { padding: .75rem .5rem; }
+        }
     </style>
 </head>
 <body>
@@ -371,12 +442,18 @@
 <nav class="navbar">
     <a href="/" class="nav-brand">
         <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
-             alt="EpiScience Logo" class="logo-image" onerror="this.style.display='none'">
-        <span>PubMed Scraper</span>
+             alt="EpiLite" class="logo-image" onerror="this.style.display='none'">
+        <span class="nav-brand-title"><span>EpiLite</span> AI Platform</span>
     </a>
-    <div class="nav-links">
+    <div class="nav-right">
         <a href="/"><i class="fas fa-home"></i> Home</a>
-        <a href="/about"><i class="fas fa-info-circle"></i> About</a>
+        <a href="/about"><i class="fas fa-info-circle"></i></a>
+        <span style="color:#bee3f8;font-size:.82rem">
+            <i class="fas fa-user-circle"></i> {{ session.get('user_name', 'User') }}
+        </span>
+        <a href="/logout" class="btn-logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
     </div>
 </nav>
 
@@ -384,7 +461,7 @@
 <div class="page-header">
     <div class="header-logo">
         <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
-             alt="EpiScience Logo" class="header-logo-image" onerror="this.style.display='none'">
+             alt="EpiLite" class="header-logo-image" onerror="this.style.display='none'">
     </div>
     <h1><i class="fas fa-poll"></i> Search Results</h1>
     <p>
@@ -394,599 +471,617 @@
     </p>
 </div>
 
-<!-- Sticky filter bar -->
-<div class="filter-bar">
-    <div class="filter-inner">
-        <span class="filter-label"><i class="fas fa-sliders-h"></i> Filter &amp; Sort</span>
+<!-- Page body: sidebar + content -->
+<div class="page-body">
 
-        <!-- Results limit -->
+    <!-- ════════════════════════════════════════
+         LEFT SIDEBAR FILTERS
+    ════════════════════════════════════════ -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            Filters
+            <span class="sidebar-clear" onclick="clearAllFilters()">Clear all</span>
+        </div>
+
+        <!-- Publication Date -->
         <div class="filter-group">
-            <label for="ctrl-limit">Results per keyword:</label>
-            <input type="number" id="ctrl-limit" value="1000" min="1" max="10000" placeholder="All">
-            <button onclick="document.getElementById('ctrl-limit').value='';applyFilters()"
-                    style="background:none;border:1.5px solid #cbd5e0;border-radius:7px;padding:.38rem .65rem;font-size:.8rem;color:#718096;cursor:pointer;white-space:nowrap;"
-                    title="Show all fetched articles">All</button>
-        </div>
-
-        <div class="filter-divider"></div>
-
-        <!-- Keyword-group sort (ascending/descending by article count) -->
-        <div class="filter-group">
-            <label for="ctrl-kw-sort">Sort keywords by count:</label>
-            <select id="ctrl-kw-sort">
-                <option value="ascending" selected>⬆ Ascending (fewest first)</option>
-                <option value="descending">⬇ Descending (most first)</option>
-            </select>
-        </div>
-
-        <div class="filter-divider"></div>
-
-        <!-- Article-level sort (NEW) -->
-        <div class="filter-group">
-            <label for="ctrl-art-sort">Sort articles by:</label>
-            <select id="ctrl-art-sort">
-                <option value="kw_match_pmc">Keyword matches &amp; Free PMC first</option>
-                <option value="kw_match">Keyword matches (most first)</option>
-                <option value="pmc_first">Free PMC first</option>
-                <option value="relevance">PubMed relevance</option>
-            </select>
-        </div>
-
-        <button class="btn-apply" onclick="applyFilters()">
-            <i class="fas fa-check"></i> Apply
-        </button>
-
-        <span class="filter-showing" id="filter-showing">
-            Showing <strong id="shown-count">{{ total_articles }}</strong> of
-            <strong>{{ total_articles }}</strong> total articles
-        </span>
-    </div>
-</div>
-
-<!-- Main content -->
-<div class="container">
-
-    <!-- ── Total match summary banner ──────────────────── -->
-    <div class="summary-banner">
-        <div class="sb-stat">
-            <span class="sb-num">{{ total_ncbi_articles | int | string | replace(',','') }}</span>
-            <span class="sb-label">Total matched<br>in NCBI</span>
-        </div>
-        <div class="sb-divider"></div>
-        <div class="sb-stat">
-            <span class="sb-num">{{ total_articles | int }}</span>
-            <span class="sb-label">Articles<br>fetched</span>
-        </div>
-        <div class="sb-divider"></div>
-        <div class="sb-stat">
-            <span class="sb-num" id="sb-shown">—</span>
-            <span class="sb-label">Currently<br>displayed</span>
-        </div>
-        {% if total_free_articles %}
-        <div class="sb-divider"></div>
-        <div class="sb-stat">
-            <span class="sb-num" style="color:#68d391">{{ total_free_articles }}</span>
-            <span class="sb-label">Free PMC<br>available</span>
-        </div>
-        {% endif %}
-        <div class="sb-divider"></div>
-        <div class="sb-stat">
-            <span class="sb-num">{{ keywords | length }}</span>
-            <span class="sb-label">Keywords<br>searched</span>
-        </div>
-        <div class="sb-note">
-            <strong>Showing first 1,000 articles by default.</strong><br>
-            Use the <i class="fas fa-sliders-h"></i> filter bar to change how many are displayed and exported.
-            Use <strong>Load More</strong> on any keyword section to fetch beyond the initial limit.
-        </div>
-    </div>
-
-    <!-- ── Bulk download panel ──────────────────────── -->
-    <div class="bulk-panel">
-        <span class="bulk-panel-title">
-            <i class="fas fa-cloud-download-alt"></i> Bulk Download CSV
-        </span>
-        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-            <label style="font-size:.82rem;font-weight:600;color:#4a5568;white-space:nowrap">
-                Articles per keyword:
+            <div class="filter-group-title">
+                <i class="fas fa-calendar-alt" style="color:#2b6cb0"></i>
+                Publication Date
+            </div>
+            <label class="filter-item">
+                <input type="radio" name="pub_date" value="" checked onchange="applyFilters()"> Any time
             </label>
-            <input type="number" id="bulk-target" class="bulk-input"
-                   value="10000" min="1" max="500000"
-                   placeholder="e.g. 50000">
+            <label class="filter-item">
+                <input type="radio" name="pub_date" value="1" onchange="applyFilters()"> 1 year
+            </label>
+            <label class="filter-item">
+                <input type="radio" name="pub_date" value="5" onchange="applyFilters()"> 5 years
+            </label>
+            <label class="filter-item">
+                <input type="radio" name="pub_date" value="10" onchange="applyFilters()"> 10 years
+            </label>
+            <label class="filter-item">
+                <input type="radio" name="pub_date" value="custom" onchange="toggleCustomDate()"> Custom Range
+            </label>
+            <div class="date-range-wrap" id="custom-date-wrap">
+                <input type="number" id="date-from" placeholder="From year" min="1900" max="2030" onchange="applyFilters()">
+                <input type="number" id="date-to"   placeholder="To year"   min="1900" max="2030" onchange="applyFilters()">
+            </div>
         </div>
-        <button class="btn-bulk" onclick="startBulkDownload()">
-            <i class="fas fa-file-csv"></i> Download CSV
-        </button>
-        <span class="bulk-note">
-            <i class="fas fa-info-circle"></i>
-            Streams directly to your browser — no server memory limit.
-            CSV only (Excel is limited to ~1M rows).
-            Large downloads may take several minutes.
-        </span>
-    </div>
 
-    <!-- Stats row -->
-    <div class="action-bar">
-        <p>
-            <i class="fas fa-list"></i>
-            <strong id="stat-shown">{{ [total_articles, 1000] | min }}</strong> articles shown
+        <!-- Text Availability -->
+        <div class="filter-group">
+            <div class="filter-group-title">
+                <i class="fas fa-file-alt" style="color:#2b6cb0"></i>
+                Text Availability
+            </div>
+            <label class="filter-item">
+                <input type="checkbox" id="f-abstract"  onchange="applyFilters()"> Abstract
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-free-pmc"  onchange="applyFilters()"> Free full text
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-full-text" onchange="applyFilters()"> Full text
+            </label>
+        </div>
+
+        <!-- Article Type -->
+        <div class="filter-group">
+            <div class="filter-group-title">
+                <i class="fas fa-tag" style="color:#2b6cb0"></i>
+                Article Type
+            </div>
+            <label class="filter-item">
+                <input type="checkbox" id="f-type-review"    onchange="applyFilters()"> Review
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-type-clinical"  onchange="applyFilters()"> Clinical Trial
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-type-rct"       onchange="applyFilters()"> Randomized Controlled Trial
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-type-meta"      onchange="applyFilters()"> Meta-Analysis
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-type-systematic" onchange="applyFilters()"> Systematic Review
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-type-case"      onchange="applyFilters()"> Case Reports
+            </label>
+        </div>
+
+        <!-- Article Attribute -->
+        <div class="filter-group">
+            <div class="filter-group-title">
+                <i class="fas fa-database" style="color:#2b6cb0"></i>
+                Article Attribute
+            </div>
+            <label class="filter-item">
+                <input type="checkbox" id="f-assoc-data" onchange="applyFilters()"> Associated data
+            </label>
+        </div>
+
+        <!-- Species -->
+        <div class="filter-group">
+            <div class="filter-group-title">
+                <i class="fas fa-dna" style="color:#2b6cb0"></i>
+                Species
+                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.65rem" title="Filter by study population"></i>
+            </div>
+            <label class="filter-item">
+                <input type="checkbox" id="f-humans" onchange="applyFilters()"> Humans
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-animals" onchange="applyFilters()"> Other Animals
+            </label>
+        </div>
+
+        <!-- Sex -->
+        <div class="filter-group">
+            <div class="filter-group-title">
+                <i class="fas fa-venus-mars" style="color:#2b6cb0"></i>
+                Sex
+                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.65rem" title="Filter by study population sex"></i>
+            </div>
+            <label class="filter-item">
+                <input type="checkbox" id="f-female" onchange="applyFilters()"> Female
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-male" onchange="applyFilters()"> Male
+            </label>
+        </div>
+
+        <!-- Age -->
+        <div class="filter-group">
+            <div class="filter-group-title">
+                <i class="fas fa-user-clock" style="color:#2b6cb0"></i>
+                Age
+                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.65rem" title="Filter by study population age"></i>
+            </div>
+            <label class="filter-item">
+                <input type="checkbox" id="f-child" onchange="applyFilters()"> Child: birth–18 years
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-adult" onchange="applyFilters()"> Adult: 19+ years
+            </label>
+            <div id="age-extra" style="display:none">
+                <label class="filter-item">
+                    <input type="checkbox" id="f-aged" onchange="applyFilters()"> Aged: 65+ years
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" id="f-infant" onchange="applyFilters()"> Infant: birth–23 months
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" id="f-newborn" onchange="applyFilters()"> Newborn: birth–1 month
+                </label>
+            </div>
+            <span class="see-more-link" id="age-toggle" onclick="toggleAgeFilters()">See all age filters</span>
+        </div>
+
+        <!-- Other -->
+        <div class="filter-group">
+            <div class="filter-group-title">
+                <i class="fas fa-ellipsis-h" style="color:#2b6cb0"></i>
+                Other
+                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.65rem"></i>
+            </div>
+            <label class="filter-item">
+                <input type="checkbox" id="f-exclude-preprints" onchange="applyFilters()"> Exclude preprints
+            </label>
+            <label class="filter-item">
+                <input type="checkbox" id="f-medline" onchange="applyFilters()"> MEDLINE
+            </label>
+        </div>
+    </aside>
+
+    <!-- ════════════════════════════════════════
+         MAIN CONTENT
+    ════════════════════════════════════════ -->
+    <div class="content">
+
+        <!-- Summary banner -->
+        <div class="summary-banner">
+            <div class="sb-stat">
+                <span class="sb-num">{{ total_ncbi_articles | default(total_articles) | int }}</span>
+                <span class="sb-label">Total in<br>NCBI</span>
+            </div>
+            <div class="sb-divider"></div>
+            <div class="sb-stat">
+                <span class="sb-num">{{ total_articles }}</span>
+                <span class="sb-label">Articles<br>fetched</span>
+            </div>
+            <div class="sb-divider"></div>
+            <div class="sb-stat">
+                <span class="sb-num" id="sb-shown">—</span>
+                <span class="sb-label">Currently<br>displayed</span>
+            </div>
             {% if total_free_articles %}
-            &nbsp;·&nbsp;
-            <span style="color:#276749"><i class="fas fa-unlock-alt"></i> {{ total_free_articles }} Free PMC</span>
+            <div class="sb-divider"></div>
+            <div class="sb-stat">
+                <span class="sb-num" style="color:#68d391">{{ total_free_articles }}</span>
+                <span class="sb-label">Free PMC<br>available</span>
+            </div>
             {% endif %}
-        </p>
-        <a href="/" class="btn-new"><i class="fas fa-search"></i> New Search</a>
-    </div>
+            <div class="sb-divider"></div>
+            <div class="sb-stat">
+                <span class="sb-num">{{ keywords|length }}</span>
+                <span class="sb-label">Keywords<br>searched</span>
+            </div>
+            <div class="sb-note">
+                <strong>Showing first 1,000 articles by default.</strong><br>
+                Use filters on the left or the controls below to refine results.
+            </div>
+        </div>
 
-    <!-- Export bar (hrefs updated by JS) -->
-    <div class="export-bar">
-        <span><i class="fas fa-download"></i> Export current view:</span>
-        <a id="export-csv"   href="#" class="btn-export btn-csv"
-           title="Includes full PDF text for Free PMC articles in a dedicated column.">
-            <i class="fas fa-file-csv"></i> CSV
-            <span style="font-size:.72rem;opacity:.8">(+ Full Text)</span></a>
-        <a id="export-json"  href="#" class="btn-export btn-json">
-            <i class="fas fa-file-code"></i> JSON</a>
-        <a id="export-excel" href="#" class="btn-export btn-excel"
-           title="Includes full PDF text for Free PMC articles. Large exports may take a moment.">
-            <i class="fas fa-file-excel"></i> Excel
-            <span style="font-size:.72rem;opacity:.8">(+ Full Text)</span></a>
-        <span style="font-size:.78rem;color:#a0aec0;margin-left:.25rem">
-            <i class="fas fa-info-circle"></i> Exports match current filter &amp; limit
-        </span>
-    </div>
+        <!-- Bulk download -->
+        <div class="bulk-panel">
+            <span class="bulk-panel-title"><i class="fas fa-cloud-download-alt"></i> Bulk Download CSV</span>
+            <div style="display:flex;align-items:center;gap:.4rem">
+                <label style="font-size:.78rem;font-weight:600;color:#4a5568;white-space:nowrap">Per keyword:</label>
+                <input type="number" id="bulk-target" class="bulk-input" value="10000" min="1" max="500000">
+            </div>
+            <button class="btn-bulk" onclick="startBulkDownload()">
+                <i class="fas fa-file-csv"></i> Download CSV
+            </button>
+            <span class="bulk-note"><i class="fas fa-info-circle"></i> Streams directly — no row limit. Large downloads may take minutes.</span>
+        </div>
 
-    <!-- Keyword summary cards -->
-    <div class="kw-summary" id="kw-summary"></div>
+        <!-- Sticky sort/limit bar -->
+        <div class="filter-bar">
+            <div class="filter-inner">
+                <span style="font-size:.82rem;font-weight:700;color:#4a5568"><i class="fas fa-sliders-h"></i> Sort &amp; Limit</span>
+                <div class="filter-group-inline">
+                    <label for="ctrl-limit">Results per keyword:</label>
+                    <input type="number" id="ctrl-limit" value="1000" min="1" max="10000" placeholder="All">
+                    <button onclick="document.getElementById('ctrl-limit').value='';applyFilters()"
+                        style="background:none;border:1.5px solid #cbd5e0;border-radius:6px;padding:.3rem .55rem;font-size:.75rem;color:#718096;cursor:pointer">All</button>
+                </div>
+                <div class="filter-divider"></div>
+                <div class="filter-group-inline">
+                    <label for="ctrl-kw-sort">Sort keywords:</label>
+                    <select id="ctrl-kw-sort">
+                        <option value="ascending" selected>⬆ Ascending</option>
+                        <option value="descending">⬇ Descending</option>
+                    </select>
+                </div>
+                <div class="filter-divider"></div>
+                <div class="filter-group-inline">
+                    <label for="ctrl-art-sort">Sort articles by:</label>
+                    <select id="ctrl-art-sort">
+                        <option value="kw_match_pmc">Keyword matches &amp; Free PMC</option>
+                        <option value="kw_match">Keyword matches (most first)</option>
+                        <option value="pmc_first">Free PMC first</option>
+                        <option value="relevance">PubMed relevance</option>
+                    </select>
+                </div>
+                <button class="btn-apply" onclick="applyFilters()"><i class="fas fa-check"></i> Apply</button>
+                <span class="filter-showing" id="filter-showing">
+                    Showing <strong id="shown-count">{{ total_articles }}</strong> of
+                    <strong>{{ total_articles }}</strong> articles
+                </span>
+            </div>
+        </div>
 
-    <!-- Article sections -->
-    <div id="kw-sections"></div>
-</div>
+        <!-- Stats + new search -->
+        <div class="action-bar">
+            <p>
+                <i class="fas fa-list"></i>
+                <strong id="stat-shown">{{ [total_articles, 1000]|min }}</strong> articles shown
+                {% if total_free_articles %}
+                &nbsp;·&nbsp;
+                <span style="color:#276749"><i class="fas fa-unlock-alt"></i> {{ total_free_articles }} Free PMC</span>
+                {% endif %}
+            </p>
+            <a href="/" class="btn-new"><i class="fas fa-search"></i> New Search</a>
+        </div>
+
+        <!-- Export bar -->
+        <div class="export-bar">
+            <span><i class="fas fa-download"></i> Export current view:</span>
+            <a id="export-csv"   href="#" class="btn-export btn-csv"
+               title="Includes full PDF text for Free PMC articles.">
+                <i class="fas fa-file-csv"></i> CSV <span style="font-size:.68rem;opacity:.8">(+ Full Text)</span></a>
+            <a id="export-json"  href="#" class="btn-export btn-json">
+                <i class="fas fa-file-code"></i> JSON</a>
+            <a id="export-excel" href="#" class="btn-export btn-excel"
+               title="Includes full PDF text. Large exports may take a moment.">
+                <i class="fas fa-file-excel"></i> Excel <span style="font-size:.68rem;opacity:.8">(+ Full Text)</span></a>
+            <span style="font-size:.73rem;color:#a0aec0;margin-left:.2rem">
+                <i class="fas fa-info-circle"></i> Exports match current filter &amp; limit
+            </span>
+        </div>
+
+        <!-- Keyword summary cards -->
+        <div class="kw-summary" id="kw-summary"></div>
+
+        <!-- Article sections -->
+        <div id="kw-sections"></div>
+
+    </div><!-- /content -->
+</div><!-- /page-body -->
 
 <footer>
     <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
-         alt="EpiScience Logo" class="footer-logo-image" onerror="this.style.display='none'">
-    &copy; 2025 EpiScience &nbsp;·&nbsp; PubMed Scraper &nbsp;·&nbsp; Powered by NCBI E-utilities
+         alt="EpiLite" class="footer-logo" onerror="this.style.display='none'">
+    &copy; 2025 EpiScience &nbsp;·&nbsp; EpiLite AI Platform &nbsp;·&nbsp; Powered by NCBI E-utilities
 </footer>
 
-<!-- All data from Flask -->
+<!-- Data from Flask -->
 <script>
-const ALL_DATA       = {{ keyword_summary | tojson }};
-const KEYWORDS_STR   = {{ keywords_str | tojson }};
-const TOTAL_ALL      = {{ total_articles }};
-const TOTAL_NCBI     = {{ total_ncbi_articles }};
-const SEARCH_ID      = {{ search_id | tojson }};
-const DEFAULT_LIMIT  = 1000;   // show first 1000 by default
+const ALL_DATA      = {{ keyword_summary | tojson }};
+const KEYWORDS_STR  = {{ keywords_str | tojson }};
+const TOTAL_ALL     = {{ total_articles }};
+const TOTAL_NCBI    = {{ total_ncbi_articles | default(total_articles) }};
+const SEARCH_ID     = {{ search_id | tojson }};
+const DEFAULT_LIMIT = 1000;
 
-/* ── Utilities ─────────────────────────────────────── */
-function esc(str) {
-    return String(str || '')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function trunc(str, n) {
-    if (!str || str.length <= n) return esc(str);
-    return esc(str.slice(0, n)) + '&hellip;';
-}
+/* ── Utilities ─────────────────────────────────── */
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function trunc(s,n){ return !s||s.length<=n?esc(s):esc(s.slice(0,n))+'&hellip;'; }
 
-/* ── Sort keyword groups by article count ──────────── */
-function sortKwGroups(data, order) {
-    return [...data].sort((a, b) =>
-        order === 'ascending' ? a.count - b.count : b.count - a.count);
-}
+/* ── Sidebar filter helpers ────────────────────── */
+function getChecked(id){ return document.getElementById(id)?.checked||false; }
 
-/* ── Sort articles within a group ─────────────────── */
-function sortArticles(articles, mode) {
-    const copy = [...articles];
-    switch (mode) {
-        case 'kw_match_pmc':
-            // Primary: Free PMC first
-            // Secondary: keyword_match_count desc
-            // Tertiary: keyword_total_hits desc
-            copy.sort((a, b) => {
-                const pmcDiff = (b.is_free_pmc ? 1 : 0) - (a.is_free_pmc ? 1 : 0);
-                if (pmcDiff !== 0) return pmcDiff;
-                const matchDiff = (b.keyword_match_count || 0) - (a.keyword_match_count || 0);
-                if (matchDiff !== 0) return matchDiff;
-                return (b.keyword_total_hits || 0) - (a.keyword_total_hits || 0);
-            });
-            break;
-        case 'kw_match':
-            // Primary: keyword_match_count desc
-            // Secondary: keyword_total_hits desc
-            // Tertiary: Free PMC first
-            copy.sort((a, b) => {
-                const matchDiff = (b.keyword_match_count || 0) - (a.keyword_match_count || 0);
-                if (matchDiff !== 0) return matchDiff;
-                const hitsDiff = (b.keyword_total_hits || 0) - (a.keyword_total_hits || 0);
-                if (hitsDiff !== 0) return hitsDiff;
-                return (b.is_free_pmc ? 1 : 0) - (a.is_free_pmc ? 1 : 0);
-            });
-            break;
-        case 'pmc_first':
-            copy.sort((a, b) =>
-                (b.is_free_pmc ? 1 : 0) - (a.is_free_pmc ? 1 : 0));
-            break;
-        case 'relevance':
-        default:
-            // Keep original PubMed relevance order (no sort)
-            break;
+function articlePassesSidebarFilters(art) {
+    // Publication date
+    const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value || '';
+    if (dateVal && dateVal !== 'custom') {
+        const years = parseInt(dateVal);
+        const cutYear = new Date().getFullYear() - years;
+        const pubYear = parseInt((art.publication_date||'').replace(/\D.*$/,''));
+        if (pubYear && pubYear < cutYear) return false;
     }
-    return copy;
+    if (dateVal === 'custom') {
+        const from = parseInt(document.getElementById('date-from').value);
+        const to   = parseInt(document.getElementById('date-to').value);
+        const pubYear = parseInt((art.publication_date||'').replace(/\D.*$/,''));
+        if (from && pubYear && pubYear < from) return false;
+        if (to   && pubYear && pubYear > to)   return false;
+    }
+
+    // Text availability
+    if (getChecked('f-free-pmc') && !art.is_free_pmc) return false;
+    if (getChecked('f-abstract') && (!art.abstract || art.abstract === 'N/A')) return false;
+
+    // Article type (check publication_type field)
+    const pt = (art.publication_type||'').toLowerCase();
+    if (getChecked('f-type-review')    && !pt.includes('review'))                          return false;
+    if (getChecked('f-type-clinical')  && !pt.includes('clinical trial'))                   return false;
+    if (getChecked('f-type-rct')       && !pt.includes('randomized'))                       return false;
+    if (getChecked('f-type-meta')      && !pt.includes('meta-analysis'))                    return false;
+    if (getChecked('f-type-systematic')&& !pt.includes('systematic'))                       return false;
+    if (getChecked('f-type-case')      && !pt.includes('case report'))                      return false;
+
+    // Species / sex / age — filter on affiliation / abstract keywords as proxy
+    const txt = ((art.abstract||'')+(art.affiliation||'')).toLowerCase();
+    if (getChecked('f-humans')  && !txt.includes('human') && !txt.includes('patient') && !txt.includes('cohort')) return false;
+    if (getChecked('f-female')  && !txt.includes('female') && !txt.includes('women') && !txt.includes('woman'))   return false;
+    if (getChecked('f-male')    && !txt.includes('male')   && !txt.includes('men'))                               return false;
+    if (getChecked('f-child')   && !txt.includes('child')  && !txt.includes('pediatric') && !txt.includes('adolescent')) return false;
+    if (getChecked('f-adult')   && !txt.includes('adult'))                                                        return false;
+    if (getChecked('f-aged')    && !txt.includes('elderly') && !txt.includes('aged') && !txt.includes('geriatric')) return false;
+
+    // Exclude preprints
+    if (getChecked('f-exclude-preprints') && (pt.includes('preprint') || (art.journal||'').toLowerCase().includes('preprint'))) return false;
+
+    // MEDLINE
+    if (getChecked('f-medline') && !(art.pmc_id && art.pmc_id !== 'N/A') && !pt.includes('journal article')) return false;
+
+    return true;
 }
 
-/* ── Render summary cards ──────────────────────────── */
-function renderCards(sorted, limit) {
-    document.getElementById('kw-summary').innerHTML = sorted.map((kw, i) => {
-        const fetched   = kw.fetched    || kw.count;
-        const ncbiTotal = kw.ncbi_total || kw.count;
-        const shown     = limit ? Math.min(fetched, limit) : fetched;
-        const hasMore   = kw.has_more || (ncbiTotal > fetched);
-        return `
-        <a href="#kws-${i}" class="kw-card">
+function toggleCustomDate() {
+    const wrap = document.getElementById('custom-date-wrap');
+    const isCustom = document.querySelector('input[name="pub_date"]:checked')?.value === 'custom';
+    wrap.classList.toggle('visible', isCustom);
+    applyFilters();
+}
+
+function toggleAgeFilters() {
+    const extra = document.getElementById('age-extra');
+    const toggle = document.getElementById('age-toggle');
+    const visible = extra.style.display !== 'none';
+    extra.style.display = visible ? 'none' : 'block';
+    toggle.textContent = visible ? 'See all age filters' : 'Hide age filters';
+}
+
+function clearAllFilters() {
+    // Reset all checkboxes
+    document.querySelectorAll('.sidebar input[type="checkbox"]').forEach(cb => cb.checked = false);
+    // Reset date radio to "Any time"
+    document.querySelector('input[name="pub_date"][value=""]').checked = true;
+    document.getElementById('custom-date-wrap').classList.remove('visible');
+    applyFilters();
+}
+
+/* ── Sort keyword groups ───────────────────────── */
+function sortKwGroups(data, order) {
+    return [...data].sort((a,b) => order==='ascending' ? a.count-b.count : b.count-a.count);
+}
+
+/* ── Sort articles ─────────────────────────────── */
+function sortArticles(articles, mode) {
+    const c = [...articles];
+    if (mode==='kw_match_pmc') c.sort((a,b) => { const p=(b.is_free_pmc?1:0)-(a.is_free_pmc?1:0); if(p) return p; const m=(b.keyword_match_count||0)-(a.keyword_match_count||0); if(m) return m; return (b.keyword_total_hits||0)-(a.keyword_total_hits||0); });
+    else if (mode==='kw_match') c.sort((a,b) => { const m=(b.keyword_match_count||0)-(a.keyword_match_count||0); if(m) return m; return (b.keyword_total_hits||0)-(a.keyword_total_hits||0); });
+    else if (mode==='pmc_first') c.sort((a,b) => (b.is_free_pmc?1:0)-(a.is_free_pmc?1:0));
+    return c;
+}
+
+/* ── Pub type badge ────────────────────────────── */
+function pubTypeBadge(label) {
+    if (!label||label==='N/A') return '';
+    const l=label.toLowerCase();
+    let cls='pub-type-tag';
+    if(l.includes('review')||l.includes('systematic')) cls+=' review';
+    else if(l.includes('clinical trial')||l.includes('controlled')) cls+=' rct';
+    else if(l.includes('meta-analysis')) cls+=' meta';
+    else if(l.includes('clinical study')||l.includes('observat')) cls+=' clinical';
+    else if(l.includes('case report')) cls+=' case';
+    return `<span class="${cls}"><i class="fas fa-tag"></i> ${esc(label)}</span>`;
+}
+
+/* ── Render summary cards ──────────────────────── */
+function renderCards(sorted, limit, filteredCounts) {
+    document.getElementById('kw-summary').innerHTML = sorted.map((kw,i) => {
+        const shown = filteredCounts[kw.keyword] ?? (limit ? Math.min(kw.count,limit) : kw.count);
+        const ncbt  = kw.ncbi_total || kw.count;
+        return `<a href="#kws-${i}" class="kw-card">
             <div class="kw-name">${esc(kw.keyword)}</div>
-            <div class="kw-total">${shown.toLocaleString()}
-                <span style="font-size:.85rem;color:#718096"> / ${ncbiTotal.toLocaleString()}</span>
-            </div>
-            <div class="kw-shown">${hasMore ? 'shown / available in NCBI' : 'shown / total'}</div>
-            ${kw.free_count ? `<div class="kw-free-badge"><i class="fas fa-unlock-alt"></i> ${kw.free_count} Free PMC</div>` : ''}
-            ${hasMore ? `<div class="kw-free-badge" style="background:#ebf8ff;color:#2b6cb0;border-radius:10px">
-                <i class="fas fa-plus-circle"></i> Load more available</div>` : ''}
+            <div class="kw-total">${shown.toLocaleString()}<span style="font-size:.8rem;color:#718096"> / ${ncbt.toLocaleString()}</span></div>
+            <div class="kw-shown">shown / available</div>
+            ${kw.free_count?`<div class="kw-free-badge"><i class="fas fa-unlock-alt"></i> ${kw.free_count} Free PMC</div>`:''}
         </a>`;
     }).join('');
 }
 
-/* ── Pub type badge helper ─────────────────────────── */
-function pubTypeBadge(label) {
-    if (!label || label === 'N/A') return '';
-    const l = label.toLowerCase();
-    let cls = 'pub-type-tag';
-    if (l.includes('review') || l.includes('systematic'))            cls += ' review';
-    else if (l.includes('clinical trial') || l.includes('controlled')) cls += ' rct';
-    else if (l.includes('meta-analysis'))                             cls += ' meta';
-    else if (l.includes('clinical study') || l.includes('observat')) cls += ' clinical';
-    else if (l.includes('case report') || l.includes('case study'))  cls += ' case';
-    return `<span class="${cls}"><i class="fas fa-tag"></i> ${esc(label)}</span>`;
-}
+/* ── Render one article ────────────────────────── */
+function renderArticle(art, uid) {
+    const multiKw = (art.keyword_match_count||0)>1;
+    const cls = ['article-card', art.is_free_pmc?'is-pmc':'', multiKw?'multi-kw':''].filter(Boolean).join(' ');
 
-/* ── Render one article ────────────────────────────── */
-function renderArticle(art, uid, artSortMode) {
-    const multiKw = (art.keyword_match_count || 0) > 1;
-    const cardClass = [
-        'article-card',
-        art.is_free_pmc ? 'is-pmc' : '',
-        multiKw ? 'multi-kw' : ''
-    ].filter(Boolean).join(' ');
-
-    // ── Badges ────────────────────────────────────────
     let badges = '';
-    if (art.pub_type_label && art.pub_type_label !== 'N/A') {
-        badges += pubTypeBadge(art.pub_type_label);
-    }
-    if (art.is_free_pmc) {
-        badges += `<span class="pmc-tag"><i class="fas fa-unlock-alt"></i> Free PMC</span>`;
-    }
-    if (multiKw) {
-        badges += `<span class="kw-match-tag" title="Matched: ${esc(art.matched_keywords || '')}">
-            <i class="fas fa-tags"></i> ${art.keyword_match_count} keyword matches</span>`;
-    }
-    if ((art.keyword_total_hits || 0) > 0) {
-        badges += `<span class="kw-hits-tag">
-            <i class="fas fa-search"></i> ${art.keyword_total_hits} total hits</span>`;
-    }
+    if (art.pub_type_label && art.pub_type_label!=='N/A') badges += pubTypeBadge(art.pub_type_label);
+    if (art.is_free_pmc) badges += `<span class="pmc-tag"><i class="fas fa-unlock-alt"></i> Free PMC</span>`;
+    if (multiKw) badges += `<span class="kw-match-tag" title="${esc(art.matched_keywords||'')}"><i class="fas fa-tags"></i> ${art.keyword_match_count} keyword matches</span>`;
+    if ((art.keyword_total_hits||0)>0) badges += `<span class="kw-hits-tag"><i class="fas fa-search"></i> ${art.keyword_total_hits} hits</span>`;
 
-    // ── PMC download buttons ──────────────────────────
-    const pmcBtns = art.is_free_pmc ? `
-        <div class="pmc-actions">
-            <a href="${esc(art.pmc_url)}" target="_blank" rel="noopener" class="btn-pmc btn-fulltext">
-                <i class="fas fa-book-open"></i> Full Text</a>
-            <a href="${esc(art.pdf_url)}" target="_blank" rel="noopener" class="btn-pmc btn-pdf">
-                <i class="fas fa-file-pdf"></i> PDF</a>
-        </div>` : '';
+    const pmcBtns = art.is_free_pmc ? `<div class="pmc-actions">
+        <a href="${esc(art.pmc_url)}" target="_blank" rel="noopener" class="btn-pmc btn-fulltext"><i class="fas fa-book-open"></i> Full Text</a>
+        <a href="${esc(art.pdf_url)}" target="_blank" rel="noopener" class="btn-pmc btn-pdf"><i class="fas fa-file-pdf"></i> PDF</a>
+    </div>` : '';
 
-    // ── Per-keyword hits breakdown panel ─────────────
+    // Keyword hits bar chart
     let hitsPanel = '';
     if (art.per_keyword_hits) {
         const rows = art.per_keyword_hits.split('; ').map(s => {
-            const colonIdx = s.lastIndexOf(':');
-            if (colonIdx === -1) return null;
-            return { kw: s.slice(0, colonIdx).trim(), count: parseInt(s.slice(colonIdx + 1).trim()) || 0 };
+            const ci = s.lastIndexOf(':'); if(ci===-1) return null;
+            return {kw: s.slice(0,ci).trim(), count: parseInt(s.slice(ci+1).trim())||0};
         }).filter(Boolean);
-
-        if (rows.length > 0) {
-            const maxCount = Math.max(...rows.map(r => r.count), 1);
-            const rowsHtml = rows.map(r => {
-                const pct = Math.round((r.count / maxCount) * 100);
-                return `
-                <div class="kw-hit-row">
+        if (rows.length) {
+            const mx = Math.max(...rows.map(r=>r.count),1);
+            hitsPanel = `<div class="kw-hits-panel">
+                <div class="kw-hits-panel-title"><i class="fas fa-chart-bar"></i> Keyword hits in title &amp; abstract</div>
+                ${rows.map(r=>`<div class="kw-hit-row">
                     <span class="kw-hit-label" title="${esc(r.kw)}">${esc(r.kw)}</span>
-                    <div class="kw-hit-bar-wrap">
-                        <div class="kw-hit-bar" style="width:${pct}%"></div>
-                    </div>
+                    <div class="kw-hit-bar-wrap"><div class="kw-hit-bar" style="width:${Math.round(r.count/mx*100)}%"></div></div>
                     <span class="kw-hit-count">${r.count}</span>
-                </div>`;
-            }).join('');
-
-            hitsPanel = `
-            <div class="kw-hits-panel">
-                <div class="kw-hits-panel-title">
-                    <i class="fas fa-chart-bar"></i>
-                    Keyword hits in title &amp; abstract
-                    <span style="font-weight:400;color:#718096;margin-left:.25rem">(times each keyword appears)</span>
-                </div>
-                ${rowsHtml}
+                </div>`).join('')}
             </div>`;
         }
     }
 
-    // ── Abstract ──────────────────────────────────────
-    const absBlock = (art.abstract && art.abstract !== 'N/A') ? `
-        <div class="abstract-wrap">
-            <div class="abstract-text" id="abs-${uid}">${esc(art.abstract)}</div>
-            <button class="toggle-abstract" onclick="toggleAbs('abs-${uid}',this)">
-                <i class="fas fa-chevron-down"></i> Show more</button>
-        </div>` : '';
+    const absBlock = (art.abstract && art.abstract!=='N/A') ? `<div class="abstract-wrap">
+        <div class="abstract-text" id="abs-${uid}">${esc(art.abstract)}</div>
+        <button class="toggle-abstract" onclick="toggleAbs('abs-${uid}',this)"><i class="fas fa-chevron-down"></i> Show more</button>
+    </div>` : '';
 
-    return `
-    <div class="${cardClass}">
+    return `<div class="${cls}">
         <div class="article-top">
-            <div class="article-title">
-                <a href="${esc(art.url)}" target="_blank" rel="noopener">${esc(art.title)}</a>
-            </div>
+            <div class="article-title"><a href="${esc(art.url)}" target="_blank" rel="noopener">${esc(art.title)}</a></div>
             <div class="article-badges">${badges}</div>
         </div>
         ${pmcBtns}
         <div class="article-meta">
             <span><i class="fas fa-fingerprint"></i> PMID: ${esc(art.pmid)}</span>
-            ${art.journal && art.journal!=='N/A' ? `<span><i class="fas fa-book"></i> ${trunc(art.journal,60)}</span>`:''}
-            ${art.publication_date && art.publication_date!=='N/A' ? `<span><i class="fas fa-calendar"></i> ${esc(art.publication_date)}</span>`:''}
-            ${art.publication_type && art.publication_type!=='N/A' ? `<span><i class="fas fa-file-alt"></i> ${esc(art.publication_type)}</span>`:''}
-            ${art.authors && art.authors!=='N/A' ? `<span><i class="fas fa-users"></i> ${trunc(art.authors,80)}</span>`:''}
-            ${art.country && art.country!=='N/A' ? `<span><i class="fas fa-globe"></i> ${esc(art.country)}</span>`:''}
-            ${art.pmc_id && art.pmc_id!=='N/A' ? `<span style="color:#276749"><i class="fas fa-database"></i> ${esc(art.pmc_id)}</span>`:''}
+            ${art.journal&&art.journal!=='N/A'?`<span><i class="fas fa-book"></i> ${trunc(art.journal,55)}</span>`:''}
+            ${art.publication_date&&art.publication_date!=='N/A'?`<span><i class="fas fa-calendar"></i> ${esc(art.publication_date)}</span>`:''}
+            ${art.publication_type&&art.publication_type!=='N/A'?`<span><i class="fas fa-file-alt"></i> ${esc(art.publication_type)}</span>`:''}
+            ${art.authors&&art.authors!=='N/A'?`<span><i class="fas fa-users"></i> ${trunc(art.authors,75)}</span>`:''}
+            ${art.country&&art.country!=='N/A'?`<span><i class="fas fa-globe"></i> ${esc(art.country)}</span>`:''}
+            ${art.pmc_id&&art.pmc_id!=='N/A'?`<span style="color:#276749"><i class="fas fa-database"></i> ${esc(art.pmc_id)}</span>`:''}
         </div>
-        ${hitsPanel}
-        ${absBlock}
+        ${hitsPanel}${absBlock}
     </div>`;
 }
 
-/* ── Render all keyword sections ───────────────────── */
-function renderSections(sorted, limit, artSortMode) {
-    let html = '';
+/* ── Render sections ───────────────────────────── */
+function renderSections(sorted, limit, artMode) {
+    let html=''; const filteredCounts={};
+    sorted.forEach((kw,i) => {
+        // Apply display limit first
+        const base = limit ? kw.results.slice(0,limit) : kw.results;
+        // Apply sidebar filters
+        const articles = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
+        filteredCounts[kw.keyword] = articles.length;
 
-    sorted.forEach((kw, i) => {
-        // Apply limit first, then sort
-        const base     = limit ? kw.results.slice(0, limit) : kw.results;
-        const articles = sortArticles(base, artSortMode);
+        const hasMore   = kw.has_more||(kw.ncbi_total||kw.count)>kw.count;
+        const countBadge = (limit&&kw.count>limit)
+            ?`<span class="badge badge-grey">Showing ${articles.length} of ${kw.count}</span>`
+            :`<span class="badge badge-blue">${articles.length} article${articles.length!==1?'s':''}</span>`;
+        const freeBadge  = articles.filter(a=>a.is_free_pmc).length
+            ?`<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${articles.filter(a=>a.is_free_pmc).length} Free PMC</span>`:'';
+        const multiBadge = articles.filter(a=>(a.keyword_match_count||0)>1).length
+            ?`<span class="badge badge-orange"><i class="fas fa-tags"></i> ${articles.filter(a=>(a.keyword_match_count||0)>1).length} multi-kw</span>`:'';
 
-        const shownFree  = articles.filter(a => a.is_free_pmc).length;
-        const shownMulti = articles.filter(a => (a.keyword_match_count || 0) > 1).length;
+        let rows=''; let phase=null;
+        if(!articles.length) rows='<div class="no-results-msg">No articles match the current filters.</div>';
+        else articles.forEach((art,j)=>{
+            let np = artMode==='kw_match_pmc'?(art.is_free_pmc&&(art.keyword_match_count||0)>1?'pmc-multi':art.is_free_pmc?'pmc':(art.keyword_match_count||0)>1?'multi':'regular'):artMode==='kw_match'?(art.keyword_match_count||0)>1?'multi':'regular':artMode==='pmc_first'?art.is_free_pmc?'pmc':'regular':null;
+            if(np&&np!==phase&&j>0){phase=np;let lbl='';if(np==='multi')lbl='<i class="fas fa-tags"></i> Matched Multiple Keywords';else if(np==='pmc')lbl='<i class="fas fa-unlock-alt"></i> Free PMC Articles';else if(np==='regular')lbl='<i class="fas fa-lock"></i> Other Articles';if(lbl)rows+=`<div class="section-divider${np==='multi'?' orange':''}">${lbl}</div>`;}
+            else if(j===0)phase=np;
+            rows+=renderArticle(art,`${i}-${j}`);
+        });
 
-        // Section header badges
-        const countBadge = (limit && kw.count > limit)
-            ? `<span class="badge badge-grey">Showing ${articles.length} of ${kw.count}</span>`
-            : `<span class="badge badge-blue">${articles.length} article${articles.length !== 1 ? 's' : ''}</span>`;
-        const freeBadge = shownFree
-            ? `<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${shownFree} Free PMC</span>` : '';
-        const multiBadge = shownMulti
-            ? `<span class="badge badge-orange"><i class="fas fa-tags"></i> ${shownMulti} multi-keyword matches</span>` : '';
+        const lmBar = hasMore?`<div class="load-more-bar" id="load-more-bar-${i}">
+            <span class="load-more-info">Showing <strong id="lm-fetched-${i}">${kw.fetched||kw.count}</strong> of <strong>${(kw.ncbi_total||kw.count).toLocaleString()}</strong> available</span>
+            <button class="btn-load-more" id="btn-lm-${i}" onclick="loadMore(${i},'${esc(kw.keyword)}',${kw.fetched||kw.count},${kw.ncbi_total||kw.count})">
+                <i class="fas fa-plus-circle load-icon"></i><i class="fas fa-spinner fa-spin load-spinner"></i>
+                Load ${Math.min(500,(kw.ncbi_total||kw.count)-(kw.fetched||kw.count)).toLocaleString()} more
+            </button></div>`:'';
 
-        // Build article rows with group dividers
-        let rows = '';
-        if (articles.length === 0) {
-            rows = '<div class="no-results-msg">No articles match the current filter.</div>';
-        } else {
-            let phase = null; // track current display group for dividers
-
-            articles.forEach((art, j) => {
-                let newPhase;
-                if (artSortMode === 'kw_match_pmc') {
-                    if (art.is_free_pmc && (art.keyword_match_count || 0) > 1)        newPhase = 'pmc-multi';
-                    else if (art.is_free_pmc)                                          newPhase = 'pmc';
-                    else if ((art.keyword_match_count || 0) > 1)                       newPhase = 'multi';
-                    else                                                               newPhase = 'regular';
-                } else if (artSortMode === 'kw_match') {
-                    newPhase = (art.keyword_match_count || 0) > 1 ? 'multi' : 'regular';
-                } else if (artSortMode === 'pmc_first') {
-                    newPhase = art.is_free_pmc ? 'pmc' : 'regular';
-                } else {
-                    newPhase = null; // no dividers in relevance mode
-                }
-
-                if (newPhase !== null && newPhase !== phase) {
-                    phase = newPhase;
-                    if (j > 0) { // don't insert divider before very first article
-                        let divLabel = '';
-                        switch (newPhase) {
-                            case 'multi':    divLabel = '<i class="fas fa-tags"></i> Matched Multiple Keywords'; break;
-                            case 'pmc':      divLabel = '<i class="fas fa-unlock-alt"></i> Free PMC Articles'; break;
-                            case 'regular':  divLabel = '<i class="fas fa-lock"></i> Other Articles'; break;
-                        }
-                        if (divLabel) {
-                            const cls = newPhase === 'multi' ? 'section-divider orange' : 'section-divider grey';
-                            rows += `<div class="${cls}">${divLabel}</div>`;
-                        }
-                    }
-                }
-
-                rows += renderArticle(art, `${i}-${j}`, artSortMode);
-            });
-        }
-
-        html += `
-        <div class="kw-section" id="kws-${i}">
-            <div class="kw-section-header">
-                <h2><i class="fas fa-tag"></i> ${esc(kw.keyword)}</h2>
-                ${countBadge}${freeBadge}${multiBadge}
-            </div>
+        html+=`<div class="kw-section" id="kws-${i}">
+            <div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw.keyword)}</h2>${countBadge}${freeBadge}${multiBadge}</div>
             <div class="article-list" id="article-list-${i}">${rows}</div>
-            ${renderLoadMoreBar(kw, i)}
+            ${lmBar}
         </div>`;
     });
-
-    document.getElementById('kw-sections').innerHTML = html;
+    document.getElementById('kw-sections').innerHTML=html;
+    return filteredCounts;
 }
 
-/* ── Render Load More bar for a keyword ────────────── */
-function renderLoadMoreBar(kw, idx) {
-    const fetched   = kw.fetched    || kw.count;
-    const ncbiTotal = kw.ncbi_total || kw.count;
-    const hasMore   = kw.has_more   || (ncbiTotal > fetched);
-    if (!hasMore) return '';
-
-    const remaining = ncbiTotal - fetched;
-    const nextBatch = Math.min(500, remaining);
-
-    return `
-    <div class="load-more-bar" id="load-more-bar-${idx}">
-        <span class="load-more-info">
-            Showing <strong id="lm-fetched-${idx}">${fetched}</strong> of
-            <strong>${ncbiTotal.toLocaleString()}</strong> available articles
-        </span>
-        <button class="btn-load-more"
-                id="btn-lm-${idx}"
-                onclick="loadMore(${idx}, '${esc(kw.keyword)}', ${fetched}, ${ncbiTotal})">
-            <i class="fas fa-plus-circle load-icon"></i>
-            <i class="fas fa-spinner fa-spin load-spinner"></i>
-            Load ${nextBatch.toLocaleString()} more
-            <span style="opacity:.75;font-size:.78rem">(${remaining.toLocaleString()} remaining)</span>
-        </button>
-    </div>`;
-}
-
-/* ── Update export link hrefs ──────────────────────── */
+/* ── Update export links ───────────────────────── */
 function updateExports(limit, kwOrder) {
-    const max = limit || 10000;
-    const qs  = `keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
-    ['csv','json','excel'].forEach(fmt =>
-        document.getElementById(`export-${fmt}`).href = `/export/multi/${fmt}?${qs}`);
+    const max = limit||10000;
+    const qs=`keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
+    ['csv','json','excel'].forEach(f=>document.getElementById(`export-${f}`).href=`/export/multi/${f}?${qs}`);
 }
 
-/* ── Update counter labels ─────────────────────────── */
-function updateCounters(sorted, limit) {
-    const shown = sorted.reduce((s, kw) => s + (limit ? Math.min(kw.count, limit) : kw.count), 0);
-    const shownFmt = shown.toLocaleString();
-    document.getElementById('shown-count').textContent = shownFmt;
-    document.getElementById('stat-shown').textContent  = shownFmt;
-    const sbShown = document.getElementById('sb-shown');
-    if (sbShown) sbShown.textContent = shownFmt;
-    document.getElementById('filter-showing').innerHTML =
-        `Showing <strong>${shownFmt}</strong> of <strong>${TOTAL_ALL.toLocaleString()}</strong> fetched &nbsp;·&nbsp; <strong>${TOTAL_NCBI.toLocaleString()}</strong> total in NCBI`;
-    document.getElementById('header-showing').textContent =
-        `${shownFmt} of ${TOTAL_NCBI.toLocaleString()} matched`;
+/* ── Update counters ───────────────────────────── */
+function updateCounters(sorted, limit, filteredCounts) {
+    const shown = Object.values(filteredCounts).reduce((s,v)=>s+v,0);
+    const fmt = n=>n.toLocaleString();
+    document.getElementById('shown-count').textContent = fmt(shown);
+    document.getElementById('stat-shown').textContent  = fmt(shown);
+    const sb=document.getElementById('sb-shown'); if(sb)sb.textContent=fmt(shown);
+    document.getElementById('filter-showing').innerHTML=`Showing <strong>${fmt(shown)}</strong> of <strong>${fmt(TOTAL_ALL)}</strong> fetched &nbsp;·&nbsp; <strong>${fmt(TOTAL_NCBI)}</strong> total in NCBI`;
+    document.getElementById('header-showing').textContent=`${fmt(shown)} of ${fmt(TOTAL_NCBI)} matched`;
 }
 
-/* ── Load More — fetch next batch via AJAX ─────────── */
-async function loadMore(idx, keyword, currentOffset, ncbiTotal) {
-    const btn  = document.getElementById(`btn-lm-${idx}`);
-    const list = document.getElementById(`article-list-${idx}`);
-    const bar  = document.getElementById(`load-more-bar-${idx}`);
-    if (!btn || !list) return;
-
-    btn.disabled = true;
-    btn.classList.add('loading');
-
-    try {
-        const resp = await fetch('/api/load_more', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                keyword:      keyword,
-                offset:       currentOffset,
-                batch:        500,
-                all_keywords: KEYWORDS_STR.split(',').map(k => k.trim())
-            })
-        });
-
-        const data = await resp.json();
-        if (data.error) { alert('Load more failed: ' + data.error); return; }
-
-        // Append new articles to the list
-        const artMode  = document.getElementById('ctrl-art-sort').value;
-        const startIdx = list.querySelectorAll('.article-card').length;
-        data.articles.forEach((art, j) => {
-            list.insertAdjacentHTML('beforeend', renderArticle(art, `lm-${idx}-${startIdx + j}`, artMode));
-        });
-
-        // Update fetched count label
-        const newOffset = data.offset;
-        const fetchedEl = document.getElementById(`lm-fetched-${idx}`);
-        if (fetchedEl) fetchedEl.textContent = newOffset;
-
-        // Update or hide Load More bar
-        if (data.has_more) {
-            const remaining = data.ncbi_total - newOffset;
-            const nextBatch = Math.min(500, remaining);
-            btn.disabled = false;
-            btn.classList.remove('loading');
-            btn.setAttribute('onclick', `loadMore(${idx}, '${esc(keyword)}', ${newOffset}, ${data.ncbi_total})`);
-            btn.innerHTML = `
-                <i class="fas fa-plus-circle load-icon"></i>
-                <i class="fas fa-spinner fa-spin load-spinner"></i>
-                Load ${nextBatch.toLocaleString()} more
-                <span style="opacity:.75;font-size:.78rem">(${remaining.toLocaleString()} remaining)</span>`;
-        } else {
-            bar.innerHTML = `<span class="load-more-info" style="width:100%;text-align:center">
-                <i class="fas fa-check-circle" style="color:#276749"></i>
-                All ${data.ncbi_total.toLocaleString()} articles loaded</span>`;
-        }
-
-        // Update overall shown counter
-        const shownEl = document.getElementById('stat-shown');
-        if (shownEl) shownEl.textContent = parseInt(shownEl.textContent) + data.fetched;
-
-    } catch (e) {
-        alert('Network error: ' + e.message);
-        btn.disabled = false;
-        btn.classList.remove('loading');
-    }
-}
-
-/* ── Bulk CSV download ─────────────────────────────── */
-function startBulkDownload() {
-    const target  = parseInt(document.getElementById('bulk-target').value, 10) || 10000;
-    const already = 0;   // always start from beginning for bulk
-
-    if (target > 100000) {
-        if (!confirm(
-            `You're about to download up to ${target.toLocaleString()} articles per keyword.\n` +
-            `This may take a long time.\n\nContinue?`
-        )) return;
-    }
-
-    const qs = new URLSearchParams({
-        keywords: KEYWORDS_STR,
-        target:   target,
-        already:  already,
-    });
-    window.location.href = `/export/bulk_csv?${qs.toString()}`;
-}
-
-/* ── Main apply ────────────────────────────────────── */
+/* ── Main apply ────────────────────────────────── */
 function applyFilters() {
     const limitRaw = document.getElementById('ctrl-limit').value.trim();
-    // Use typed value, or DEFAULT_LIMIT if blank, or null if user clears to "All"
-    const limit    = limitRaw ? Math.max(1, parseInt(limitRaw, 10)) : DEFAULT_LIMIT;
+    const limit    = limitRaw ? Math.max(1,parseInt(limitRaw,10)) : DEFAULT_LIMIT;
     const kwOrder  = document.getElementById('ctrl-kw-sort').value;
     const artMode  = document.getElementById('ctrl-art-sort').value;
-
-    const sorted = sortKwGroups(ALL_DATA, kwOrder);
-    renderCards(sorted, limit);
-    renderSections(sorted, limit, artMode);
+    const sorted   = sortKwGroups(ALL_DATA, kwOrder);
+    renderCards(sorted, limit, {});
+    const fc = renderSections(sorted, limit, artMode);
+    renderCards(sorted, limit, fc);
     updateExports(limit, kwOrder);
-    updateCounters(sorted, limit);
+    updateCounters(sorted, limit, fc);
 }
 
-/* ── Abstract toggle ───────────────────────────────── */
-function toggleAbs(id, btn) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const exp = el.classList.toggle('expanded');
-    btn.innerHTML = exp
-        ? '<i class="fas fa-chevron-up"></i> Show less'
-        : '<i class="fas fa-chevron-down"></i> Show more';
+/* ── Load More ─────────────────────────────────── */
+async function loadMore(idx, keyword, currentOffset, ncbiTotal) {
+    const btn=document.getElementById(`btn-lm-${idx}`);
+    const list=document.getElementById(`article-list-${idx}`);
+    const bar=document.getElementById(`load-more-bar-${idx}`);
+    if(!btn||!list) return;
+    btn.disabled=true; btn.classList.add('loading');
+    try {
+        const resp=await fetch('/api/load_more',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({keyword,offset:currentOffset,batch:500,all_keywords:KEYWORDS_STR.split(',').map(k=>k.trim())})});
+        const data=await resp.json();
+        if(data.error){alert('Load more failed: '+data.error);return;}
+        const artMode=document.getElementById('ctrl-art-sort').value;
+        const start=list.querySelectorAll('.article-card').length;
+        data.articles.forEach((art,j)=>list.insertAdjacentHTML('beforeend',renderArticle(art,`lm-${idx}-${start+j}`)));
+        const newOff=data.offset;
+        const fetchedEl=document.getElementById(`lm-fetched-${idx}`);
+        if(fetchedEl)fetchedEl.textContent=newOff;
+        if(data.has_more){
+            const rem=data.ncbi_total-newOff;
+            btn.disabled=false; btn.classList.remove('loading');
+            btn.setAttribute('onclick',`loadMore(${idx},'${esc(keyword)}',${newOff},${data.ncbi_total})`);
+            btn.innerHTML=`<i class="fas fa-plus-circle load-icon"></i><i class="fas fa-spinner fa-spin load-spinner"></i>Load ${Math.min(500,rem).toLocaleString()} more`;
+        } else {
+            bar.innerHTML=`<span class="load-more-info" style="width:100%;text-align:center"><i class="fas fa-check-circle" style="color:#276749"></i> All ${data.ncbi_total.toLocaleString()} articles loaded</span>`;
+        }
+        const shownEl=document.getElementById('stat-shown');
+        if(shownEl)shownEl.textContent=(parseInt(shownEl.textContent.replace(/,/g,''))+data.fetched).toLocaleString();
+    } catch(e){alert('Network error: '+e.message);btn.disabled=false;btn.classList.remove('loading');}
 }
 
-/* ── Initial render ────────────────────────────────── */
+/* ── Bulk CSV ──────────────────────────────────── */
+function startBulkDownload() {
+    const target=parseInt(document.getElementById('bulk-target').value,10)||10000;
+    if(target>100000&&!confirm(`Download up to ${target.toLocaleString()} articles per keyword?\nThis may take a long time.\n\nContinue?`)) return;
+    const qs=new URLSearchParams({keywords:KEYWORDS_STR,target,already:0});
+    window.location.href=`/export/bulk_csv?${qs}`;
+}
+
+/* ── Abstract toggle ───────────────────────────── */
+function toggleAbs(id,btn){
+    const el=document.getElementById(id); if(!el)return;
+    const exp=el.classList.toggle('expanded');
+    btn.innerHTML=exp?'<i class="fas fa-chevron-up"></i> Show less':'<i class="fas fa-chevron-down"></i> Show more';
+}
+
+/* ── Initial render ────────────────────────────── */
 applyFilters();
 </script>
 </body>

@@ -3,7 +3,10 @@ PubMed Scraper - Multi-Keyword Search Version
 Search multiple keywords and display results sorted by article count
 """
 
-from flask import Flask, render_template, request, jsonify, send_file
+import os
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
 from Bio import Entrez
 import pandas as pd
 import json
@@ -750,11 +753,34 @@ def add_full_text_column(df, keywords=None):
 # ============================================================================
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET', 'change-me-in-production')
+
+# ── User accounts ─────────────────────────────────────────────────────────────
+# Simple in-memory user store. For production use a database.
+# HOW TO ADD A USER:
+#   from werkzeug.security import generate_password_hash
+#   print(generate_password_hash("their_password"))
+#   # paste the output as the password value below
+
+USERS = {
+    # email: hashed_password
+    # Add your users here. Generate hash with: generate_password_hash("password")
+    "admin@episcience.com": generate_password_hash("admin123"),
+    "sreekanth.dabbara@gmail.com": generate_password_hash("epi2024"),
+}
+
+def login_required(f):
+    """Decorator — redirects to login page if user is not logged in."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_email' not in session:
+            return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated
 
 # ── NCBI credentials ──────────────────────────────────────────────────────────
 # REQUIRED: change to your email
-NCBI_EMAIL = "sreekanth.dabbara@gmail.com"
+NCBI_EMAIL = "your.email@example.com"
 
 # OPTIONAL but RECOMMENDED: free API key from https://www.ncbi.nlm.nih.gov/account/
 # Adding a key raises the rate limit from 3 → 10 req/s and cuts search time ~3x
@@ -774,13 +800,81 @@ _search_cache: dict = {}
 CACHE_MAX = 20   # keep last 20 searches in memory
 
 
+# ── Auth routes ──────────────────────────────────────────────────────────────
+
+@app.route('/login', methods=['GET', 'POST'])
+def login_page():
+    """Login page."""
+    if 'user_email' in session:
+        return redirect(url_for('index'))   # already logged in
+
+    if request.method == 'POST':
+        email    = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        remember = request.form.get('remember')
+
+        user_hash = USERS.get(email)
+        if user_hash and check_password_hash(user_hash, password):
+            session.permanent = bool(remember)
+            session['user_email'] = email
+            session['user_name']  = email.split('@')[0].title()
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html',
+                                   error="Invalid email or password. Please try again.",
+                                   email=email)
+
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    """Clear session and redirect to login."""
+    session.clear()
+    return redirect(url_for('login_page'))
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Simple self-registration — adds user to in-memory store."""
+    if request.method == 'POST':
+        email    = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm  = request.form.get('confirm_password', '')
+
+        if not email or not password:
+            return render_template('register.html', error="Email and password are required.")
+        if password != confirm:
+            return render_template('register.html', error="Passwords do not match.", email=email)
+        if len(password) < 6:
+            return render_template('register.html', error="Password must be at least 6 characters.", email=email)
+        if email in USERS:
+            return render_template('register.html', error="An account with that email already exists.", email=email)
+
+        USERS[email] = generate_password_hash(password)
+        return render_template('login.html', message="Account created! You can now log in.")
+
+    return render_template('register.html')
+
+
+@app.route('/forgot-password')
+def forgot_password():
+    """Placeholder — implement email reset for production."""
+    return render_template('login.html',
+                           message="Password reset is not yet configured. Contact your administrator.")
+
+
+# ── Main app routes (all protected by login_required) ────────────────────────
+
 @app.route('/')
+@login_required
 def index():
     """Home page with search form"""
     return render_template('index_multi_with_logo.html', recent_searches=recent_searches[:10])
 
 
 @app.route('/search', methods=['POST'])
+@login_required
 def search():
     """Handle multi-keyword search requests — fetches ALL results, filtering done on results page"""
     try:
@@ -886,6 +980,7 @@ def search():
 
 
 @app.route('/search_url', methods=['POST'])
+@login_required
 def search_url():
     """
     Handle PubMed URL-based search.
@@ -1100,6 +1195,7 @@ def api_search_multi():
 
 
 @app.route('/api/load_more', methods=['POST'])
+@login_required
 def load_more():
     """
     Fetch the next batch of articles for a single keyword starting at an offset.
@@ -1270,6 +1366,7 @@ def _split_fulltext_across_cells(ws, wrap_align):
 
 
 @app.route('/export/multi/<format>')
+@login_required
 def export_multi(format):
     """Export results — reads from cache if available, else re-searches."""
     try:
@@ -1476,6 +1573,7 @@ def about():
 
 
 @app.route('/export/bulk_csv')
+@login_required
 def export_bulk_csv():
     """
     Streaming bulk CSV export — fetches articles from NCBI in batches of 500
@@ -1666,4 +1764,4 @@ if __name__ == '__main__':
     print("Press Ctrl+C to stop")
     print("=" * 60)
     
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)

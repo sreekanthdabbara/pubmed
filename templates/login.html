@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EpiLite AI Platform — Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Top navbar ─────────────────────────────── */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2.5rem;
+            border-bottom: 1px solid #e8edf2;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .brand-logo {
+            height: 36px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2.5rem;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #4a5568;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color .2s;
+        }
+
+        .nav-links a:hover { color: #1a73e8; }
+        .nav-links a.active {
+            color: #1a73e8;
+            font-weight: 700;
+            border-bottom: 2px solid #1a73e8;
+            padding-bottom: 2px;
+        }
+
+        /* ── Main layout ─────────────────────────────── */
+        .main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 480px;
+            min-height: calc(100vh - 65px);
+        }
+
+        /* ── Left hero panel ─────────────────────────── */
+        .hero {
+            background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 3rem 3.5rem;
+        }
+
+        .hero-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 1rem;
+            line-height: 1.3;
+        }
+
+        .hero-title span {
+            color: #1a73e8;
+            font-style: italic;
+        }
+
+        .hero-subtitle {
+            font-size: 1rem;
+            color: #4a5568;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+            max-width: 480px;
+        }
+
+        .funnel-wrap {
+            width: 100%;
+            max-width: 620px;
+            margin-top: 1.5rem;
+        }
+
+        .funnel-img {
+            width: 100%;
+            max-width: 200%;
+            height: auto;
+            border-radius: 16px;
+            display: block;
+        }
+
+        /* ── Right login panel ───────────────────────── */
+        .login-panel {
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 3rem 3rem;
+            border-left: 1px solid #e8edf2;
+        }
+
+        .login-box {
+            max-width: 380px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .login-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 1.75rem;
+        }
+
+        /* ── Alert ───────────────────────────────────── */
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.25rem;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .alert-error   { background: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+        .alert-success { background: #f0fff4; color: #276749; border: 1px solid #9ae6b4; }
+
+        /* ── Form ────────────────────────────────────── */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 0.4rem;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+
+        .form-group input {
+            width: 100%;
+            border: 1.5px solid #cbd5e0;
+            border-radius: 8px;
+            padding: 0.75rem 2.5rem 0.75rem 0.9rem;
+            font-size: 0.95rem;
+            color: #2d3748;
+            background: #fff;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26,115,232,.12);
+        }
+
+        .input-icon {
+            position: absolute;
+            right: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        /* ── Remember / Forgot row ───────────────────── */
+        .form-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+        }
+
+        .remember {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: #4a5568;
+            cursor: pointer;
+        }
+
+        .remember input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            accent-color: #1a73e8;
+            cursor: pointer;
+        }
+
+        .forgot-link {
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .forgot-link:hover { text-decoration: underline; }
+
+        /* ── Login button ────────────────────────────── */
+        .btn-login {
+            width: 100%;
+            padding: 0.85rem;
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .2s, transform .1s;
+            letter-spacing: .02em;
+        }
+
+        .btn-login:hover  { background: #1557b0; }
+        .btn-login:active { transform: scale(.99); }
+
+        /* ── Register link ───────────────────────────── */
+        .register-row {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.88rem;
+            color: #718096;
+        }
+
+        .register-row a {
+            color: #1a73e8;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .register-row a:hover { text-decoration: underline; }
+
+        /* ── Responsive ──────────────────────────────── */
+        @media (max-width: 768px) {
+            .main { grid-template-columns: 1fr; }
+            .hero { display: none; }
+            .login-panel { border-left: none; padding: 2rem 1.5rem; }
+            .navbar { padding: 1rem 1.25rem; }
+            .nav-links { gap: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+    <a href="/" class="brand">
+        <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
+             alt="EpiScience" class="brand-logo"
+             onerror="this.style.display='none'">
+    </a>
+    <div class="nav-links">
+        <a href="#">Home</a>
+        <a href="#">About Us</a>
+        <a href="/login" class="active">Log-In</a>
+        <a href="#">Contact Us</a>
+    </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+
+    <!-- Left hero -->
+    <div class="hero">
+        <h1 class="hero-title">
+            <span>EpiLite</span> AI Platform
+        </h1>
+
+        <div class="funnel-wrap">
+            <img src="{{ url_for('static', filename='images/homepagelogo.png') }}"
+                 alt="EpiLite AI Platform — unified research intelligence"
+                 class="funnel-img"
+                 onerror="this.style.display='none'">
+        </div>
+    </div>
+
+    <!-- Right login panel -->
+    <div class="login-panel">
+        <div class="login-box">
+            <h2 class="login-title">Member Login</h2>
+
+            {% if error %}
+            <div class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            {% if message %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                {{ message }}
+            </div>
+            {% endif %}
+
+            <form action="/login" method="POST">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <div class="input-wrap">
+                        <input type="email" id="email" name="email"
+                               placeholder="your@email.com"
+                               value="{{ email or '' }}"
+                               required autofocus>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrap">
+                        <input type="password" id="password" name="password"
+                               placeholder="••••••••" required>
+                        <i class="fas fa-lock input-icon" id="pw-toggle"
+                           onclick="togglePw()" title="Show/hide password"></i>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label class="remember">
+                        <input type="checkbox" name="remember"> Remember Me
+                    </label>
+                    <a href="/forgot-password" class="forgot-link">Forgot Password?</a>
+                </div>
+
+                <button type="submit" class="btn-login">Login</button>
+            </form>
+
+            <div class="register-row">
+                New here? <a href="/register">Create an account &rsaquo;</a>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function togglePw() {
+        const pw  = document.getElementById('password');
+        const ico = document.getElementById('pw-toggle');
+        if (pw.type === 'password') {
+            pw.type = 'text';
+            ico.classList.replace('fa-lock', 'fa-lock-open');
+        } else {
+            pw.type = 'password';
+            ico.classList.replace('fa-lock-open', 'fa-lock');
+        }
+    }
+</script>
+</body>
+</html>
