@@ -635,13 +635,29 @@ EXPORT_COLUMNS = [
     'matched_keywords',
     'per_keyword_hits',
     'keyword_total_hits',
-    'Free article complete content',   # added by add_full_text_column
     'pdf_total_keyword_hits',          # keyword hit count in PDF full text
     'pdf_per_keyword_hits',            # per-keyword breakdown in PDF
+    'Free article complete content',   # LAST — full text (may span Part 2, Part 3 cols)
 ]
 
 # Columns that should never appear in exports
 EXPORT_DROP = {'pub_type_label', 'pdf_url', 'pmc_url', 'is_free_pmc'}
+
+# ── Column sets per export mode ───────────────────────────────────────────────
+# Mode: "abstract"  → no full text, no PDF scores
+ABSTRACT_ONLY_COLUMNS = [
+    'keyword', 'pmid', 'title', 'publication_type', 'authors',
+    'affiliation', 'country', 'journal', 'publication_date',
+    'abstract', 'pmc_id', 'url',
+    'keyword_match_count', 'matched_keywords',
+    'per_keyword_hits', 'keyword_total_hits',
+]
+
+# Mode: "pmc_only"  → same as abstract but filtered to free PMC articles
+# (column set same as ABSTRACT_ONLY_COLUMNS — filter applied on rows)
+
+# Mode: default / "full"  → full export including full text and PDF scores
+# (uses full EXPORT_COLUMNS list already defined above)
 
 
 def clean_for_export(df: pd.DataFrame) -> pd.DataFrame:
@@ -1277,113 +1293,235 @@ def load_more():
         return jsonify({'error': str(e)}), 500
 
 
+def _presplit_fulltext(df: 'pd.DataFrame') -> 'pd.DataFrame':
+    """
+    Before writing to Excel, split any 'Full Text (PMC)' values that exceed
+    EXCEL_CELL_LIMIT into separate columns: 'Full Text (PMC) - Part 2', etc.
+
+    This must run BEFORE df.to_excel() because openpyxl silently truncates
+    any cell value longer than 32,767 chars — meaning _split_fulltext_across_cells
+    would never see the overflowing text if we waited until after writing.
+    """
+    LIMIT = EXCEL_CELL_LIMIT
+    FT_COL = 'Full Text (PMC)'
+
+    if FT_COL not in df.columns:
+        return df
+
+    df = df.copy()
+
+    # Find how many parts we need across all rows
+    max_parts = 1
+    for val in df[FT_COL]:
+        if val and isinstance(val, str) and len(val) > LIMIT:
+            parts = _count_parts(val, LIMIT)
+            max_parts = max(max_parts, parts)
+
+    if max_parts <= 1:
+        return df   # nothing to do
+
+    # Add Part columns (initially empty)
+    ft_col_pos = df.columns.get_loc(FT_COL)
+    for part in range(2, max_parts + 1):
+        col_name = f'{FT_COL} - Part {part}'
+        if col_name not in df.columns:
+            # Insert immediately after the previous part
+            insert_pos = ft_col_pos + (part - 1)
+            df.insert(insert_pos, col_name, '')
+
+    # Fill each row's parts
+    def split_row(val):
+        if not val or not isinstance(val, str) or len(val) <= LIMIT:
+            return [val] + [''] * (max_parts - 1)
+        chunks = _chunk_text(val, LIMIT)
+        # Pad to max_parts
+        return chunks + [''] * (max_parts - len(chunks))
+
+    parts_data = df[FT_COL].apply(split_row)
+
+    df[FT_COL] = parts_data.apply(lambda x: x[0])
+    for i in range(1, max_parts):
+        col_name = f'{FT_COL} - Part {i + 1}'
+        df[col_name] = parts_data.apply(lambda x, i=i: x[i] if i < len(x) else '')
+
+    return df
+
+
+def _count_parts(text: str, limit: int) -> int:
+    """Count how many chunks a text splits into at the given limit."""
+    count = 0
+    while text:
+        count += 1
+        if len(text) <= limit:
+            break
+        cut = _find_cut(text, limit)
+        text = text[cut:].lstrip()
+    return count
+
+
+def _chunk_text(text: str, limit: int) -> list:
+    """Split text into chunks of at most `limit` chars, breaking at word boundaries."""
+    chunks = []
+    while text:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+        cut = _find_cut(text, limit)
+        chunks.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    return chunks
+
+
+def _find_cut(text: str, limit: int) -> int:
+    """Find the best cut point at or before `limit` chars."""
+    # Prefer paragraph boundary
+    cut = text[:limit].rfind('\n')
+    if cut < limit * 0.75:
+        # Fall back to word boundary
+        cut = text[:limit].rfind(' ')
+    if cut < limit * 0.75:
+        # Hard cut
+        cut = limit
+    return cut
+
+
 def _split_fulltext_across_cells(ws, wrap_align):
     """
-    For every row in ws, find the 'Full Text (PMC)' column.
-    If the content exceeds EXCEL_CELL_LIMIT chars, split the remainder
-    into continuation columns: 'Full Text (PMC) - Part 2', '- Part 3', etc.
-    All continuation header cells are added dynamically to the right of the
-    existing last column.
+    Find 'Full Text (PMC)' column in ws.
+    - Text that fits within EXCEL_CELL_LIMIT stays in place.
+    - Text that exceeds the limit is split across continuation columns
+      ('Full Text (PMC) - Part 2', 'Part 3', ...) added to the right.
+    - All parts get wrap_text so the text displays fully in the cell.
     """
-    # Find the Full Text column index from the header row
-    ft_col_idx = None
-    last_col    = ws.max_column
+    from openpyxl.styles import PatternFill, Font, Alignment
+    from openpyxl.utils import get_column_letter
 
+    LIMIT = EXCEL_CELL_LIMIT   # 32,000 chars
+
+    # ── Find Full Text column ────────────────────────────────────────────
+    ft_col_idx = None
     for cell in ws[1]:
         if cell.value == 'Full Text (PMC)':
             ft_col_idx = cell.column
             break
-
     if ft_col_idx is None:
-        return   # no full-text column on this sheet
+        return
 
-    # First pass: split every cell value and track max parts needed
-    row_chunks = {}   # row_number -> list of string chunks
+    # ── Style definitions ────────────────────────────────────────────────
+    hdr_fill = PatternFill(start_color='1A365D', end_color='1A365D', fill_type='solid')
+    hdr_font = Font(color='FFFFFF', bold=True, size=10)
+    cell_align = Alignment(wrap_text=True, vertical='top')
+
+    # ── First pass: split every long value into chunks ───────────────────
+    row_chunks = {}   # {row_number: [chunk1, chunk2, ...]}
     max_parts  = 1
 
     for row in ws.iter_rows(min_row=2):
         cell  = row[ft_col_idx - 1]
         value = cell.value
-        if not value or not isinstance(value, str) or len(value) <= EXCEL_CELL_LIMIT:
+
+        if not value or not isinstance(value, str):
+            # Ensure empty cells still get wrap alignment
+            cell.alignment = cell_align
             continue
 
-        # Split at word boundaries where possible
-        chunks = []
-        remaining = value
-        while remaining:
-            if len(remaining) <= EXCEL_CELL_LIMIT:
-                chunks.append(remaining)
+        if len(value) <= LIMIT:
+            # Fits — just set alignment and move on
+            cell.alignment = cell_align
+            continue
+
+        # Split into chunks at word boundaries
+        chunks   = []
+        text     = value
+        while text:
+            if len(text) <= LIMIT:
+                chunks.append(text)
                 break
-            # Try to split at last space/newline before the limit
-            cut = remaining[:EXCEL_CELL_LIMIT].rfind(' ')
-            if cut < EXCEL_CELL_LIMIT * 0.8:   # no good split point found
-                cut = EXCEL_CELL_LIMIT
-            chunks.append(remaining[:cut])
-            remaining = remaining[cut:].lstrip()
+            # Find last space or newline within the limit to avoid cutting mid-word
+            cut = text[:LIMIT].rfind('\n')
+            if cut < LIMIT * 0.75:
+                cut = text[:LIMIT].rfind(' ')
+            if cut < LIMIT * 0.75:
+                cut = LIMIT    # no good break point — hard cut
+            chunks.append(text[:cut].rstrip())
+            text = text[cut:].lstrip()
 
         row_chunks[cell.row] = chunks
-        if len(chunks) > max_parts:
-            max_parts = len(chunks)
+        max_parts = max(max_parts, len(chunks))
 
     if max_parts <= 1:
-        return   # nothing needs splitting
+        return   # nothing to split
 
-    # Add continuation header columns (Part 2, Part 3, …)
-    from openpyxl.styles import PatternFill, Font, Alignment
-    hdr_fill = PatternFill(start_color='1A365D', end_color='1A365D', fill_type='solid')
-    hdr_font = Font(color='FFFFFF', bold=True)
+    # ── Add continuation header columns to the right of existing columns ─
+    base_col   = ws.max_column   # rightmost col BEFORE we add parts
+    part_col_map = {}            # {part_number: col_index}
 
-    part_col_map = {}   # part_number (2,3,...) -> column index
     for part in range(2, max_parts + 1):
-        col_idx = last_col + (part - 1)
+        col_idx = base_col + (part - 1)
         part_col_map[part] = col_idx
-        hdr_cell = ws.cell(row=1, column=col_idx,
-                           value=f'Full Text (PMC) - Part {part}')
-        hdr_cell.fill      = hdr_fill
-        hdr_cell.font      = hdr_font
-        hdr_cell.alignment = wrap_align
-        ws.column_dimensions[
-            __import__('openpyxl.utils', fromlist=['get_column_letter'])
-            .get_column_letter(col_idx)
-        ].width = 80
 
-    # Second pass: write chunks back
+        hdr = ws.cell(row=1, column=col_idx)
+        hdr.value     = f'Full Text (PMC) - Part {part}'
+        hdr.fill      = hdr_fill
+        hdr.font      = hdr_font
+        hdr.alignment = cell_align
+        ws.column_dimensions[get_column_letter(col_idx)].width = 80
+
+    # Also set Part 1 column width
+    ws.column_dimensions[get_column_letter(ft_col_idx)].width = 80
+
+    # ── Second pass: write chunks into cells ─────────────────────────────
     for row_num, chunks in row_chunks.items():
-        # Part 1 — overwrite the original cell
-        ws.cell(row=row_num, column=ft_col_idx).value = chunks[0]
-        ws.cell(row=row_num, column=ft_col_idx).alignment = wrap_align
+
+        # Detect row background colour (green for free PMC rows)
+        orig_fill = None
+        orig_cell_fill = ws.cell(row=row_num, column=ft_col_idx).fill
+        if (orig_cell_fill
+                and orig_cell_fill.fill_type not in (None, 'none')
+                and orig_cell_fill.fgColor
+                and orig_cell_fill.fgColor.rgb not in ('00000000', 'FF000000', '00FFFFFF', 'FFFFFFFF')):
+            orig_fill = orig_cell_fill
+
+        # Part 1 — overwrite original cell
+        c1 = ws.cell(row=row_num, column=ft_col_idx)
+        c1.value     = chunks[0]
+        c1.alignment = cell_align
 
         # Parts 2+ — write into continuation columns
         for part, chunk in enumerate(chunks[1:], start=2):
             col_idx = part_col_map[part]
-            c = ws.cell(row=row_num, column=col_idx, value=chunk)
-            c.alignment = wrap_align
-
-            # Match the green highlight of free PMC rows if the original row was green
-            orig_fill = ws.cell(row=row_num, column=ft_col_idx).fill
-            if orig_fill and orig_fill.fgColor and orig_fill.fgColor.rgb not in ('00000000', 'FF000000', ''):
+            c = ws.cell(row=row_num, column=col_idx)
+            c.value     = chunk
+            c.alignment = cell_align
+            if orig_fill:
                 c.fill = orig_fill
 
 
 @app.route('/export/multi/<format>')
 @login_required
 def export_multi(format):
-    """Export results — reads from cache if available, else re-searches."""
+    """Export results — reads from cache if available, else re-searches.
+
+    mode (query param):
+        'abstract'  → abstract-only columns, no full text fetched (fast)
+        'pmc_only'  → free PMC articles only, abstract-only columns (fast)
+        'full'      → all columns including full text fetched from PMC (default, slower)
+    """
     try:
         search_id    = request.args.get('search_id', '')
         keywords_str = request.args.get('keywords', '')
         max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
         sort_order   = request.args.get('sort_order', 'ascending')
+        mode         = request.args.get('mode', 'full')   # 'abstract' | 'pmc_only' | 'full'
 
         # ── Try cache first ──────────────────────────────────────────────
         if search_id and search_id in _search_cache:
-            cached       = _search_cache[search_id]
+            cached         = _search_cache[search_id]
             sorted_results = cached['sorted_results']
-            keywords     = cached['keywords']
-            print(f"  [export] using cached results for search_id={search_id}")
+            keywords       = cached['keywords']
+            print(f"  [export] cached results  search_id={search_id}  mode={mode}")
         else:
-            # Fallback: re-search (e.g. cache expired or direct URL access)
-            print(f"  [export] cache miss — re-searching...")
+            print(f"  [export] cache miss — re-searching...  mode={mode}")
             if not keywords_str:
                 return "No keywords provided", 400
             keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
@@ -1393,63 +1531,180 @@ def export_multi(format):
                 all_results, ascending=(sort_order == 'ascending')
             )
 
-        # Apply max_results limit per keyword
+        # ── Apply row filters based on mode ─────────────────────────────
         limited_results = {}
         for kw, df in sorted_results.items():
-            limited_results[kw] = df.head(max_results) if not df.empty else df
+            if df.empty:
+                limited_results[kw] = df
+                continue
+            df = df.head(max_results)
+            # pmc_only: keep only free PMC rows
+            if mode == 'pmc_only' and 'is_free_pmc' in df.columns:
+                df = df[df['is_free_pmc'] == True]
+            limited_results[kw] = df
 
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # ── Helper: prepare one DataFrame for export ─────────────────────
+        def prepare_df(df):
+            """
+            Apply column filtering based on mode:
+              abstract  → PMID + abstract columns only, NO full text fetched
+              pmc_only  → free PMC articles only, fetch full text + PDF hits
+              full      → all columns, fetch full text + PDF hits for free PMC
+            """
+            df = df.copy()
+
+            if mode == 'abstract':
+                # ── Only abstract columns — fast, no network calls ────────
+                drop_internal = [c for c in ['pub_type_label', 'pdf_url', 'pmc_url', 'is_free_pmc'] if c in df.columns]
+                if drop_internal:
+                    df = df.drop(columns=drop_internal)
+                ordered = [c for c in ABSTRACT_ONLY_COLUMNS if c in df.columns]
+                df = df[ordered]
+                rename_map = {
+                    'pmid':                'PMID',
+                    'title':               'Title',
+                    'publication_type':    'Publication Type',
+                    'authors':             'Authors',
+                    'affiliation':         'Affiliation',
+                    'country':             'Country',
+                    'journal':             'Journal',
+                    'publication_date':    'Publication Date',
+                    'abstract':            'Abstract',
+                    'pmc_id':              'PMC ID',
+                    'url':                 'PubMed URL',
+                    'keyword':             'Keyword',
+                    'keyword_match_count': 'Keyword Match Count',
+                    'matched_keywords':    'Matched Keywords',
+                    'per_keyword_hits':    'Hits Per Keyword',
+                    'keyword_total_hits':  'Total Keyword Hits',
+                }
+                df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+            elif mode == 'pmc_only':
+                # ── Free PMC only — fetch full text, include PDF hit scores ─
+                # Row filtering already done above (only is_free_pmc rows)
+                # Now fetch full text + PDF keyword scores
+                df = add_full_text_column(df, keywords=keywords)
+                # Keep PMID, title, abstract, full text, PDF scores
+                PMC_COLUMNS = [
+                    'keyword', 'pmid', 'title', 'publication_type', 'authors',
+                    'journal', 'publication_date', 'abstract',
+                    'pmc_id', 'url',
+                    'keyword_total_hits', 'per_keyword_hits',
+                    'pdf_total_keyword_hits', 'pdf_per_keyword_hits',
+                    'Free article complete content',   # LAST
+                ]
+                drop_internal = [c for c in ['pub_type_label', 'pdf_url', 'pmc_url', 'is_free_pmc'] if c in df.columns]
+                if drop_internal:
+                    df = df.drop(columns=drop_internal)
+                ordered = [c for c in PMC_COLUMNS if c in df.columns]
+                df = df[ordered]
+                rename_map = {
+                    'pmid':                          'PMID',
+                    'title':                         'Title',
+                    'publication_type':              'Publication Type',
+                    'authors':                       'Authors',
+                    'journal':                       'Journal',
+                    'publication_date':              'Publication Date',
+                    'abstract':                      'Abstract',
+                    'pmc_id':                        'PMC ID',
+                    'url':                           'PubMed URL',
+                    'keyword':                       'Keyword',
+                    'keyword_total_hits':             'Total Keyword Hits',
+                    'per_keyword_hits':              'Hits Per Keyword (Abstract)',
+                    'Free article complete content': 'Full Text (PMC)',
+                    'pdf_total_keyword_hits':        'PDF Total Keyword Hits',
+                    'pdf_per_keyword_hits':          'PDF Hits Per Keyword',
+                }
+                df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+            else:
+                # ── Full export — all columns + full text + PDF hits ────────
+                df = add_full_text_column(df, keywords=keywords)
+                df = clean_for_export(df)
+
+            return df
+
+        # ── Mode label for filename ──────────────────────────────────────
+        mode_suffix = {'abstract': '_abstract', 'pmc_only': '_free_pmc', 'full': ''}.get(mode, '')
+        timestamp   = datetime.now().strftime('%Y%m%d_%H%M%S')
 
         # ── CSV ──────────────────────────────────────────────────────────
         if format == 'csv':
+            import csv as csv_module
+
             frames = []
             for kw, df in limited_results.items():
                 if df.empty:
                     continue
-                df_ft = add_full_text_column(df, keywords=keywords)
-                df_ft = clean_for_export(df_ft)
-                frames.append(df_ft)
+                frames.append(prepare_df(df))
 
             if not frames:
                 return "No results to export", 404
 
             combined = pd.concat(frames, ignore_index=True)
-            output = io.StringIO()
-            combined.to_csv(output, index=False)
-            output.seek(0)
 
+            # ── Clean text fields before writing ─────────────────────────
+            # Abstracts and full text can contain commas, newlines and quotes
+            # that break CSV column alignment unless properly sanitised.
+            for col in combined.columns:
+                if combined[col].dtype == object:
+                    combined[col] = (
+                        combined[col]
+                        .fillna('')
+                        .astype(str)
+                        # Newlines → space so each article stays on one CSV row
+                        .str.replace('\r\n', ' ', regex=False)
+                        .str.replace('\r',   ' ', regex=False)
+                        .str.replace('\n',   ' ', regex=False)
+                        # Replace stray double-quotes with a single quote so
+                        # QUOTE_ALL can wrap the field cleanly without confusion
+                        .str.replace('"', "'", regex=False)
+                        # Collapse multiple spaces
+                        .str.replace(r'  +', ' ', regex=True)
+                        .str.strip()
+                    )
+
+            output = io.StringIO()
+            combined.to_csv(
+                output,
+                index=False,
+                quoting=csv_module.QUOTE_ALL,
+                # Do NOT set escapechar — QUOTE_ALL already handles internal
+                # quotes by doubling them (""), which is what Excel expects.
+                # Setting escapechar='\' creates backslash escapes that
+                # Excel misreads, shifting every column after a quote.
+            )
+            # utf-8-sig adds the BOM automatically — do not prepend \ufeff manually
             return send_file(
-                io.BytesIO(output.getvalue().encode('utf-8')),
-                mimetype='text/csv',
+                io.BytesIO(output.getvalue().encode('utf-8-sig')),
+                mimetype='text/csv; charset=utf-8-sig',
                 as_attachment=True,
-                download_name=f'pubmed_{timestamp}.csv'
+                download_name=f'pubmed{mode_suffix}_{timestamp}.csv'
             )
 
         # ── JSON ─────────────────────────────────────────────────────────
         elif format == 'json':
             structured = {
                 'search_date':    timestamp,
+                'export_mode':    mode,
                 'sort_order':     sort_order,
                 'total_keywords': len(limited_results),
                 'keywords':       []
             }
             for kw, df in limited_results.items():
-                if not df.empty:
-                    df_ft = add_full_text_column(df, keywords=keywords)
-                    df_ft = clean_for_export(df_ft)
-                else:
-                    df_ft = df
+                df_clean = prepare_df(df) if not df.empty else df
                 structured['keywords'].append({
                     'keyword':       kw,
-                    'article_count': len(df_ft),
-                    'articles':      df_ft.to_dict('records') if not df_ft.empty else []
+                    'article_count': len(df_clean),
+                    'articles':      df_clean.to_dict('records') if not df_clean.empty else []
                 })
 
             return send_file(
                 io.BytesIO(json.dumps(structured, indent=2).encode()),
                 mimetype='application/json',
                 as_attachment=True,
-                download_name=f'pubmed_{timestamp}.json'
+                download_name=f'pubmed{mode_suffix}_{timestamp}.json'
             )
 
         # ── Excel ────────────────────────────────────────────────────────
@@ -1458,11 +1713,10 @@ def export_multi(format):
             from openpyxl.utils import get_column_letter
 
             output = io.BytesIO()
-            print("📊 Building Excel workbook...")
+            print(f"📊 Building Excel workbook  mode={mode}...")
 
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
 
-                # Define shared styles up front
                 hdr_fill   = PatternFill(start_color='1A365D', end_color='1A365D', fill_type='solid')
                 hdr_font   = Font(color='FFFFFF', bold=True)
                 green_fill = PatternFill(start_color='E8F5E9', end_color='E8F5E9', fill_type='solid')
@@ -1474,6 +1728,7 @@ def export_multi(format):
                     free_count = int(df['is_free_pmc'].sum()) if 'is_free_pmc' in df.columns else 0
                     summary_rows.append({
                         'Keyword':           kw,
+                        'Export Mode':       mode,
                         'Articles Exported': len(df),
                         'Free PMC Articles': free_count,
                     })
@@ -1485,12 +1740,11 @@ def export_multi(format):
                     if df.empty:
                         continue
 
-                    # Free PMC first within sheet
+                    # Free PMC first within each sheet
                     if 'is_free_pmc' in df.columns:
                         df = df.sort_values('is_free_pmc', ascending=False)
 
-                    df_ft = add_full_text_column(df, keywords=keywords)
-                    df_clean = clean_for_export(df_ft)
+                    df_clean = prepare_df(df)
                     all_frames.append(df_clean)
 
                     # Sheet name (max 31 chars, no special chars)
@@ -1498,14 +1752,17 @@ def export_multi(format):
                         c for c in kw if c.isalnum() or c in (' ', '-', '_')
                     )[:31]
 
+                    # ── Pre-split Full Text BEFORE writing to avoid silent truncation ──
+                    df_clean = _presplit_fulltext(df_clean)
                     df_clean.to_excel(writer, sheet_name=sheet_name, index=False)
 
-                    # ── Split Full Text across continuation cells if > 32,767 chars ──
+                    # ── Apply continuation cell formatting (Part 2, Part 3 cols) ──
                     _split_fulltext_across_cells(writer.sheets[sheet_name], wrap_align)
 
                     # ── Styling ──────────────────────────────────────────
                     ws = writer.sheets[sheet_name]
 
+                    # Style header row
                     for cell in ws[1]:
                         cell.fill      = hdr_fill
                         cell.font      = hdr_font
@@ -1515,37 +1772,53 @@ def export_multi(format):
                     col_map      = {cell.value: cell.column for cell in ws[1]}
                     pmc_col      = col_map.get('PMC ID')
                     fulltext_col = col_map.get('Full Text (PMC)')
+                    abstract_col = col_map.get('Abstract')
 
                     for row in ws.iter_rows(min_row=2):
                         is_free = bool(pmc_col and row[pmc_col - 1].value not in (None, 'N/A', ''))
                         if is_free:
                             for cell in row:
                                 cell.fill = green_fill
+                        # Wrap text for Full Text and Abstract columns
                         if fulltext_col:
                             row[fulltext_col - 1].alignment = wrap_align
+                        if abstract_col:
+                            row[abstract_col - 1].alignment = wrap_align
 
                     # Column widths
                     width_map = {
-                        'Full Text (PMC)': 80,
-                        'Abstract':        50,
+                        'Full Text (PMC)': 100,
+                        'Abstract':        60,
                         'Affiliation':     40,
                         'Title':           50,
                         'Publication Type': 30,
                         'Authors':         35,
                         'Journal':         30,
-                        'PubMed URL':      30,
+                        'PubMed URL':      35,
+                        'PDF Hits Per Keyword': 35,
+                        'Hits Per Keyword (Abstract)': 35,
                     }
                     for col_cells in ws.columns:
                         hdr = str(col_cells[0].value or '')
-                        w   = width_map.get(hdr, 18)
+                        # Part columns get same width as Full Text
+                        if hdr.startswith('Full Text (PMC) - Part'):
+                            w = 100
+                        else:
+                            w = width_map.get(hdr, 18)
                         ws.column_dimensions[get_column_letter(col_cells[0].column)].width = w
+
+                    # Row heights — taller for rows that have full text content
+                    for row in ws.iter_rows(min_row=2):
+                        has_ft = fulltext_col and row[fulltext_col - 1].value
+                        # Set a generous row height so wrapped text is visible
+                        # Excel will still allow users to resize rows manually
+                        ws.row_dimensions[row[0].row].height = 200 if has_ft else 60
 
                 # All Results sheet
                 if all_frames:
-                    pd.concat(all_frames, ignore_index=True).to_excel(
-                        writer, sheet_name='All Results', index=False
-                    )
-                    # ── Split Full Text across continuation cells if > 32,767 chars ──
+                    all_combined = pd.concat(all_frames, ignore_index=True)
+                    all_combined  = _presplit_fulltext(all_combined)
+                    all_combined.to_excel(writer, sheet_name='All Results', index=False)
                     _split_fulltext_across_cells(
                         writer.sheets['All Results'], wrap_align
                     )
@@ -1555,7 +1828,7 @@ def export_multi(format):
                 output,
                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 as_attachment=True,
-                download_name=f'pubmed_{timestamp}.xlsx'
+                download_name=f'pubmed{mode_suffix}_{timestamp}.xlsx'
             )
 
         else:
@@ -1615,9 +1888,9 @@ def export_bulk_csv():
         'matched_keywords':     'Matched Keywords',
         'per_keyword_hits':     'Hits Per Keyword',
         'keyword_total_hits':   'Total Keyword Hits',
-        'full_text':            'Full Text (PMC)',
         'pdf_per_keyword_hits': 'PDF Hits Per Keyword',
         'pdf_total_hits':       'PDF Total Keyword Hits',
+        'full_text':            'Full Text (PMC)',   # LAST
     }
     BULK_INTERNAL_COLS = list(BULK_RENAME.keys())
     BULK_FRIENDLY_COLS = [BULK_RENAME[k] for k in BULK_INTERNAL_COLS]
@@ -1639,6 +1912,7 @@ def export_bulk_csv():
         buf = io.StringIO()
         csv.DictWriter(buf, fieldnames=BULK_FRIENDLY_COLS,
                        extrasaction='ignore',
+                       quoting=csv.QUOTE_ALL,
                        lineterminator='\n').writeheader()
         yield buf.getvalue()
 
@@ -1707,14 +1981,22 @@ def export_bulk_csv():
                             art['pdf_per_keyword_hits'] = '; '.join(pdf_parts)
                             art['pdf_total_hits']       = pdf_total
 
-                    # ── Write row ─────────────────────────────────────────
-                    friendly_row = {
-                        BULK_RENAME[k]: art.get(k, '')
-                        for k in BULK_INTERNAL_COLS
-                    }
+                    # ── Clean text fields & write row ─────────────────────
+                    friendly_row = {}
+                    for k in BULK_INTERNAL_COLS:
+                        val = art.get(k, '') or ''
+                        val = str(val)
+                        # Remove embedded newlines and stray quotes so each
+                        # article stays on one CSV row and columns don't shift
+                        val = val.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
+                        val = val.replace('"', "'")   # stray quotes → single quote
+                        import re as _re
+                        val = _re.sub(r'  +', ' ', val).strip()
+                        friendly_row[BULK_RENAME[k]] = val
                     buf = io.StringIO()
                     csv.DictWriter(buf, fieldnames=BULK_FRIENDLY_COLS,
                                    extrasaction='ignore',
+                                   quoting=csv.QUOTE_ALL,
                                    lineterminator='\n').writerow(friendly_row)
                     yield buf.getvalue()
 
