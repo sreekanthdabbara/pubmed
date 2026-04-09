@@ -1531,16 +1531,125 @@ def export_multi(format):
                 all_results, ascending=(sort_order == 'ascending')
             )
 
-        # ── Apply row filters based on mode ─────────────────────────────
+        # ── Read sidebar filter params from request ──────────────────────
+        f_date             = request.args.get('f_date', '').strip()
+        f_date_from        = request.args.get('f_date_from', '').strip()
+        f_date_to          = request.args.get('f_date_to', '').strip()
+        f_free_pmc         = request.args.get('f_free_pmc', '') == '1'
+        f_abstract         = request.args.get('f_abstract', '') == '1'
+        f_humans           = request.args.get('f_humans', '') == '1'
+        f_animals          = request.args.get('f_animals', '') == '1'
+        f_female           = request.args.get('f_female', '') == '1'
+        f_male             = request.args.get('f_male', '') == '1'
+        f_child            = request.args.get('f_child', '') == '1'
+        f_adult            = request.args.get('f_adult', '') == '1'
+        f_aged             = request.args.get('f_aged', '') == '1'
+        f_infant           = request.args.get('f_infant', '') == '1'
+        f_type_review      = request.args.get('f_type_review', '') == '1'
+        f_type_clinical    = request.args.get('f_type_clinical', '') == '1'
+        f_type_rct         = request.args.get('f_type_rct', '') == '1'
+        f_type_meta        = request.args.get('f_type_meta', '') == '1'
+        f_type_systematic  = request.args.get('f_type_systematic', '') == '1'
+        f_type_case        = request.args.get('f_type_case', '') == '1'
+        f_excl_preprints   = request.args.get('f_exclude_preprints', '') == '1'
+        f_medline          = request.args.get('f_medline', '') == '1'
+
+        any_filter_active = any([
+            f_date, f_free_pmc, f_abstract, f_humans, f_animals,
+            f_female, f_male, f_child, f_adult, f_aged, f_infant,
+            f_type_review, f_type_clinical, f_type_rct, f_type_meta,
+            f_type_systematic, f_type_case, f_excl_preprints, f_medline,
+        ])
+
+        def apply_sidebar_filters(df):
+            """Apply the same filters the user selected in the left sidebar."""
+            if df.empty or not any_filter_active:
+                return df
+
+            mask = pd.Series([True] * len(df), index=df.index)
+
+            # ── Publication date ──────────────────────────────────────────
+            if f_date and f_date != 'custom':
+                cutoff = datetime.now().year - int(f_date)
+                def parse_year(d):
+                    try: return int(str(d)[:4])
+                    except: return 0
+                years = df['publication_date'].apply(parse_year)
+                mask &= years >= cutoff
+
+            elif f_date == 'custom':
+                def parse_year(d):
+                    try: return int(str(d)[:4])
+                    except: return 0
+                years = df['publication_date'].apply(parse_year)
+                if f_date_from:
+                    mask &= years >= int(f_date_from)
+                if f_date_to:
+                    mask &= years <= int(f_date_to)
+
+            # ── Text availability ─────────────────────────────────────────
+            if f_free_pmc and 'is_free_pmc' in df.columns:
+                mask &= df['is_free_pmc'] == True
+            if f_abstract:
+                mask &= df['abstract'].notna() & (df['abstract'] != 'N/A') & (df['abstract'] != '')
+
+            # ── Article type ──────────────────────────────────────────────
+            if any([f_type_review, f_type_clinical, f_type_rct,
+                    f_type_meta, f_type_systematic, f_type_case]):
+                pt = df['publication_type'].fillna('').str.lower()
+                type_mask = pd.Series([False] * len(df), index=df.index)
+                if f_type_review:     type_mask |= pt.str.contains('review', na=False)
+                if f_type_clinical:   type_mask |= pt.str.contains('clinical trial', na=False)
+                if f_type_rct:        type_mask |= pt.str.contains('randomized', na=False)
+                if f_type_meta:       type_mask |= pt.str.contains('meta-analysis', na=False)
+                if f_type_systematic: type_mask |= pt.str.contains('systematic', na=False)
+                if f_type_case:       type_mask |= pt.str.contains('case report', na=False)
+                mask &= type_mask
+
+            # ── Species / sex / age — text-based matching ─────────────────
+            text = (df['abstract'].fillna('') + ' ' + df['affiliation'].fillna('')).str.lower()
+
+            if f_humans  and not f_animals:
+                mask &= text.str.contains('human|patient|cohort', na=False, regex=True)
+            if f_animals and not f_humans:
+                mask &= text.str.contains('animal|mouse|rat|murine', na=False, regex=True)
+            if f_female  and not f_male:
+                mask &= text.str.contains('female|women|woman', na=False, regex=True)
+            if f_male    and not f_female:
+                mask &= text.str.contains(r'\bmale\b|men\b', na=False, regex=True)
+            if f_child:
+                mask &= text.str.contains('child|pediatric|adolescent', na=False, regex=True)
+            if f_adult:
+                mask &= text.str.contains('adult', na=False, regex=True)
+            if f_aged:
+                mask &= text.str.contains('elderly|aged|geriatric', na=False, regex=True)
+            if f_infant:
+                mask &= text.str.contains('infant|newborn|neonatal', na=False, regex=True)
+
+            # ── Other ─────────────────────────────────────────────────────
+            if f_excl_preprints:
+                pt = df['publication_type'].fillna('').str.lower()
+                jn = df['journal'].fillna('').str.lower()
+                mask &= ~(pt.str.contains('preprint', na=False) |
+                          jn.str.contains('preprint', na=False))
+            if f_medline:
+                pt = df['publication_type'].fillna('').str.lower()
+                mask &= pt.str.contains('journal article', na=False)
+
+            return df[mask]
+
+        # ── Apply row limits and sidebar filters ──────────────────────────
         limited_results = {}
         for kw, df in sorted_results.items():
             if df.empty:
                 limited_results[kw] = df
                 continue
             df = df.head(max_results)
-            # pmc_only: keep only free PMC rows
+            # pmc_only mode: keep only free PMC rows
             if mode == 'pmc_only' and 'is_free_pmc' in df.columns:
                 df = df[df['is_free_pmc'] == True]
+            # Apply sidebar filters if any are active
+            df = apply_sidebar_filters(df)
             limited_results[kw] = df
 
         # ── Helper: prepare one DataFrame for export ─────────────────────

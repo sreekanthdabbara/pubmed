@@ -927,17 +927,59 @@ function renderCards(sorted, limit, fc, freeCounts){
 }
 
 /* ── Update export links ───────────────────── */
+/* ── Collect all active sidebar filters as URL params ──────────── */
+function collectFilterParams() {
+    const params = new URLSearchParams();
+
+    // Date
+    const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value || '';
+    if (dateVal) params.set('f_date', dateVal);
+    if (dateVal === 'custom') {
+        const from = document.getElementById('date-from')?.value;
+        const to   = document.getElementById('date-to')?.value;
+        if (from) params.set('f_date_from', from);
+        if (to)   params.set('f_date_to',   to);
+    }
+
+    // Checkboxes
+    const checkMap = {
+        'f-free-pmc':          'f_free_pmc',
+        'f-abstract':          'f_abstract',
+        'f-humans':            'f_humans',
+        'f-animals':           'f_animals',
+        'f-female':            'f_female',
+        'f-male':              'f_male',
+        'f-child':             'f_child',
+        'f-adult':             'f_adult',
+        'f-aged':              'f_aged',
+        'f-infant':            'f_infant',
+        'f-type-review':       'f_type_review',
+        'f-type-clinical':     'f_type_clinical',
+        'f-type-rct':          'f_type_rct',
+        'f-type-meta':         'f_type_meta',
+        'f-type-systematic':   'f_type_systematic',
+        'f-type-case':         'f_type_case',
+        'f-exclude-preprints': 'f_exclude_preprints',
+        'f-medline':           'f_medline',
+    };
+    Object.entries(checkMap).forEach(([id, param]) => {
+        if (document.getElementById(id)?.checked) params.set(param, '1');
+    });
+
+    return params.toString();
+}
+
 function updateExports(limit, kwOrder){
-    const max=limit||10000;
-    const qs=`keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
-    // Section 1: abstract only (no full text — use same endpoint, Excel skips PDF fetch for speed)
+    const max        = limit || 10000;
+    const filterStr  = collectFilterParams();
+    const base       = `keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
+    const qs         = filterStr ? `${base}&${filterStr}` : base;
+
     document.getElementById('export-csv-abs').href   = `/export/multi/csv?${qs}&mode=abstract`;
     document.getElementById('export-excel-abs').href = `/export/multi/excel?${qs}&mode=abstract`;
-    // Section 2: with full text
     document.getElementById('export-csv-full').href   = `/export/multi/csv?${qs}`;
     document.getElementById('export-excel-full').href = `/export/multi/excel?${qs}`;
     document.getElementById('export-json').href        = `/export/multi/json?${qs}`;
-    // Section 3: free PDFs only
     document.getElementById('export-csv-pdf').href    = `/export/multi/csv?${qs}&mode=pmc_only`;
     document.getElementById('export-excel-pdf').href  = `/export/multi/excel?${qs}&mode=pmc_only`;
 }
