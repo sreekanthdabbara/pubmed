@@ -2027,6 +2027,142 @@ def health():
     })
 
 
+@app.route('/api/ncbi_count', methods=['POST'])
+@login_required
+def ncbi_count():
+    """
+    Return the real NCBI article count for each keyword with all
+    active sidebar filters applied as Entrez query clauses.
+
+    Request JSON:
+        {
+          "keywords": ["lung cancer", "breast cancer"],
+          "filters": {
+            "date_filter": "5",         // "1"|"5"|"10"|"custom"|""
+            "date_from": 2020,          // custom range
+            "date_to":   2024,
+            "free_pmc":  true,          // text availability
+            "full_text": false,
+            "humans":    true,          // species
+            "animals":   false,
+            "female":    false,         // sex
+            "male":      false,
+            "child":     false,         // age
+            "adult":     true,
+            "aged":      false,
+            "infant":    false,
+            "type_review":     false,   // article types
+            "type_clinical":   false,
+            "type_rct":        false,
+            "type_meta":       false,
+            "type_systematic": false,
+            "type_case":       false,
+            "medline":   false
+          }
+        }
+    """
+    try:
+        data     = request.get_json()
+        keywords = data.get('keywords', [])
+        filters  = data.get('filters', {})
+
+        if not keywords:
+            return jsonify({'error': 'keywords required'}), 400
+
+        # ── Map every active filter to an Entrez clause ───────────────────
+        clauses = []
+
+        # Date
+        date_filter = str(filters.get('date_filter', '')).strip()
+        date_from   = filters.get('date_from', '')
+        date_to     = filters.get('date_to', '')
+
+        if date_filter and date_filter != 'custom':
+            year_map = {
+                '1':  '"last 1 year"[PDat]',
+                '5':  '"last 5 years"[PDat]',
+                '10': '"last 10 years"[PDat]',
+                '20': '"last 20 years"[PDat]',
+            }
+            if date_filter in year_map:
+                clauses.append(year_map[date_filter])
+        elif date_filter == 'custom' and (date_from or date_to):
+            fy = str(date_from) if date_from else '1900'
+            ty = str(date_to)   if date_to   else '2100'
+            clauses.append(f'("{fy}/01/01"[PDat]:"{ty}/12/31"[PDat])')
+
+        # Text availability
+        if filters.get('free_pmc'):
+            clauses.append('"free full text"[Filter]')
+        if filters.get('full_text'):
+            clauses.append('"full text"[Filter]')
+
+        # Article types
+        type_map = {
+            'type_review':     '"Review"[Publication Type]',
+            'type_clinical':   '"Clinical Trial"[Publication Type]',
+            'type_rct':        '"Randomized Controlled Trial"[Publication Type]',
+            'type_meta':       '"Meta-Analysis"[Publication Type]',
+            'type_systematic': '"Systematic Review"[Publication Type]',
+            'type_case':       '"Case Reports"[Publication Type]',
+        }
+        for key, clause in type_map.items():
+            if filters.get(key):
+                clauses.append(clause)
+
+        # Species
+        if filters.get('humans')  and not filters.get('animals'):
+            clauses.append('"humans"[MeSH Terms]')
+        if filters.get('animals') and not filters.get('humans'):
+            clauses.append('"animals"[MeSH Terms]')
+
+        # Sex
+        if filters.get('female') and not filters.get('male'):
+            clauses.append('"female"[MeSH Terms]')
+        if filters.get('male') and not filters.get('female'):
+            clauses.append('"male"[MeSH Terms]')
+
+        # Age
+        age_map = {
+            'child':  '"child"[MeSH Terms]',
+            'adult':  '"adult"[MeSH Terms]',
+            'aged':   '"aged"[MeSH Terms]',
+            'infant': '"infant"[MeSH Terms]',
+        }
+        for key, clause in age_map.items():
+            if filters.get(key):
+                clauses.append(clause)
+
+        # MEDLINE
+        if filters.get('medline'):
+            clauses.append('"medline"[Subset]')
+
+        # ── Combine clauses into one AND-joined filter string ─────────────
+        filter_str = ' AND '.join(clauses) if clauses else ''
+
+        # ── Fetch count for each keyword (retmax=1 → just gets Count) ────
+        totals = {}
+        for kw in keywords:
+            query = f'({kw}) AND ({filter_str})' if filter_str else kw
+            try:
+                _, ncbi_total = scraper.search_pubmed(query, max_results=1)
+                totals[kw] = ncbi_total
+            except Exception as e:
+                print(f"  [ncbi_count] error for {kw!r}: {e}")
+                totals[kw] = 0
+
+        grand_total = sum(totals.values())
+        return jsonify({
+            'totals':      totals,
+            'grand_total': grand_total,
+            'filter_str':  filter_str,   # useful for debugging
+        })
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🧬 PubMed Scraper - Multi-Keyword Search")
