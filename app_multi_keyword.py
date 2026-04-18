@@ -6,7 +6,7 @@ Search multiple keywords and display results sorted by article count
 import os
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, Response
 from Bio import Entrez
 import pandas as pd
 import json
@@ -1504,15 +1504,20 @@ def export_multi(format):
 
     mode (query param):
         'abstract'  → abstract-only columns, no full text fetched (fast)
-        'pmc_only'  → free PMC articles only, abstract-only columns (fast)
+        'pmc_only'  → free PMC articles only, fetch full text + PDF hits
         'full'      → all columns including full text fetched from PMC (default, slower)
+
+    shown (query param, JSON):
+        Per-keyword dict of how many articles are shown on screen after filters.
+        If provided, export is limited to exactly those rows per keyword.
+        e.g. {"lung cancer": 259, "breast cancer": 254}
     """
     try:
         search_id    = request.args.get('search_id', '')
         keywords_str = request.args.get('keywords', '')
         max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
         sort_order   = request.args.get('sort_order', 'ascending')
-        mode         = request.args.get('mode', 'full')   # 'abstract' | 'pmc_only' | 'full'
+        mode         = request.args.get('mode', 'full')
 
         # ── Try cache first ──────────────────────────────────────────────
         if search_id and search_id in _search_cache:
@@ -1532,33 +1537,35 @@ def export_multi(format):
             )
 
         # ── Read sidebar filter params from request ──────────────────────
-        f_date             = request.args.get('f_date', '').strip()
-        f_date_from        = request.args.get('f_date_from', '').strip()
-        f_date_to          = request.args.get('f_date_to', '').strip()
-        f_free_pmc         = request.args.get('f_free_pmc', '') == '1'
-        f_abstract         = request.args.get('f_abstract', '') == '1'
-        f_humans           = request.args.get('f_humans', '') == '1'
-        f_animals          = request.args.get('f_animals', '') == '1'
-        f_female           = request.args.get('f_female', '') == '1'
-        f_male             = request.args.get('f_male', '') == '1'
-        f_child            = request.args.get('f_child', '') == '1'
-        f_adult            = request.args.get('f_adult', '') == '1'
-        f_aged             = request.args.get('f_aged', '') == '1'
-        f_infant           = request.args.get('f_infant', '') == '1'
-        f_type_review      = request.args.get('f_type_review', '') == '1'
-        f_type_clinical    = request.args.get('f_type_clinical', '') == '1'
-        f_type_rct         = request.args.get('f_type_rct', '') == '1'
-        f_type_meta        = request.args.get('f_type_meta', '') == '1'
-        f_type_systematic  = request.args.get('f_type_systematic', '') == '1'
-        f_type_case        = request.args.get('f_type_case', '') == '1'
-        f_excl_preprints   = request.args.get('f_exclude_preprints', '') == '1'
-        f_medline          = request.args.get('f_medline', '') == '1'
+        f_date              = request.args.get('f_date', '').strip()
+        f_date_from         = request.args.get('f_date_from', '').strip()
+        f_date_to           = request.args.get('f_date_to', '').strip()
+        f_free_pmc          = request.args.get('f_free_pmc', '') == '1'
+        f_abstract          = request.args.get('f_abstract', '') == '1'
+        f_humans            = request.args.get('f_humans', '') == '1'
+        f_animals           = request.args.get('f_animals', '') == '1'
+        f_female            = request.args.get('f_female', '') == '1'
+        f_male              = request.args.get('f_male', '') == '1'
+        f_child             = request.args.get('f_child', '') == '1'
+        f_adult             = request.args.get('f_adult', '') == '1'
+        f_aged              = request.args.get('f_aged', '') == '1'
+        f_infant            = request.args.get('f_infant', '') == '1'
+        f_type_journal      = request.args.get('f_type_journal', '') == '1'
+        f_type_review       = request.args.get('f_type_review', '') == '1'
+        f_type_systematic   = request.args.get('f_type_systematic', '') == '1'
+        f_type_meta         = request.args.get('f_type_meta', '') == '1'
+        f_type_rct          = request.args.get('f_type_rct', '') == '1'
+        f_type_clinical     = request.args.get('f_type_clinical', '') == '1'
+        f_type_case         = request.args.get('f_type_case', '') == '1'
+        f_type_observational = request.args.get('f_type_observational', '') == '1'
 
         any_filter_active = any([
-            f_date, f_free_pmc, f_abstract, f_humans, f_animals,
-            f_female, f_male, f_child, f_adult, f_aged, f_infant,
-            f_type_review, f_type_clinical, f_type_rct, f_type_meta,
-            f_type_systematic, f_type_case, f_excl_preprints, f_medline,
+            f_date, f_free_pmc, f_abstract,
+            f_humans, f_animals, f_female, f_male,
+            f_child, f_adult, f_aged, f_infant,
+            f_type_journal, f_type_review, f_type_systematic,
+            f_type_meta, f_type_rct, f_type_clinical,
+            f_type_case, f_type_observational,
         ])
 
         def apply_sidebar_filters(df):
@@ -1569,23 +1576,22 @@ def export_multi(format):
             mask = pd.Series([True] * len(df), index=df.index)
 
             # ── Publication date ──────────────────────────────────────────
+            def parse_year(d):
+                """Extract 4-digit year from date like 'Jan 2025' or '2025'.
+                Returns 9999 for unparseable dates so they are always kept."""
+                m = re.search(r'\b(19|20)\d{2}\b', str(d))
+                return int(m.group()) if m else 9999
+
             if f_date and f_date != 'custom':
                 cutoff = datetime.now().year - int(f_date)
-                def parse_year(d):
-                    try: return int(str(d)[:4])
-                    except: return 0
-                years = df['publication_date'].apply(parse_year)
-                mask &= years >= cutoff
+                mask &= df['publication_date'].apply(parse_year) >= cutoff
 
             elif f_date == 'custom':
-                def parse_year(d):
-                    try: return int(str(d)[:4])
-                    except: return 0
                 years = df['publication_date'].apply(parse_year)
                 if f_date_from:
-                    mask &= years >= int(f_date_from)
+                    mask &= (years >= int(f_date_from)) | (years == 9999)
                 if f_date_to:
-                    mask &= years <= int(f_date_to)
+                    mask &= (years <= int(f_date_to)) | (years == 9999)
 
             # ── Text availability ─────────────────────────────────────────
             if f_free_pmc and 'is_free_pmc' in df.columns:
@@ -1593,52 +1599,37 @@ def export_multi(format):
             if f_abstract:
                 mask &= df['abstract'].notna() & (df['abstract'] != 'N/A') & (df['abstract'] != '')
 
-            # ── Article type ──────────────────────────────────────────────
-            if any([f_type_review, f_type_clinical, f_type_rct,
-                    f_type_meta, f_type_systematic, f_type_case]):
+            # ── Article type — OR logic (keep if matches ANY checked) ──────
+            any_type = any([f_type_journal, f_type_review, f_type_systematic,
+                            f_type_meta, f_type_rct, f_type_clinical,
+                            f_type_case, f_type_observational])
+            if any_type:
                 pt = df['publication_type'].fillna('').str.lower()
                 type_mask = pd.Series([False] * len(df), index=df.index)
-                if f_type_review:     type_mask |= pt.str.contains('review', na=False)
-                if f_type_clinical:   type_mask |= pt.str.contains('clinical trial', na=False)
-                if f_type_rct:        type_mask |= pt.str.contains('randomized', na=False)
-                if f_type_meta:       type_mask |= pt.str.contains('meta-analysis', na=False)
-                if f_type_systematic: type_mask |= pt.str.contains('systematic', na=False)
-                if f_type_case:       type_mask |= pt.str.contains('case report', na=False)
+                if f_type_journal:      type_mask |= pt.str.contains('journal article', na=False)
+                if f_type_review:       type_mask |= pt.str.contains('review', na=False)
+                if f_type_systematic:   type_mask |= pt.str.contains('systematic', na=False)
+                if f_type_meta:         type_mask |= pt.str.contains('meta-analysis', na=False)
+                if f_type_rct:          type_mask |= pt.str.contains('randomized', na=False)
+                if f_type_clinical:     type_mask |= pt.str.contains('clinical trial', na=False)
+                if f_type_case:         type_mask |= pt.str.contains('case report', na=False)
+                if f_type_observational: type_mask |= pt.str.contains('observational', na=False)
                 mask &= type_mask
 
             # ── Species / sex / age — text-based matching ─────────────────
             text = (df['abstract'].fillna('') + ' ' + df['affiliation'].fillna('')).str.lower()
-
-            if f_humans  and not f_animals:
-                mask &= text.str.contains('human|patient|cohort', na=False, regex=True)
-            if f_animals and not f_humans:
-                mask &= text.str.contains('animal|mouse|rat|murine', na=False, regex=True)
-            if f_female  and not f_male:
-                mask &= text.str.contains('female|women|woman', na=False, regex=True)
-            if f_male    and not f_female:
-                mask &= text.str.contains(r'\bmale\b|men\b', na=False, regex=True)
-            if f_child:
-                mask &= text.str.contains('child|pediatric|adolescent', na=False, regex=True)
-            if f_adult:
-                mask &= text.str.contains('adult', na=False, regex=True)
-            if f_aged:
-                mask &= text.str.contains('elderly|aged|geriatric', na=False, regex=True)
-            if f_infant:
-                mask &= text.str.contains('infant|newborn|neonatal', na=False, regex=True)
-
-            # ── Other ─────────────────────────────────────────────────────
-            if f_excl_preprints:
-                pt = df['publication_type'].fillna('').str.lower()
-                jn = df['journal'].fillna('').str.lower()
-                mask &= ~(pt.str.contains('preprint', na=False) |
-                          jn.str.contains('preprint', na=False))
-            if f_medline:
-                pt = df['publication_type'].fillna('').str.lower()
-                mask &= pt.str.contains('journal article', na=False)
+            if f_humans  and not f_animals: mask &= text.str.contains('human|patient|cohort', na=False, regex=True)
+            if f_animals and not f_humans:  mask &= text.str.contains('animal|mouse|rat|murine', na=False, regex=True)
+            if f_female  and not f_male:    mask &= text.str.contains('female|women|woman', na=False, regex=True)
+            if f_male    and not f_female:  mask &= text.str.contains(r'\bmale\b|\bmen\b', na=False, regex=True)
+            if f_child:  mask &= text.str.contains('child|pediatric|adolescent', na=False, regex=True)
+            if f_adult:  mask &= text.str.contains('adult', na=False, regex=True)
+            if f_aged:   mask &= text.str.contains('elderly|aged|geriatric', na=False, regex=True)
+            if f_infant: mask &= text.str.contains('infant|newborn|neonatal', na=False, regex=True)
 
             return df[mask]
 
-        # ── Apply row limits and sidebar filters ──────────────────────────
+        # ── Apply row limits and sidebar filters ─────────────────────────
         limited_results = {}
         for kw, df in sorted_results.items():
             if df.empty:
@@ -1648,7 +1639,8 @@ def export_multi(format):
             # pmc_only mode: keep only free PMC rows
             if mode == 'pmc_only' and 'is_free_pmc' in df.columns:
                 df = df[df['is_free_pmc'] == True]
-            # Apply sidebar filters if any are active
+            # Apply sidebar filters — this produces exactly the same
+            # article set that is shown on screen
             df = apply_sidebar_filters(df)
             limited_results[kw] = df
 
@@ -1740,8 +1732,6 @@ def export_multi(format):
 
         # ── CSV ──────────────────────────────────────────────────────────
         if format == 'csv':
-            import csv as csv_module
-
             frames = []
             for kw, df in limited_results.items():
                 if df.empty:
@@ -1753,23 +1743,24 @@ def export_multi(format):
 
             combined = pd.concat(frames, ignore_index=True)
 
-            # ── Clean text fields before writing ─────────────────────────
-            # Abstracts and full text can contain commas, newlines and quotes
-            # that break CSV column alignment unless properly sanitised.
+            # ── Split Full Text into Part 2, Part 3 columns (same as Excel) ──
+            # Must happen BEFORE text cleaning so the split logic sees the
+            # full original text, not the newline-stripped version.
+            combined = _presplit_fulltext(combined)
+
+            # ── Clean ALL text fields ─────────────────────────────────────
+            # Replace newlines with space so each article stays on one CSV row.
+            # Replace stray quotes with single quote so QUOTE_ALL wraps cleanly.
             for col in combined.columns:
                 if combined[col].dtype == object:
                     combined[col] = (
                         combined[col]
                         .fillna('')
                         .astype(str)
-                        # Newlines → space so each article stays on one CSV row
                         .str.replace('\r\n', ' ', regex=False)
                         .str.replace('\r',   ' ', regex=False)
                         .str.replace('\n',   ' ', regex=False)
-                        # Replace stray double-quotes with a single quote so
-                        # QUOTE_ALL can wrap the field cleanly without confusion
-                        .str.replace('"', "'", regex=False)
-                        # Collapse multiple spaces
+                        .str.replace('"',    "'", regex=False)
                         .str.replace(r'  +', ' ', regex=True)
                         .str.strip()
                     )
@@ -1778,13 +1769,10 @@ def export_multi(format):
             combined.to_csv(
                 output,
                 index=False,
-                quoting=csv_module.QUOTE_ALL,
-                # Do NOT set escapechar — QUOTE_ALL already handles internal
-                # quotes by doubling them (""), which is what Excel expects.
-                # Setting escapechar='\' creates backslash escapes that
-                # Excel misreads, shifting every column after a quote.
+                sep=',',
+                quoting=__import__('csv').QUOTE_ALL,
             )
-            # utf-8-sig adds the BOM automatically — do not prepend \ufeff manually
+            # utf-8-sig BOM ensures Excel opens with correct encoding and columns
             return send_file(
                 io.BytesIO(output.getvalue().encode('utf-8-sig')),
                 mimetype='text/csv; charset=utf-8-sig',
@@ -1954,7 +1942,352 @@ def about():
     return render_template('about.html')
 
 
-@app.route('/export/bulk_csv')
+@app.route('/export/pdfs')
+@login_required
+def export_pdfs():
+    """
+    Download all free PMC PDFs as a ZIP file.
+
+    Fetches the actual PDF binary from PMC for every free PMC article
+    in the current search (applying the same sidebar filters) and bundles
+    them into a single ZIP streamed directly to the browser.
+
+    Each PDF is named: PMID_{pmid}_{first30charsoftitle}.pdf
+
+    Query params:  same as export_multi (search_id, keywords, max_results,
+                   sort_order, mode, all f_* sidebar filter params)
+    """
+    import zipfile
+
+    try:
+        search_id    = request.args.get('search_id', '')
+        keywords_str = request.args.get('keywords', '')
+        max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
+        sort_order   = request.args.get('sort_order', 'ascending')
+
+        # ── Load from cache or re-search ─────────────────────────────────
+        if search_id and search_id in _search_cache:
+            cached         = _search_cache[search_id]
+            sorted_results = cached['sorted_results']
+            keywords       = cached['keywords']
+        else:
+            if not keywords_str:
+                return "No keywords provided", 400
+            keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
+            all_results, _ = scraper.search_multiple_keywords(keywords, max_results)
+            all_results    = scraper.compute_keyword_scores(all_results, keywords)
+            sorted_results = scraper.sort_results_by_count(
+                all_results, ascending=(sort_order == 'ascending')
+            )
+
+        # ── Collect all free PMC articles (apply sidebar filters) ─────────
+        # Reuse the same apply_sidebar_filters logic via inline params read
+        f_date            = request.args.get('f_date', '').strip()
+        f_date_from       = request.args.get('f_date_from', '').strip()
+        f_date_to         = request.args.get('f_date_to', '').strip()
+        f_free_pmc        = True   # always True for PDF download
+        f_abstract        = request.args.get('f_abstract', '') == '1'
+        f_humans          = request.args.get('f_humans', '') == '1'
+        f_animals         = request.args.get('f_animals', '') == '1'
+        f_female          = request.args.get('f_female', '') == '1'
+        f_male            = request.args.get('f_male', '') == '1'
+        f_child           = request.args.get('f_child', '') == '1'
+        f_adult           = request.args.get('f_adult', '') == '1'
+        f_aged            = request.args.get('f_aged', '') == '1'
+        f_infant          = request.args.get('f_infant', '') == '1'
+        f_type_review     = request.args.get('f_type_review', '') == '1'
+        f_type_clinical   = request.args.get('f_type_clinical', '') == '1'
+        f_type_rct        = request.args.get('f_type_rct', '') == '1'
+        f_type_meta       = request.args.get('f_type_meta', '') == '1'
+        f_type_systematic = request.args.get('f_type_systematic', '') == '1'
+        f_type_case       = request.args.get('f_type_case', '') == '1'
+        f_excl_preprints  = request.args.get('f_exclude_preprints', '') == '1'
+        f_medline         = request.args.get('f_medline', '') == '1'
+
+        # ── Helper: parse year from publication_date ─────────────────────
+        def _parse_pub_year(d):
+            """Extract 4-digit year from date string like 'Jan 2025' or '2025'."""
+            m = re.search(r'\b(19|20)\d{2}\b', str(d))
+            return int(m.group()) if m else 9999  # unknown year → keep article
+
+        # Gather articles across all keywords
+        seen_pmids = set()
+        pmc_articles = []
+
+        for kw, df in sorted_results.items():
+            if df.empty:
+                continue
+            df = df.head(max_results)
+
+            # Apply sidebar filters
+            import pandas as _pd
+            mask = _pd.Series([True] * len(df), index=df.index)
+
+            if f_date and f_date != 'custom':
+                cutoff = datetime.now().year - int(f_date)
+                mask &= df['publication_date'].apply(_parse_pub_year) >= cutoff
+            elif f_date == 'custom':
+                years = df['publication_date'].apply(_parse_pub_year)
+                if f_date_from: mask &= years >= int(f_date_from)
+                if f_date_to:   mask &= years <= int(f_date_to)
+
+            if f_abstract:
+                mask &= df['abstract'].notna() & (df['abstract'] != 'N/A')
+            if any([f_type_review, f_type_clinical, f_type_rct,
+                    f_type_meta, f_type_systematic, f_type_case]):
+                pt = df['publication_type'].fillna('').str.lower()
+                tm = _pd.Series([False]*len(df), index=df.index)
+                if f_type_review:     tm |= pt.str.contains('review', na=False)
+                if f_type_clinical:   tm |= pt.str.contains('clinical trial', na=False)
+                if f_type_rct:        tm |= pt.str.contains('randomized', na=False)
+                if f_type_meta:       tm |= pt.str.contains('meta-analysis', na=False)
+                if f_type_systematic: tm |= pt.str.contains('systematic', na=False)
+                if f_type_case:       tm |= pt.str.contains('case report', na=False)
+                mask &= tm
+
+            txt = (df['abstract'].fillna('') + ' ' + df['affiliation'].fillna('')).str.lower()
+            if f_humans  and not f_animals: mask &= txt.str.contains('human|patient|cohort', na=False, regex=True)
+            if f_animals and not f_humans:  mask &= txt.str.contains('animal|mouse|rat', na=False, regex=True)
+            if f_female  and not f_male:    mask &= txt.str.contains('female|women|woman', na=False, regex=True)
+            if f_male    and not f_female:  mask &= txt.str.contains(r'\bmale\b|men\b', na=False, regex=True)
+            if f_child:  mask &= txt.str.contains('child|pediatric|adolescent', na=False, regex=True)
+            if f_adult:  mask &= txt.str.contains('adult', na=False, regex=True)
+            if f_aged:   mask &= txt.str.contains('elderly|aged|geriatric', na=False, regex=True)
+            if f_infant: mask &= txt.str.contains('infant|newborn|neonatal', na=False, regex=True)
+            if f_excl_preprints:
+                pt = df['publication_type'].fillna('').str.lower()
+                jn = df['journal'].fillna('').str.lower()
+                mask &= ~(pt.str.contains('preprint', na=False) | jn.str.contains('preprint', na=False))
+
+            df_filtered = df[mask]
+
+            # Only free PMC articles have downloadable PDFs
+            if 'is_free_pmc' in df_filtered.columns:
+                df_filtered = df_filtered[df_filtered['is_free_pmc'] == True]
+
+            for _, row in df_filtered.iterrows():
+                pmid = str(row.get('pmid', ''))
+                if pmid in seen_pmids:
+                    continue
+                seen_pmids.add(pmid)
+                if row.get('pdf_url'):
+                    pmc_articles.append({
+                        'pmid':    pmid,
+                        'title':   str(row.get('title', 'untitled')),
+                        'pmc_id':  str(row.get('pmc_id', '')),
+                        'pdf_url': row['pdf_url'],
+                    })
+
+        if not pmc_articles:
+            return "No free PMC articles found matching the current filters.", 404
+
+        total = len(pmc_articles)
+        print(f"[export_pdfs] Downloading {total} PDFs into ZIP...")
+
+        # ── Stream ZIP directly to browser ───────────────────────────────
+        def safe_filename(pmid, title):
+            """Build a safe filename from PMID + title."""
+            clean = re.sub(r'[^\w\s-]', '', title)[:50].strip()
+            clean = re.sub(r'\s+', '_', clean)
+            return f"PMID_{pmid}_{clean}.pdf"
+
+        # ── Write ZIP to a temp file, then send_file it ───────────────────
+        # We cannot stream a ZIP incrementally because ZIP requires a central
+        # directory written at the END — the browser would get an incomplete
+        # file if we tried to stream before the ZIP is finalised.
+        # Using send_file on a temp file is the correct approach.
+        import tempfile
+
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix='.zip')
+        os.close(tmp_fd)   # close raw fd — zipfile will reopen by path
+
+        try:
+            with zipfile.ZipFile(tmp_path, mode='w',
+                                 compression=zipfile.ZIP_DEFLATED,
+                                 allowZip64=True) as zf:
+
+                # Write an index file listing all articles
+                index_lines = [
+                    f"EpiLite PDF Export — {total} articles",
+                    f"Downloaded: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    "=" * 60, ""
+                ]
+
+                for i, art in enumerate(pmc_articles, 1):
+                    fname  = safe_filename(art['pmid'], art['title'])
+                    pmc_id = art.get('pmc_id', '')
+                    print(f"  [{i}/{total}] {fname}")
+
+                    pdf_bytes   = None
+                    source_used = None
+
+                    browser_hdrs = {
+                        'User-Agent': f'EpiLite/1.0 ({NCBI_EMAIL})',
+                        'Accept': 'application/pdf,*/*',
+                    }
+
+                    # ── Attempt 1: NCBI OA FTP (real publisher PDF) ───────────
+                    if pmc_id and pmc_id != 'N/A':
+                        try:
+                            _r = http_requests.get(
+                                f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmc_id}",
+                                timeout=10, headers=browser_hdrs
+                            )
+                            if _r.status_code == 200:
+                                from xml.etree import ElementTree as _ET
+                                _root = _ET.fromstring(_r.content)
+                                for _link in _root.iter('link'):
+                                    if _link.get('format') == 'pdf':
+                                        _ftp  = _link.get('href', '')
+                                        _http = _ftp.replace('ftp://', 'https://')
+                                        _r2 = http_requests.get(_http, timeout=30,
+                                                                headers=browser_hdrs,
+                                                                allow_redirects=True)
+                                        if _r2.status_code == 200 and _r2.content[:4] == b'%PDF':
+                                            pdf_bytes   = _r2.content
+                                            source_used = 'NCBI OA FTP'
+                                        break
+                        except Exception as _e:
+                            print(f"    OA API: {_e}")
+
+                    # ── Attempt 2: Europe PMC ─────────────────────────────────
+                    if not pdf_bytes and pmc_id and pmc_id != 'N/A':
+                        try:
+                            _r = http_requests.get(
+                                f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf",
+                                timeout=30, headers=browser_hdrs, allow_redirects=True
+                            )
+                            if _r.status_code == 200 and _r.content[:4] == b'%PDF':
+                                pdf_bytes   = _r.content
+                                source_used = 'Europe PMC'
+                        except Exception:
+                            pass
+
+                    if pdf_bytes:
+                        # ── Real PDF obtained — save directly ─────────────────
+                        try:
+                            zf.writestr(fname, pdf_bytes)
+                            index_lines.append(f"[REAL PDF]  {fname}  ({source_used})")
+                        except Exception as _e:
+                            index_lines.append(f"[ERR] {fname}  ({_e})")
+                    else:
+                        # ── Fallback: generate PDF from PMC XML content ────────
+                        try:
+                            full_text = fetch_pdf_text(art['pdf_url']) if art.get('pdf_url') else ''
+
+                            from reportlab.lib.pagesizes import A4
+                            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                            from reportlab.lib.units import mm
+                            from reportlab.lib import colors
+                            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+                            from reportlab.lib.enums import TA_JUSTIFY
+
+                            pdf_buf = io.BytesIO()
+                            doc = SimpleDocTemplate(pdf_buf, pagesize=A4,
+                                leftMargin=20*mm, rightMargin=20*mm,
+                                topMargin=20*mm, bottomMargin=20*mm)
+                            styles = getSampleStyleSheet()
+
+                            def _sty(name, **kw):
+                                return ParagraphStyle(name, parent=styles['Normal'], **kw)
+
+                            t_s = _sty('T', fontSize=14, fontName='Helvetica-Bold',
+                                       textColor=colors.HexColor('#1a365d'), spaceAfter=6, leading=18)
+                            m_s = _sty('M', fontSize=9, fontName='Helvetica',
+                                       textColor=colors.HexColor('#4a5568'), spaceAfter=3, leading=13)
+                            s_s = _sty('S', fontSize=10, fontName='Helvetica-Bold',
+                                       textColor=colors.HexColor('#2b6cb0'), spaceBefore=10, spaceAfter=4)
+                            b_s = _sty('B', fontSize=9.5, fontName='Helvetica',
+                                       textColor=colors.HexColor('#2d3748'),
+                                       alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
+
+                            def _p(text, sty):
+                                try:
+                                    t = str(text or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+                                    return Paragraph(t, sty)
+                                except Exception:
+                                    return Spacer(1, 2*mm)
+
+                            story = []
+                            story.append(_p('<font color="#2b6cb0">EpiLite</font> AI Platform — Generated PDF (PMC XML content)', m_s))
+                            story.append(HRFlowable(width='100%', thickness=2,
+                                                    color=colors.HexColor('#2b6cb0'), spaceAfter=8))
+                            story.append(_p(art.get('title','Untitled'), t_s))
+
+                            for lbl, val in [
+                                ('PMID', art.get('pmid','')), ('PMC ID', pmc_id),
+                                ('Journal', art.get('journal','')),
+                                ('Date', art.get('publication_date','')),
+                                ('Authors', art.get('authors','')),
+                                ('URL', art.get('url','')),
+                            ]:
+                                if val and val not in ('N/A',''):
+                                    story.append(_p(f'<b>{lbl}:</b> {val}', m_s))
+
+                            abstract = art.get('abstract','') or ''
+                            if abstract and abstract != 'N/A':
+                                story.append(Spacer(1, 4*mm))
+                                story.append(HRFlowable(width='100%', thickness=0.5,
+                                                        color=colors.HexColor('#e2e8f0'), spaceAfter=4))
+                                story.append(_p('Abstract', s_s))
+                                story.append(_p(abstract, b_s))
+
+                            if full_text and not full_text.startswith(('Error','Could not','No text')):
+                                wc = len(full_text.split())
+                                story.append(Spacer(1, 4*mm))
+                                story.append(HRFlowable(width='100%', thickness=0.5,
+                                                        color=colors.HexColor('#e2e8f0'), spaceAfter=4))
+                                story.append(_p(f'Full Text (PMC) <font color="#718096" size="8">~{wc:,} words</font>', s_s))
+                                for block in full_text.split('\n\n'):
+                                    block = block.strip()
+                                    if not block:
+                                        continue
+                                    for line in block.split('\n'):
+                                        line = line.strip()
+                                        if not line:
+                                            story.append(Spacer(1, 2*mm))
+                                        elif len(line) < 80 and line == line.upper() and len(line) > 3:
+                                            story.append(_p(f'<b>{line}</b>', s_s))
+                                        elif len(line) > 3:
+                                            story.append(_p(line, b_s))
+                                    story.append(Spacer(1, 1*mm))
+
+                            doc.build(story)
+                            zf.writestr(fname, pdf_buf.getvalue())
+                            index_lines.append(f"[GENERATED] {fname}  (PMC XML — not in OA subset)")
+
+                        except Exception as _e:
+                            print(f"    PDF gen error: {_e}")
+                            note = fname.replace('.pdf', '_info.txt')
+                            zf.writestr(note,
+                                f"Title: {art.get('title','')}\n"
+                                f"PMID: {art.get('pmid','')}\n"
+                                f"URL: {art.get('url','')}\n\n"
+                                f"Abstract:\n{art.get('abstract','')}\n"
+                            )
+                            index_lines.append(f"[ERR] {fname}  ({_e})")
+                zf.writestr('_index.txt', '\n'.join(index_lines))
+
+        except Exception as e:
+            os.unlink(tmp_path)
+            raise e
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        zip_name  = f'pubmed_pdfs_{total}articles_{timestamp}.zip'
+
+        return send_file(
+            tmp_path,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=zip_name,
+        )
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return f"PDF export error: {str(e)}", 500
+
+
+
 @login_required
 def export_bulk_csv():
     """
@@ -2131,9 +2464,645 @@ def health():
     return jsonify({
         'status': 'healthy',
         'email': NCBI_EMAIL,
-        'features': ['multi-keyword-search', 'sorted-results'],
+        'features': ['multi-keyword-search', 'sorted-results', 'copilot'],
         'timestamp': datetime.now().isoformat()
     })
+
+
+@app.route('/analyze')
+@login_required
+def analyze():
+    """Analyze & report page — wraps current search with AI copilot."""
+    search_id    = request.args.get('search_id', '')
+    keywords_str = request.args.get('keywords', '')
+    max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
+    sort_order   = request.args.get('sort_order', 'ascending')
+
+    if search_id and search_id in _search_cache:
+        cached   = _search_cache[search_id]
+        keywords = cached['keywords']
+        total    = sum(len(df) for df in cached['sorted_results'].values())
+    else:
+        keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
+        total    = 0
+
+    return render_template(
+        'analyze.html',
+        search_id    = search_id,
+        keywords_str = keywords_str,
+        keywords     = keywords,
+        max_results  = max_results,
+        sort_order   = sort_order,
+        total_articles = total,
+    )
+
+
+# ── In-memory extract jobs ──────────────────────────────────────────────
+_extract_jobs: dict = {}  # job_id -> {status, done, total, rows, error, filename}
+
+# ── Exact column order for the output Excel ────────────────────────────
+EXTRACT_COLUMNS = [
+    "Author, year", "Country", "Study title", "Published year",
+    "Study type", "Trial phase", "Tumor type", "Cancer name",
+    "Disease definition", "Stage/SEER Stage", "",
+    "Sample size", "Mean or median age (Yr)", "",
+    "Race/ethnicity", "Mon/Combo", "Drug Class", "Treatment",
+    "Dosage/strength", "Target", "",
+    "Median Follow-up period", "",
+    "Duration of treatment (M)", "Time to AE onset", "SAE type",
+    "Prophylactics considered during treatment",
+    "AE reporting method (NCI CTCAE version 5.0 or NCI CTCAE version 4.0 or NCI CTCAE version 4.1)",
+    "AE reporting criteria", "Event by Organ Class", "AE reported Name",
+    "Grade I (Mild) - %", "Grade I (Mild) - Denominator",
+    "Grade II (Moderate) - %", "Grade II (Moderate) - Denominator",
+    "Grade I-II (Mild Moderate+) - %", "Grade I-II (Mild -Moderate+) - Denominator",
+    "Grade III (Severe) -%", "Grade III (Severe) - Denominator",
+    "Grade III-IV (Severe) -%", "Grade III -IV(Severe) - Denominator",
+    "Grade III+  (Severe) -%", "Grade III+  (Severe) -Denominator",
+    "Grade IV (Life threatening) - %", "Grade IV (Life threatening) - Denominator",
+    "Grade V (Death) - %", "Grade V (Death) - Denominator",
+    "All Grade - %", "All Grade -Denominator",
+    "Bibliography", "URL",
+]
+
+# JSON field keys matching EXTRACT_COLUMNS (blanks stay blank)
+EXTRACT_KEYS = [
+    "author_year", "country", "study_title", "published_year",
+    "study_type", "trial_phase", "tumor_type", "cancer_name",
+    "disease_definition", "stage_seer", "",
+    "sample_size", "mean_median_age", "",
+    "race_ethnicity", "mon_combo", "drug_class", "treatment",
+    "dosage_strength", "target", "",
+    "median_followup", "",
+    "duration_treatment_m", "time_to_ae_onset", "sae_type",
+    "prophylactics", "ae_reporting_method",
+    "ae_reporting_criteria", "event_organ_class", "ae_name",
+    "grade1_pct", "grade1_denom",
+    "grade2_pct", "grade2_denom",
+    "grade12_pct", "grade12_denom",
+    "grade3_pct", "grade3_denom",
+    "grade34_pct", "grade34_denom",
+    "grade3plus_pct", "grade3plus_denom",
+    "grade4_pct", "grade4_denom",
+    "grade5_pct", "grade5_denom",
+    "all_grade_pct", "all_grade_denom",
+    "bibliography", "url",
+]
+
+
+def _run_extract_job(job_id: str, articles: list):
+    """Background thread: extract clinical fields from each article via Claude."""
+    job = _extract_jobs[job_id]
+    job['total'] = len(articles)
+    all_rows = []
+
+    GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
+
+    # ── Check API key upfront ─────────────────────────────────────────────
+    if not GROQ_KEY:
+        job['error'] = 'GROQ_API_KEY not set. Please add it to your .env file and restart.'
+        job['done']  = True
+        return
+
+    print(f"[extract] Starting job {job_id} — {len(articles)} articles")
+
+    for i, art in enumerate(articles, 1):
+        if job.get('cancelled'):
+            break
+        job['current'] = i
+
+        # ── Normalise column names — handle both lower and Title Case ─────
+        # The exported CSV/Excel uses friendly names like "Title", "Abstract"
+        def _get(d, *keys):
+            for k in keys:
+                v = d.get(k) or d.get(k.lower()) or d.get(k.title()) or d.get(k.upper()) or ''
+                if v and str(v).strip() not in ('', 'nan', 'None'):
+                    return str(v).strip()
+            return ''
+
+        title    = _get(art, 'title',            'Study title',  'Title')
+        abstract = _get(art, 'abstract',         'Abstract')
+        fulltext = _get(art, 'Free article complete content', 'Full Text (PMC)',
+                             'full_text',         'Full Text')
+        authors  = _get(art, 'authors',          'Authors')
+        journal  = _get(art, 'journal',          'Journal')
+        pub_date = _get(art, 'publication_date', 'Publication Date')
+        pub_type = _get(art, 'publication_type', 'Publication Type')
+        country  = _get(art, 'country',          'Country')
+        url      = _get(art, 'url',              'PubMed URL',   'URL')
+        pmid     = _get(art, 'pmid',             'PMID')
+
+        if not title and not abstract:
+            print(f"  [extract] Article {i}: no title or abstract — skipping. Keys: {list(art.keys())[:8]}")
+            continue
+
+        job['status'] = f"Extracting article {i} of {len(articles)}: {title[:60]}…"
+        print(f"  [extract] Article {i}: {title[:60]}")
+
+        content = (abstract + '\n\n' + fulltext[:3000]) if fulltext else abstract
+
+        prompt = f"""You are a clinical research data extractor for oncology adverse event studies. Extract ALL available information from this article and return ONLY a valid JSON object — no explanation, no markdown, no code fences.
+
+ARTICLE DATA:
+Title: {title}
+Authors: {authors}
+Journal: {journal}
+Date: {pub_date}
+Publication Type: {pub_type}
+Country: {country}
+PMID: {pmid}
+URL: {url}
+
+Content (abstract + any available full text):
+{content}
+
+INSTRUCTIONS:
+- Extract every field you can find in the content above
+- For fields not mentioned in the content, use "" (empty string)
+- Do NOT make up data — only extract what is explicitly stated
+- If multiple adverse events (AEs) are reported, create one row per AE
+- If no specific AE grades are reported, still create one row with all other fields filled
+- For author_year: format as "Lastname et al., YYYY" or "Lastname & Lastname, YYYY"
+- For study_type: look for RCT, cohort, retrospective, prospective, case series, meta-analysis, systematic review
+- For mon_combo: "Monotherapy" if single drug, "Combination" if multiple drugs
+- For ae_reporting_method: look for "CTCAE", "NCI CTCAE" followed by version number
+
+Return this exact JSON structure:
+{{
+  "rows": [
+    {{
+      "author_year": "",
+      "country": "",
+      "study_title": "",
+      "published_year": "",
+      "study_type": "",
+      "trial_phase": "",
+      "tumor_type": "",
+      "cancer_name": "",
+      "disease_definition": "",
+      "stage_seer": "",
+      "sample_size": "",
+      "mean_median_age": "",
+      "race_ethnicity": "",
+      "mon_combo": "",
+      "drug_class": "",
+      "treatment": "",
+      "dosage_strength": "",
+      "target": "",
+      "median_followup": "",
+      "duration_treatment_m": "",
+      "time_to_ae_onset": "",
+      "sae_type": "",
+      "prophylactics": "",
+      "ae_reporting_method": "",
+      "ae_reporting_criteria": "",
+      "event_organ_class": "",
+      "ae_name": "",
+      "grade1_pct": "",
+      "grade1_denom": "",
+      "grade2_pct": "",
+      "grade2_denom": "",
+      "grade12_pct": "",
+      "grade12_denom": "",
+      "grade3_pct": "",
+      "grade3_denom": "",
+      "grade34_pct": "",
+      "grade34_denom": "",
+      "grade3plus_pct": "",
+      "grade3plus_denom": "",
+      "grade4_pct": "",
+      "grade4_denom": "",
+      "grade5_pct": "",
+      "grade5_denom": "",
+      "all_grade_pct": "",
+      "all_grade_denom": "",
+      "bibliography": "",
+      "url": "{url}"
+    }}
+  ]
+}}"""
+
+        try:
+            # ── Call Groq with retry on rate limit ────────────────────
+            resp = None
+            for attempt in range(4):
+                resp = http_requests.post(
+                    'https://api.groq.com/openai/v1/chat/completions',
+                    headers={
+                        'Content-Type':  'application/json',
+                        'Authorization': f'Bearer {GROQ_KEY}',
+                    },
+                    json={
+                        'model':       'llama-3.1-8b-instant',
+                        'max_tokens':  2000,
+                        'temperature': 0,
+                        'messages':    [
+                            {'role': 'system', 'content': 'You are a clinical research data extractor. Return ONLY valid JSON, no explanation, no markdown fences.'},
+                            {'role': 'user',   'content': prompt},
+                        ],
+                    },
+                    timeout=45,
+                )
+                if resp.status_code == 429:
+                    wait = 15 * (attempt + 1)   # 15s, 30s, 45s, 60s
+                    print(f"    Rate limit hit — waiting {wait}s (attempt {attempt+1}/4)")
+                    job['status'] = f"Rate limit — waiting {wait}s before retry… ({i}/{len(articles)})"
+                    time.sleep(wait)
+                else:
+                    break
+            print(f"    API status: {resp.status_code}")
+            if resp.status_code == 200:
+                text = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '{}')
+                # Strip markdown fences if present
+                text = re.sub(r'^```[a-z]*\n?', '', text.strip())
+                text = re.sub(r'\n?```$', '', text.strip())
+                try:
+                    extracted = json.loads(text)
+                    rows = extracted.get('rows', [])
+                    if rows:
+                        print(f"    Extracted {len(rows)} row(s)")
+                        all_rows.extend(rows)
+                    else:
+                        print(f"    No rows in response — using fallback")
+                        all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url})
+                except json.JSONDecodeError as je:
+                    print(f"    JSON parse error: {je} — text: {text[:200]}")
+                    all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url,
+                                     'ae_name': f'JSON parse error: {str(je)[:80]}'})
+            else:
+                err = resp.json().get('error', {}).get('message', resp.text[:200])
+                print(f"    API error {resp.status_code}: {err}")
+                all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url,
+                                 'ae_name': f'API error {resp.status_code}: {err[:80]}'})
+        except Exception as e:
+            all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url,
+                             'ae_name': f'Error: {str(e)[:80]}'})
+
+        time.sleep(2.5)  # Groq free tier: 30 req/min = 2s minimum between calls
+
+    # ── Build Excel ───────────────────────────────────────────────────────
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb  = Workbook()
+        ws  = wb.active
+        ws.title = 'AE Extraction'
+
+        # Header style
+        hdr_fill = PatternFill('solid', start_color='1A365D')
+        hdr_font = Font(name='Arial', bold=True, color='FFFFFF', size=9)
+        hdr_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        thin = Border(
+            left=Side(style='thin', color='FFFFFF'),
+            right=Side(style='thin', color='FFFFFF'),
+        )
+
+        # Write headers
+        col_idx = 1
+        for col_name in EXTRACT_COLUMNS:
+            cell = ws.cell(row=1, column=col_idx, value=col_name if col_name else '')
+            if col_name:
+                cell.fill  = hdr_fill
+                cell.font  = hdr_font
+                cell.alignment = hdr_align
+                cell.border = thin
+            else:
+                cell.fill = PatternFill('solid', start_color='2B4C7E')
+            col_idx += 1
+
+        # Freeze header row
+        ws.freeze_panes = 'A2'
+
+        # Write data rows
+        for r_idx, row_data in enumerate(all_rows, start=2):
+            col_idx = 1
+            for col_name, key in zip(EXTRACT_COLUMNS, EXTRACT_KEYS):
+                val = row_data.get(key, '') if key else ''
+                cell = ws.cell(row=r_idx, column=col_idx, value=str(val) if val else '')
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+                cell.font = Font(name='Arial', size=9)
+                # Alternate row shading
+                if r_idx % 2 == 0:
+                    cell.fill = PatternFill('solid', start_color='EBF4FF')
+                col_idx += 1
+
+        # Column widths
+        width_map = {
+            1: 20, 2: 12, 3: 35, 4: 10, 5: 15, 6: 12, 7: 15, 8: 18,
+            9: 25, 10: 15, 12: 10, 13: 15, 15: 18, 16: 12, 17: 18,
+            18: 20, 19: 18, 20: 15, 22: 18, 24: 18, 25: 15, 26: 20,
+            27: 30, 28: 45, 29: 20, 30: 22, 31: 25,
+        }
+        for c in range(1, len(EXTRACT_COLUMNS) + 1):
+            ws.column_dimensions[get_column_letter(c)].width = width_map.get(c, 12)
+
+        ws.row_dimensions[1].height = 60
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        job['excel_bytes'] = buf.getvalue()
+        job['done']   = True
+        job['status'] = f'Complete — {len(all_rows)} rows extracted from {len(articles)} articles'
+
+    except Exception as e:
+        job['error']  = f'Excel build failed: {e}'
+        job['done']   = True
+        import traceback; traceback.print_exc()
+
+
+@app.route('/api/extract_debug', methods=['POST'])
+@login_required
+def extract_debug():
+    """
+    Debug endpoint — processes the FIRST article from uploaded file
+    and returns raw Claude response + column mapping so we can diagnose issues.
+    """
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file'}), 400
+
+    fname = f.filename or ''
+    try:
+        if fname.endswith('.csv'):
+            df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+        else:
+            df = pd.read_excel(f, dtype=str).fillna('')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+    if df.empty:
+        return jsonify({'error': 'Empty file'}), 400
+
+    # Show column names and first article
+    columns = list(df.columns)
+    art     = df.iloc[0].to_dict()
+
+    # Try extracting fields
+    def _get(d, *keys):
+        for k in keys:
+            v = d.get(k) or d.get(k.lower()) or d.get(k.title()) or ''
+            if v and str(v).strip() not in ('', 'nan', 'None'):
+                return str(v).strip()
+        return ''
+
+    title    = _get(art, 'title', 'Study title', 'Title')
+    abstract = _get(art, 'abstract', 'Abstract')
+    authors  = _get(art, 'authors', 'Authors')
+    country  = _get(art, 'country', 'Country')
+    url      = _get(art, 'url', 'PubMed URL', 'URL')
+
+    GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
+    if not GROQ_KEY:
+        return jsonify({
+            'columns': columns,
+            'title': title,
+            'abstract': abstract[:200],
+            'error': 'GROQ_API_KEY not set in .env file'
+        })
+
+    # Call Groq with just this one article
+    content = abstract[:2000]
+    prompt  = f"""Extract clinical data from this article. Return ONLY valid JSON, no markdown.
+
+Title: {title}
+Authors: {authors}
+Country: {country}
+URL: {url}
+Abstract: {content}
+
+Return JSON: {{"rows": [{{"author_year":"","country":"","study_title":"","published_year":"","study_type":"","trial_phase":"","cancer_name":"","sample_size":"","treatment":"","ae_name":"","url":"{url}"}}]}}"""
+
+    try:
+        resp = http_requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={
+                'Content-Type':  'application/json',
+                'Authorization': f'Bearer {GROQ_KEY}',
+            },
+            json={
+                'model':       'llama-3.1-8b-instant',
+                'max_tokens':  500,
+                'temperature': 0,
+                'messages':    [
+                    {'role': 'system', 'content': 'Return ONLY valid JSON, no explanation, no markdown.'},
+                    {'role': 'user',   'content': prompt},
+                ],
+            },
+            timeout=30,
+        )
+
+        raw_text = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '') if resp.status_code == 200 else ''
+
+        return jsonify({
+            'status':         'ok',
+            'api_status':     resp.status_code,
+            'columns_in_file': columns,
+            'title_found':    title,
+            'abstract_found': abstract[:150] + '...' if abstract else '(empty)',
+            'claude_raw':     raw_text[:500],
+            'article_keys':   list(art.keys()),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'columns': columns})
+
+
+@app.route('/api/extract_report', methods=['POST'])
+@login_required
+def extract_report():
+    """
+    Accept uploaded CSV/Excel, start background extraction job.
+    Returns: { job_id }
+    """
+    import uuid as _uuid
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    fname = f.filename or ''
+    try:
+        if fname.endswith('.csv'):
+            df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+        elif fname.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(f, dtype=str).fillna('')
+        else:
+            return jsonify({'error': 'Please upload a CSV or Excel (.xlsx) file'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Could not read file: {e}'}), 400
+
+    articles = df.to_dict(orient='records')
+    if not articles:
+        return jsonify({'error': 'File contains no rows'}), 400
+
+    # Cap at 100 articles to keep runtime reasonable
+    articles = articles[:100]
+
+    job_id = _uuid.uuid4().hex[:12]
+    _extract_jobs[job_id] = {
+        'status':      'Starting…',
+        'done':        False,
+        'current':     0,
+        'total':       len(articles),
+        'excel_bytes': None,
+        'error':       None,
+        'cancelled':   False,
+    }
+
+    t = threading.Thread(target=_run_extract_job, args=(job_id, articles), daemon=True)
+    t.start()
+
+    return jsonify({'job_id': job_id, 'total': len(articles)})
+
+
+@app.route('/api/extract_progress/<job_id>')
+@login_required
+def extract_progress(job_id):
+    job = _extract_jobs.get(job_id)
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify({
+        'status':  job['status'],
+        'done':    job['done'],
+        'current': job['current'],
+        'total':   job['total'],
+        'error':   job['error'],
+    })
+
+
+@app.route('/api/extract_download/<job_id>')
+@login_required
+def extract_download(job_id):
+    job = _extract_jobs.get(job_id)
+    if not job or not job['done'] or not job['excel_bytes']:
+        return "Job not ready or not found", 404
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(
+        io.BytesIO(job['excel_bytes']),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'AE_Extraction_{ts}.xlsx',
+    )
+
+
+@app.route('/api/copilot', methods=['POST'])
+@login_required
+def copilot():
+    """
+    AI copilot endpoint — uses article abstracts + metadata as context
+    and calls Claude to answer questions about the research.
+
+    Request JSON:
+        {
+            "search_id":   "abc123",
+            "keywords":    "lung cancer, breast cancer",
+            "max_results": 1000,
+            "history":     [{"role": "user", "content": "..."}, ...]
+        }
+    """
+    try:
+        data       = request.get_json()
+        search_id  = data.get('search_id', '')
+        keywords_s = data.get('keywords', '')
+        history    = data.get('history', [])
+
+        # ── Build article context from cache ─────────────────────────────
+        context_parts = []
+        total_articles = 0
+
+        if search_id and search_id in _search_cache:
+            cached = _search_cache[search_id]
+            for kw, df in cached['sorted_results'].items():
+                if df.empty:
+                    continue
+                context_parts.append(f"\n## Keyword: {kw} ({len(df)} articles)\n")
+                # Include up to 150 articles per keyword for context
+                for _, row in df.head(150).iterrows():
+                    title   = str(row.get('title', '') or '')
+                    journal = str(row.get('journal', '') or '')
+                    date    = str(row.get('publication_date', '') or '')
+                    pub_type = str(row.get('publication_type', '') or '')
+                    abstract = str(row.get('abstract', '') or '')
+                    authors  = str(row.get('authors', '') or '')
+                    country  = str(row.get('country', '') or '')
+
+                    # Truncate abstract to keep context manageable
+                    abstract_short = abstract[:400] + '…' if len(abstract) > 400 else abstract
+
+                    context_parts.append(
+                        f"- **{title}** | {journal} | {date} | {pub_type}\n"
+                        f"  Authors: {authors[:100]}\n"
+                        f"  Country: {country}\n"
+                        f"  Abstract: {abstract_short}\n"
+                    )
+                    total_articles += 1
+
+        article_context = ''.join(context_parts) if context_parts else \
+            f"Search for: {keywords_s} (articles not in cache, limited context available)"
+
+        # ── Build system prompt ───────────────────────────────────────────
+        system_prompt = f"""You are EpiLite Co-pilot, an expert biomedical research assistant specializing in epidemiology and clinical research analysis.
+
+You have been provided with {total_articles} PubMed articles from a search on: {keywords_s}
+
+Your role is to:
+- Analyze and synthesize findings from the provided articles
+- Identify patterns, trends, and research gaps
+- Compare study designs, populations, and outcomes across keywords
+- Provide clear, structured, evidence-based responses
+- Cite specific articles (by title or journal) when making claims
+- Be honest when the answer cannot be determined from the provided articles
+
+Always base your answers on the article data provided. If asked something beyond the provided data, say so clearly.
+
+ARTICLE DATA:
+{article_context}"""
+
+        # ── Call Claude API ───────────────────────────────────────────────
+        api_messages = [
+            {'role': m['role'], 'content': m['content']}
+            for m in history
+        ]
+
+        GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
+        if not GROQ_KEY:
+            return jsonify({'error': 'GROQ_API_KEY not set in .env file'}), 500
+
+        # Prepend system prompt as first user message for Groq
+        groq_messages = [{'role': 'system', 'content': system_prompt}] + api_messages
+
+        response = http_requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={
+                'Content-Type':  'application/json',
+                'Authorization': f'Bearer {GROQ_KEY}',
+            },
+            json={
+                'model':       'llama-3.1-8b-instant',
+                'max_tokens':  1500,
+                'temperature': 0.3,
+                'messages':    groq_messages,
+            },
+            timeout=60,
+        )
+
+        if response.status_code != 200:
+            error_detail = response.json().get('error', {}).get('message', response.text[:200])
+            return jsonify({'error': f'AI service error: {error_detail}'}), 500
+
+        resp_data = response.json()
+        answer = resp_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+
+        return jsonify({'answer': answer, 'articles_used': total_articles})
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 
 
 @app.route('/api/ncbi_count', methods=['POST'])
@@ -2203,48 +3172,44 @@ def ncbi_count():
         # Text availability
         if filters.get('free_pmc'):
             clauses.append('"free full text"[Filter]')
-        if filters.get('full_text'):
-            clauses.append('"full text"[Filter]')
-
-        # Article types
-        type_map = {
-            'type_review':     '"Review"[Publication Type]',
-            'type_clinical':   '"Clinical Trial"[Publication Type]',
-            'type_rct':        '"Randomized Controlled Trial"[Publication Type]',
-            'type_meta':       '"Meta-Analysis"[Publication Type]',
-            'type_systematic': '"Systematic Review"[Publication Type]',
-            'type_case':       '"Case Reports"[Publication Type]',
-        }
-        for key, clause in type_map.items():
-            if filters.get(key):
-                clauses.append(clause)
 
         # Species
         if filters.get('humans')  and not filters.get('animals'):
             clauses.append('"humans"[MeSH Terms]')
         if filters.get('animals') and not filters.get('humans'):
             clauses.append('"animals"[MeSH Terms]')
-
         # Sex
         if filters.get('female') and not filters.get('male'):
             clauses.append('"female"[MeSH Terms]')
         if filters.get('male') and not filters.get('female'):
             clauses.append('"male"[MeSH Terms]')
-
         # Age
-        age_map = {
-            'child':  '"child"[MeSH Terms]',
-            'adult':  '"adult"[MeSH Terms]',
-            'aged':   '"aged"[MeSH Terms]',
-            'infant': '"infant"[MeSH Terms]',
-        }
-        for key, clause in age_map.items():
+        for key, clause in [
+            ('child',  '"child"[MeSH Terms]'),
+            ('adult',  '"adult"[MeSH Terms]'),
+            ('aged',   '"aged"[MeSH Terms]'),
+            ('infant', '"infant"[MeSH Terms]'),
+        ]:
             if filters.get(key):
                 clauses.append(clause)
 
-        # MEDLINE
-        if filters.get('medline'):
-            clauses.append('"medline"[Subset]')
+        # Article types — OR logic (keep if matches any checked type)
+        type_clauses = []
+        type_map = {
+            'type_journal':      '"Journal Article"[Publication Type]',
+            'type_review':       '"Review"[Publication Type]',
+            'type_systematic':   '"Systematic Review"[Publication Type]',
+            'type_meta':         '"Meta-Analysis"[Publication Type]',
+            'type_rct':          '"Randomized Controlled Trial"[Publication Type]',
+            'type_clinical':     '"Clinical Trial"[Publication Type]',
+            'type_case':         '"Case Reports"[Publication Type]',
+            'type_observational': '"Observational Study"[Publication Type]',
+        }
+        for key, clause in type_map.items():
+            if filters.get(key):
+                type_clauses.append(clause)
+        if type_clauses:
+            clauses.append('(' + ' OR '.join(type_clauses) + ')')
 
         # ── Combine clauses into one AND-joined filter string ─────────────
         filter_str = ' AND '.join(clauses) if clauses else ''

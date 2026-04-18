@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyze &amp; Report - EpiLite</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #2d3748; min-height: 100vh; display: flex; flex-direction: column; }
+        .topbar { background: linear-gradient(135deg,#1a365d,#2b6cb0); color:#fff; padding:.65rem 1.5rem; display:flex; align-items:center; justify-content:space-between; }
+        .topbar-brand { font-size:1.1rem; font-weight:800; display:flex; align-items:center; gap:.5rem; }
+        .topbar-meta  { font-size:.78rem; opacity:.85; }
+        .action-tabs { display:flex; gap:.5rem; padding:.6rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; }
+        .action-tab  { display:flex; align-items:center; gap:.4rem; padding:.45rem 1rem; border-radius:20px; font-size:.82rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
+        .action-tab.active { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
+        .action-tab:hover  { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
+        .page-body { display:flex; flex:1; }
+        .steps-sidebar { width:100px; background:#1a365d; padding:1.5rem .6rem; display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+        .step-pill { background:#2b6cb0; color:#fff; font-size:.75rem; font-weight:800; padding:.4rem .75rem; border-radius:6px; width:80px; text-align:center; }
+        .step-pill.active { background:#63b3ed; box-shadow:0 0 0 3px rgba(99,179,237,.35); }
+        .step-connector { width:2px; height:48px; background:#2b4c7e; margin:.3rem 0; }
+        .main-content { flex:1; display:flex; flex-direction:column; overflow-y:auto; }
+        .step-panel { padding:1.25rem 1.5rem; border-bottom:2px solid #e2e8f0; }
+        .step-panel.step1 { background:#dbeafe; }
+        .step-panel.step2 { background:#fff; }
+        .panel-title { font-size:.88rem; font-weight:700; color:#1e3a5f; margin-bottom:.9rem; display:flex; align-items:center; gap:.5rem; }
+        .export-grid { display:flex; gap:.85rem; flex-wrap:wrap; }
+        .export-card { background:#fff; border-radius:10px; padding:.9rem 1rem; min-width:170px; flex:1; max-width:220px; box-shadow:0 1px 4px rgba(0,0,0,.08); border:1.5px solid #bfdbfe; }
+        .export-card-title { font-size:.7rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.6rem; padding-bottom:.35rem; border-bottom:2px solid #ebf8ff; }
+        .export-btn-row { display:flex; flex-direction:column; gap:.3rem; }
+        .export-btn { display:flex; align-items:center; gap:.35rem; padding:.28rem .55rem; border-radius:5px; font-size:.73rem; font-weight:600; text-decoration:none; border:1.5px solid; transition:opacity .15s; }
+        .export-btn:hover { opacity:.75; }
+        .btn-csv   { background:#e6fffa; color:#234e52; border-color:#81e6d9; }
+        .btn-excel { background:#f0fff4; color:#22543d; border-color:#9ae6b4; }
+        .btn-json  { background:#faf5ff; color:#44337a; border-color:#d6bcfa; }
+        .btn-zip   { background:#ebf8ff; color:#2c5282; border-color:#90cdf4; }
+        .step2-inner { display:flex; gap:1.25rem; flex-wrap:wrap; }
+        .upload-zone { flex:1; min-width:260px; }
+        .upload-box { border:2.5px dashed #90cdf4; border-radius:12px; padding:2rem 1.5rem; text-align:center; cursor:pointer; transition:all .2s; background:#f7fbff; }
+        .upload-box:hover, .upload-box.dragging { border-color:#2b6cb0; background:#ebf8ff; }
+        .upload-icon { font-size:2rem; color:#90cdf4; margin-bottom:.75rem; }
+        .upload-title { font-size:.88rem; font-weight:700; color:#2b6cb0; margin-bottom:.3rem; }
+        .upload-hint { font-size:.75rem; color:#718096; line-height:1.55; }
+        .upload-hint b { color:#2b6cb0; }
+        .file-name { font-size:.78rem; font-weight:600; color:#22543d; margin-top:.55rem; }
+        .upload-box.file-selected { border-color:#9ae6b4; background:#f0fff4; }
+        #file-input { display:none; }
+        .btn-extract { display:flex; align-items:center; justify-content:center; gap:.5rem; background:linear-gradient(135deg,#2b6cb0,#1a365d); color:#fff; border:none; border-radius:8px; padding:.65rem 1.5rem; font-size:.88rem; font-weight:700; cursor:pointer; width:100%; margin-top:.75rem; transition:opacity .15s; }
+        .btn-extract:hover { opacity:.9; }
+        .btn-extract:disabled { opacity:.45; cursor:not-allowed; }
+        .progress-area { flex:1; min-width:260px; display:flex; flex-direction:column; gap:.75rem; }
+        .pbox { background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:10px; padding:1rem 1.1rem; }
+        .ibox { background:#fffbeb; border:1.5px solid #fbd38d; border-radius:10px; padding:.9rem 1rem; }
+        .box-title { font-size:.78rem; font-weight:700; margin-bottom:.5rem; display:flex; align-items:center; gap:.4rem; }
+        .progress-bar-wrap { background:#e2e8f0; border-radius:99px; height:10px; overflow:hidden; margin-bottom:.5rem; }
+        .progress-bar { height:100%; background:linear-gradient(90deg,#2b6cb0,#63b3ed); border-radius:99px; transition:width .4s; }
+        .pstatus { font-size:.75rem; color:#4a5568; line-height:1.5; min-height:2em; }
+        .pcount  { font-size:.72rem; color:#718096; margin-top:.2rem; }
+        .btn-download { display:flex; align-items:center; justify-content:center; gap:.5rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:8px; padding:.65rem 1.5rem; font-size:.88rem; font-weight:700; cursor:pointer; width:100%; text-decoration:none; margin-top:.5rem; }
+        .btn-download:hover { opacity:.88; }
+        .col-preview-wrap { margin-top:.9rem; }
+        .cprev-title { font-size:.72rem; font-weight:700; color:#4a5568; margin-bottom:.35rem; }
+        .col-preview { background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:.6rem .75rem; max-height:145px; overflow-y:auto; }
+        .col-tag { display:inline-block; background:#ebf8ff; color:#2b6cb0; border:1px solid #bee3f8; border-radius:4px; font-size:.63rem; padding:.12rem .38rem; margin:.1rem; font-weight:600; }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="topbar-brand"><i class="fas fa-dna"></i> EpiLite AI Platform</div>
+    <div class="topbar-meta"><i class="fas fa-search"></i> {{ keywords_str }} &nbsp;&#183;&nbsp; <i class="fas fa-list"></i> {{ total_articles }} articles</div>
+</div>
+
+<div class="action-tabs">
+    <a href="javascript:history.back()" class="action-tab">
+        <i class="fas fa-search"></i> Search, extract and curate
+    </a>
+    <a href="#" class="action-tab active"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+</div>
+
+<div class="page-body">
+    <div class="steps-sidebar">
+        <div class="step-pill active">Step 1</div>
+        <div class="step-connector"></div>
+        <div class="step-pill">Step 2</div>
+    </div>
+
+    <div class="main-content">
+
+        <!-- Step 1: Export -->
+        <div class="step-panel step1">
+            <div class="panel-title"><i class="fas fa-file-export" style="color:#2b6cb0"></i> Select required data to export to Co-pilot</div>
+            <div class="export-grid">
+                <div class="export-card">
+                    <div class="export-card-title">1. Export - Only Abstract</div>
+                    <div class="export-btn-row">
+                        <a id="dl-csv-abs"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV</a>
+                        <a id="dl-excel-abs" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel</a>
+                    </div>
+                </div>
+                <div class="export-card">
+                    <div class="export-card-title">2. Export - Abstract + Full text</div>
+                    <div class="export-btn-row">
+                        <a id="dl-csv-full"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV</a>
+                        <a id="dl-excel-full" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel</a>
+                        <a id="dl-json"       href="#" class="export-btn btn-json"><i class="fas fa-code"></i> JSON</a>
+                    </div>
+                </div>
+                <div class="export-card">
+                    <div class="export-card-title">3. Export - Free PDFs</div>
+                    <div class="export-btn-row">
+                        <a id="dl-csv-pmc"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV (Free PMC)</a>
+                        <a id="dl-excel-pmc" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel (Free PMC)</a>
+                        <a id="dl-pdfs"      href="#" class="export-btn btn-zip"><i class="fas fa-file-archive"></i> Download PDFs (ZIP)</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Upload + Extract -->
+        <div class="step-panel step2">
+            <div class="panel-title"><i class="fas fa-robot" style="color:#2b6cb0"></i> Analyze the data through Co-pilot</div>
+            <div class="step2-inner">
+
+                <!-- Upload side -->
+                <div class="upload-zone">
+                    <div class="upload-box" id="drop-zone"
+                         onclick="document.getElementById('file-input').click()"
+                         ondragover="event.preventDefault();this.classList.add('dragging')"
+                         ondragleave="this.classList.remove('dragging')"
+                         ondrop="handleDrop(event)">
+                        <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                        <div class="upload-title">Upload exported file</div>
+                        <div class="upload-hint">
+                            Drag &amp; drop or click to browse<br>
+                            <b>CSV or Excel</b> exported from Step 1<br><br>
+                            Tip: Use <b>Abstract + Full text</b> for best results
+                        </div>
+                        <div class="file-name" id="file-name-display" style="display:none"></div>
+                    </div>
+                    <input type="file" id="file-input" accept=".csv,.xlsx,.xls" onchange="fileSelected(this)">
+
+                    <button class="btn-extract" id="btn-extract" disabled onclick="startExtraction()">
+                        <i class="fas fa-magic"></i> Extract &amp; Generate Report
+                    </button>
+
+                    <div class="col-preview-wrap">
+                        <div class="cprev-title"><i class="fas fa-table" style="color:#2b6cb0"></i> Output Excel columns (51 fields):</div>
+                        <div class="col-preview" id="col-preview"></div>
+                    </div>
+                </div>
+
+                <!-- Progress side -->
+                <div class="progress-area">
+
+                    <div class="pbox" id="progress-box" style="display:none">
+                        <div class="box-title" style="color:#2b6cb0"><i class="fas fa-cog fa-spin"></i> Extracting clinical data...</div>
+                        <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+                        <div class="pstatus" id="progress-status">Starting...</div>
+                        <div class="pcount"  id="progress-count"></div>
+                    </div>
+
+                    <div id="download-box" style="display:none">
+                        <div class="pbox" style="border-color:#9ae6b4;background:#f0fff4;">
+                            <div class="box-title" style="color:#276749"><i class="fas fa-check-circle"></i> Extraction complete!</div>
+                            <div class="pstatus" id="complete-status" style="color:#276749"></div>
+                            <a id="download-link" href="#" class="btn-download">
+                                <i class="fas fa-file-excel"></i> Download AE Extraction Excel
+                            </a>
+                            <div style="font-size:.68rem;color:#718096;margin-top:.45rem;line-height:1.4">
+                                <i class="fas fa-info-circle"></i> Please review AI-extracted values — some fields may need manual verification.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="error-box" style="display:none">
+                        <div class="pbox" style="border-color:#fed7d7;background:#fff5f5;">
+                            <div class="box-title" style="color:#c53030"><i class="fas fa-exclamation-circle"></i> Extraction error</div>
+                            <div class="pstatus" id="error-msg" style="color:#c53030"></div>
+                            <button onclick="resetExtraction()" style="margin-top:.5rem;font-size:.75rem;color:#2b6cb0;background:none;border:none;cursor:pointer;text-decoration:underline">
+                                Try again
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="ibox">
+                        <div class="box-title" style="color:#744210"><i class="fas fa-lightbulb"></i> How it works</div>
+                        <div class="pstatus" style="color:#744210;line-height:1.65">
+                            <b>1.</b> Export data using Step 1 (CSV or Excel)<br>
+                            <b>2.</b> Upload the exported file here<br>
+                            <b>3.</b> AI reads each article and extracts 51 clinical fields including:
+                            study design, cancer type, treatment details, and AE grades I-V with percentages<br>
+                            <b>4.</b> Download the populated Excel<br><br>
+                            <b>Max 100 articles &middot; ~1-3 min</b><br>
+                            <b>Best results:</b> Use "Abstract + Full text" export
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const QS = 'keywords=' + encodeURIComponent('{{ keywords_str }}') + '&max_results={{ max_results }}&sort_order={{ sort_order }}&search_id={{ search_id }}';
+document.getElementById('dl-csv-abs').href    = '/export/multi/csv?'   + QS + '&mode=abstract';
+document.getElementById('dl-excel-abs').href  = '/export/multi/excel?' + QS + '&mode=abstract';
+document.getElementById('dl-csv-full').href   = '/export/multi/csv?'   + QS;
+document.getElementById('dl-excel-full').href = '/export/multi/excel?' + QS;
+document.getElementById('dl-json').href       = '/export/multi/json?'  + QS;
+document.getElementById('dl-csv-pmc').href    = '/export/multi/csv?'   + QS + '&mode=pmc_only';
+document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&mode=pmc_only';
+document.getElementById('dl-pdfs').href       = '/export/pdfs?'        + QS;
+
+var COLS = ["Author, year","Country","Study title","Published year","Study type","Trial phase","Tumor type","Cancer name","Disease definition","Stage/SEER Stage","Sample size","Mean or median age (Yr)","Race/ethnicity","Mon/Combo","Drug Class","Treatment","Dosage/strength","Target","Median Follow-up period","Duration of treatment (M)","Time to AE onset","SAE type","Prophylactics considered during treatment","AE reporting method (NCI CTCAE v5.0/v4.0/v4.1)","AE reporting criteria","Event by Organ Class","AE reported Name","Grade I (Mild) -%","Grade I - Denom","Grade II (Moderate) -%","Grade II - Denom","Grade I-II -%","Grade I-II - Denom","Grade III (Severe) -%","Grade III - Denom","Grade III-IV -%","Grade III-IV - Denom","Grade III+ -%","Grade III+ - Denom","Grade IV (Life threatening) -%","Grade IV - Denom","Grade V (Death) -%","Grade V - Denom","All Grade -%","All Grade - Denom","Bibliography","URL"];
+var prev = document.getElementById('col-preview');
+COLS.forEach(function(c){ var s=document.createElement('span'); s.className='col-tag'; s.textContent=c; prev.appendChild(s); });
+
+var selectedFile = null;
+function fileSelected(i){ if(i.files[0]){ selectedFile=i.files[0]; showFile(selectedFile.name); } }
+function handleDrop(e){
+    e.preventDefault();
+    document.getElementById('drop-zone').classList.remove('dragging');
+    var f=e.dataTransfer.files[0];
+    if(f&&(f.name.endsWith('.csv')||f.name.endsWith('.xlsx')||f.name.endsWith('.xls'))){ selectedFile=f; showFile(f.name); }
+    else{ alert('Please drop a CSV or Excel file.'); }
+}
+function showFile(n){
+    document.getElementById('drop-zone').classList.add('file-selected');
+    var d=document.getElementById('file-name-display'); d.style.display=''; d.textContent='File: '+n;
+    document.getElementById('btn-extract').disabled=false;
+}
+function resetExtraction(){ document.getElementById('error-box').style.display='none'; document.getElementById('btn-extract').disabled=!selectedFile; }
+
+var jobId=null, pollTimer=null;
+async function startExtraction(){
+    if(!selectedFile) return;
+    document.getElementById('btn-extract').disabled=true;
+    document.getElementById('progress-box').style.display='';
+    document.getElementById('download-box').style.display='none';
+    document.getElementById('error-box').style.display='none';
+    setProgress(0,'Uploading file...','');
+    var fd=new FormData(); fd.append('file',selectedFile);
+    try{
+        var r=await fetch('/api/extract_report',{method:'POST',body:fd});
+        var d=await r.json();
+        if(d.error){ showError(d.error); return; }
+        jobId=d.job_id; pollProgress(d.total);
+    }catch(e){ showError('Upload failed: '+e.message); }
+}
+function pollProgress(total){
+    pollTimer=setInterval(async function(){
+        try{
+            var r=await fetch('/api/extract_progress/'+jobId);
+            var d=await r.json();
+            var pct=total>0?Math.round((d.current/total)*100):0;
+            setProgress(pct,d.status,d.current+' / '+d.total+' articles processed');
+            if(d.done){
+                clearInterval(pollTimer);
+                if(d.error){ showError(d.error); }
+                else{
+                    document.getElementById('progress-box').style.display='none';
+                    document.getElementById('download-box').style.display='';
+                    document.getElementById('complete-status').textContent=d.status;
+                    document.getElementById('download-link').href='/api/extract_download/'+jobId;
+                }
+            }
+        }catch(e){ clearInterval(pollTimer); showError('Progress check failed: '+e.message); }
+    },1500);
+}
+function setProgress(p,s,c){
+    document.getElementById('progress-bar').style.width=p+'%';
+    document.getElementById('progress-status').textContent=s;
+    document.getElementById('progress-count').textContent=c;
+}
+function showError(m){
+    document.getElementById('progress-box').style.display='none';
+    document.getElementById('error-box').style.display='';
+    document.getElementById('error-msg').textContent=m;
+    document.getElementById('btn-extract').disabled=false;
+}
+</script>
+</body>
+</html>

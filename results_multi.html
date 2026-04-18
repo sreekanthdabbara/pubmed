@@ -260,17 +260,6 @@
         .btn-exp-word  { background: #ebf8ff; color: #2b6cb0; }
         .btn-exp-pdf   { background: #fff5f5; color: #c53030; }
 
-        /* Bulk download in export panel */
-        .bulk-section {
-            background: #fff; border-radius: 10px; padding: .85rem .95rem;
-            box-shadow: 0 1px 6px rgba(0,0,0,.07);
-        }
-        .bulk-section-title { font-size: .78rem; font-weight: 700; color: #1a365d; margin-bottom: .55rem; display: flex; align-items: center; gap: .35rem; }
-        .bulk-input { border: 1.5px solid #cbd5e0; border-radius: 6px; padding: .32rem .5rem; font-size: .76rem; color: #2d3748; width: 100%; margin-bottom: .4rem; }
-        .btn-bulk { display: flex; align-items: center; justify-content: center; gap: .35rem; background: linear-gradient(135deg,#276749,#22543d); color: #fff; border: none; border-radius: 6px; padding: .42rem .65rem; font-size: .75rem; font-weight: 600; cursor: pointer; width: 100%; }
-        .btn-bulk:hover { opacity: .88; }
-        .bulk-note { font-size: .68rem; color: #718096; margin-top: .35rem; line-height: 1.4; }
-
         /* Footer */
         footer { text-align: center; padding: 1.25rem 1rem; color: #718096; font-size: .75rem; }
         .footer-logo { height: 28px; width: auto; opacity: .65; display: block; margin: 0 auto .4rem; }
@@ -335,29 +324,29 @@
         <!-- Publication Date -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-calendar-alt" style="color:#2b6cb0"></i> Publication Date</div>
-            <label class="filter-item"><input type="radio" name="pub_date" value="" checked onchange="applyFilters()"> Any time</label>
-            <label class="filter-item"><input type="radio" name="pub_date" value="1" onchange="applyFilters()"> 1 year</label>
-            <label class="filter-item"><input type="radio" name="pub_date" value="5" onchange="applyFilters()"> 5 years</label>
-            <label class="filter-item"><input type="radio" name="pub_date" value="10" onchange="applyFilters()"> 10 years</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="" checked onchange="scheduleNcbiCount();applyFilters()"> Any time</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="1" onchange="scheduleNcbiCount();applyFilters()"> 1 year</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="5" onchange="scheduleNcbiCount();applyFilters()"> 5 years</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="10" onchange="scheduleNcbiCount();applyFilters()"> 10 years</label>
             <label class="filter-item"><input type="radio" name="pub_date" value="custom" onchange="toggleCustomDate()"> Custom Range</label>
             <div class="date-range-wrap" id="custom-date-wrap">
-                <input type="number" id="date-from" placeholder="From year" min="1900" max="2030" onchange="applyFilters()">
-                <input type="number" id="date-to"   placeholder="To year"   min="1900" max="2030" onchange="applyFilters()">
+                <input type="number" id="date-from" placeholder="From year" min="1900" max="2030" onchange="scheduleNcbiCount();applyFilters()">
+                <input type="number" id="date-to"   placeholder="To year"   min="1900" max="2030" onchange="scheduleNcbiCount();applyFilters()">
             </div>
         </div>
 
         <!-- Text Availability -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-file-alt" style="color:#2b6cb0"></i> Text Availability</div>
-            <label class="filter-item"><input type="checkbox" id="f-abstract"  onchange="applyFilters()"> Abstract</label>
-            <label class="filter-item"><input type="checkbox" id="f-free-pmc"  onchange="applyFilters()"> Free full text</label>
-            <label class="filter-item"><input type="checkbox" id="f-full-text" onchange="applyFilters()"> Full text</label>
+            <label class="filter-item"><input type="checkbox" id="f-abstract"  onchange="scheduleNcbiCount();applyFilters()"> Abstract</label>
+            <label class="filter-item"><input type="checkbox" id="f-free-pmc"  onchange="scheduleNcbiCount();applyFilters()"> Free full text</label>
+            <label class="filter-item"><input type="checkbox" id="f-full-text" onchange="scheduleNcbiCount();applyFilters()"> Full text</label>
         </div>
 
         <!-- Article Attribute -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-database" style="color:#2b6cb0"></i> Article Attribute</div>
-            <label class="filter-item"><input type="checkbox" id="f-assoc-data" onchange="applyFilters()"> Associated data</label>
+            <label class="filter-item"><input type="checkbox" id="f-assoc-data" onchange="scheduleNcbiCount();applyFilters()"> Associated data</label>
         </div>
 
         <!-- Species -->
@@ -366,8 +355,8 @@
                 <i class="fas fa-dna" style="color:#2b6cb0"></i> Species
                 <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem" title="Filter by study population"></i>
             </div>
-            <label class="filter-item"><input type="checkbox" id="f-humans"  onchange="applyFilters()"> Humans</label>
-            <label class="filter-item"><input type="checkbox" id="f-animals" onchange="applyFilters()"> Other Animals</label>
+            <label class="filter-item"><input type="checkbox" id="f-humans"  onchange="scheduleNcbiCount();applyFilters()"> Humans</label>
+            <label class="filter-item"><input type="checkbox" id="f-animals" onchange="scheduleNcbiCount();applyFilters()"> Other Animals</label>
         </div>
 
         <!-- Sex -->
@@ -376,8 +365,8 @@
                 <i class="fas fa-venus-mars" style="color:#2b6cb0"></i> Sex
                 <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem"></i>
             </div>
-            <label class="filter-item"><input type="checkbox" id="f-female" onchange="applyFilters()"> Female</label>
-            <label class="filter-item"><input type="checkbox" id="f-male"   onchange="applyFilters()"> Male</label>
+            <label class="filter-item"><input type="checkbox" id="f-female" onchange="scheduleNcbiCount();applyFilters()"> Female</label>
+            <label class="filter-item"><input type="checkbox" id="f-male"   onchange="scheduleNcbiCount();applyFilters()"> Male</label>
         </div>
 
         <!-- Age -->
@@ -386,11 +375,11 @@
                 <i class="fas fa-user-clock" style="color:#2b6cb0"></i> Age
                 <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem"></i>
             </div>
-            <label class="filter-item"><input type="checkbox" id="f-child" onchange="applyFilters()"> Child: birth–18 years</label>
-            <label class="filter-item"><input type="checkbox" id="f-adult" onchange="applyFilters()"> Adult: 19+ years</label>
+            <label class="filter-item"><input type="checkbox" id="f-child" onchange="scheduleNcbiCount();applyFilters()"> Child: birth–18 years</label>
+            <label class="filter-item"><input type="checkbox" id="f-adult" onchange="scheduleNcbiCount();applyFilters()"> Adult: 19+ years</label>
             <div id="age-extra" style="display:none">
-                <label class="filter-item"><input type="checkbox" id="f-aged"    onchange="applyFilters()"> Aged: 65+ years</label>
-                <label class="filter-item"><input type="checkbox" id="f-infant"  onchange="applyFilters()"> Infant: birth–23 mo</label>
+                <label class="filter-item"><input type="checkbox" id="f-aged"    onchange="scheduleNcbiCount();applyFilters()"> Aged: 65+ years</label>
+                <label class="filter-item"><input type="checkbox" id="f-infant"  onchange="scheduleNcbiCount();applyFilters()"> Infant: birth–23 mo</label>
             </div>
             <span class="see-more-link" id="age-toggle" onclick="toggleAgeFilters()">See all age filters</span>
         </div>
@@ -401,8 +390,8 @@
                 <i class="fas fa-ellipsis-h" style="color:#2b6cb0"></i> Other
                 <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem"></i>
             </div>
-            <label class="filter-item"><input type="checkbox" id="f-exclude-preprints" onchange="applyFilters()"> Exclude preprints</label>
-            <label class="filter-item"><input type="checkbox" id="f-medline"            onchange="applyFilters()"> MEDLINE</label>
+            <label class="filter-item"><input type="checkbox" id="f-exclude-preprints" onchange="scheduleNcbiCount();applyFilters()"> Exclude preprints</label>
+            <label class="filter-item"><input type="checkbox" id="f-medline"            onchange="scheduleNcbiCount();applyFilters()"> MEDLINE</label>
         </div>
     </aside>
 
@@ -412,12 +401,12 @@
         <!-- Summary strip -->
         <div class="summary-strip">
             <div class="ss-stat">
-                <span class="ss-num">{{ total_ncbi_articles | default(total_articles) | int }}</span>
+                <span class="ss-num" id="ncbi-total-num">{{ total_ncbi_articles | default(total_articles) | int }}</span>
                 <span class="ss-label">Total<br>in NCBI</span>
             </div>
             <div class="ss-divider"></div>
             <div class="ss-stat">
-                <span class="ss-num">{{ total_articles }}</span>
+                <span class="ss-num" id="ss-fetched">{{ total_articles }}</span>
                 <span class="ss-label">Fetched</span>
             </div>
             <div class="ss-divider"></div>
@@ -425,19 +414,17 @@
                 <span class="ss-num" id="sb-shown">—</span>
                 <span class="ss-label">Shown</span>
             </div>
-            {% if total_free_articles %}
             <div class="ss-divider"></div>
             <div class="ss-stat">
-                <span class="ss-num" style="color:#68d391">{{ total_free_articles }}</span>
-                <span class="ss-label">Free PMC</span>
+                <span class="ss-num" id="ss-free-pmc" style="color:#68d391">{{ total_free_articles | default(0) }}</span>
+                <span class="ss-label">Free PMC<br>shown</span>
             </div>
-            {% endif %}
             <div class="ss-divider"></div>
             <div class="ss-stat">
                 <span class="ss-num">{{ keywords|length }}</span>
                 <span class="ss-label">Keywords</span>
             </div>
-            <div class="ss-note">
+            <div class="ss-note" id="ss-note">
                 <strong>First 1,000 shown by default.</strong><br>
                 Use left filters or controls below to refine.
             </div>
@@ -481,9 +468,7 @@
             <p>
                 <i class="fas fa-list"></i>
                 <strong id="stat-shown">{{ [total_articles, 1000]|min }}</strong> articles shown
-                {% if total_free_articles %}
-                &nbsp;·&nbsp; <span style="color:#276749"><i class="fas fa-unlock-alt"></i> {{ total_free_articles }} Free PMC</span>
-                {% endif %}
+                &nbsp;·&nbsp; <span style="color:#276749"><i class="fas fa-unlock-alt"></i> <span id="stat-free-pmc">{{ total_free_articles | default(0) }}</span> Free PMC</span>
             </p>
             <a href="/" class="btn-new"><i class="fas fa-search"></i> New Search</a>
         </div>
@@ -549,15 +534,28 @@
             </div>
         </div>
 
-        <!-- Bulk download -->
-        <div class="bulk-section">
-            <div class="bulk-section-title"><i class="fas fa-cloud-download-alt"></i> Bulk CSV</div>
-            <label style="font-size:.7rem;font-weight:600;color:#4a5568;display:block;margin-bottom:.25rem">Per keyword:</label>
-            <input type="number" id="bulk-target" class="bulk-input" value="10000" min="1" max="500000" placeholder="e.g. 50000">
-            <button class="btn-bulk" onclick="startBulkDownload()">
-                <i class="fas fa-file-csv"></i> Download Bulk CSV
-            </button>
-            <div class="bulk-note">Streams directly — no row limit.</div>
+        <!-- Download all PDFs -->
+        <div class="export-section" style="border-top:2px solid #e53e3e">
+            <div class="export-section-title" style="color:#c53030">
+                <span class="section-num" style="background:#e53e3e">4</span>
+                Download All PDFs
+            </div>
+            <p style="font-size:.72rem;color:#718096;margin-bottom:.65rem;line-height:1.5">
+                Downloads all <strong>Free PMC</strong> articles matching current filters as a ZIP file of PDFs.
+            </p>
+            <div id="pdf-count-badge" style="display:none;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;padding:.35rem .6rem;font-size:.72rem;color:#c53030;margin-bottom:.55rem;text-align:center">
+                <i class="fas fa-file-pdf"></i> <span id="pdf-count-num">0</span> PDFs to download
+            </div>
+            <a id="export-pdfs" href="#" class="btn-exp btn-exp-pdf"
+               style="justify-content:center;padding:.5rem;font-size:.8rem"
+               onclick="return confirmPdfDownload(this)">
+                <i class="fas fa-file-archive"></i> Download ZIP of PDFs
+            </a>
+            <div style="font-size:.68rem;color:#718096;margin-top:.35rem;line-height:1.4">
+                <i class="fas fa-info-circle"></i>
+                Only Free PMC articles included.
+                Large downloads may take several minutes.
+            </div>
         </div>
 
     </div><!-- /export-panel -->
@@ -584,27 +582,45 @@ function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
 function trunc(s,n){ return !s||s.length<=n?esc(s):esc(s.slice(0,n))+'&hellip;'; }
 
 /* ── Matching Rate Bar ─────────────────────── */
-function renderMatchingBar(sorted) {
+function renderMatchingBar(sorted, freeCounts) {
     const wrap = document.getElementById('matching-columns');
     if (!wrap) return;
 
-    // "All search terms" column
-    const totalArticles = sorted.reduce((s,k)=>s+k.count,0);
+    const fetchedTotal   = sorted.reduce((s,k) => s + k.count, 0);
+    const ncbiGrandTotal = _filteredNcbiGrandTotal ?? TOTAL_NCBI;
+    const isFiltered     = _filteredNcbiTotals !== null;
+
     let html = `<div class="matching-col active" onclick="scrollToTop()">
-        <div class="matching-col-title">All search terms (${totalArticles.toLocaleString()})</div>
+        <div class="matching-col-title">
+            All search terms
+            <span style="font-weight:800;color:#1a365d">(${ncbiGrandTotal.toLocaleString()})</span>
+        </div>
         <div class="matching-col-items">
-            ${sorted.map(k=>`<span>${esc(k.keyword.length>30?k.keyword.slice(0,30)+'…':k.keyword)} (${k.count})</span>`).join('')}
+            ${sorted.map(k => {
+                const kncbi   = _filteredNcbiTotals?.[k.keyword] ?? k.ncbi_total ?? k.count;
+                const kfetch  = k.count;
+                const kmatch  = isFiltered ? (document.getElementById('kw-summary') ? (parseInt(document.getElementById('kw-summary').querySelector(`[href="#kws-${sorted.indexOf(k)}"] .kw-total span`)?.textContent?.replace(/,/g,'')) || kfetch) : kfetch) : kfetch;
+                return `<span>
+                    ${esc(k.keyword.length>28?k.keyword.slice(0,28)+'…':k.keyword)}
+                    — <strong style="color:#2b6cb0">${kncbi.toLocaleString()}</strong>
+                    ${isFiltered?'<span style="font-size:.62rem;color:#e53e3e">(filtered)</span>':''}
+                    <span style="font-size:.62rem;color:#718096"> / ${kfetch.toLocaleString()} fetched</span>
+                </span>`;
+            }).join('')}
         </div>
     </div>`;
 
-    // Individual keyword columns
     sorted.forEach((kw, i) => {
+        const freeNum  = freeCounts?.[kw.keyword] ?? kw.free_count;
+        const ncbiNum  = _filteredNcbiTotals?.[kw.keyword] ?? kw.ncbi_total ?? kw.count;
         html += `<div class="matching-col" onclick="document.getElementById('kws-${i}')?.scrollIntoView({behavior:'smooth'})">
             <div class="matching-col-title">${esc(kw.keyword.length>35?kw.keyword.slice(0,35)+'…':kw.keyword)}</div>
             <div class="matching-col-items">
-                <span>${kw.count.toLocaleString()} article${kw.count!==1?'s':''}</span>
-                ${kw.free_count?`<span style="color:#276749"><i class="fas fa-unlock-alt"></i> ${kw.free_count} Free PMC</span>`:''}
-                ${kw.ncbi_total&&kw.ncbi_total>kw.count?`<span style="color:#718096">${kw.ncbi_total.toLocaleString()} total in NCBI</span>`:''}
+                <span style="font-weight:700;color:#1a365d">
+                    ${ncbiNum.toLocaleString()}
+                    <span style="font-size:.65rem;font-weight:400;color:#718096"> ${isFiltered ? 'in NCBI (filtered)' : 'in NCBI'}</span>
+                </span>
+                ${freeNum ? `<span style="color:#276749"><i class="fas fa-unlock-alt"></i> ${freeNum.toLocaleString()} Free PMC</span>` : ''}
             </div>
         </div>`;
     });
@@ -614,6 +630,132 @@ function renderMatchingBar(sorted) {
 function scrollToTop(){ window.scrollTo({top:0,behavior:'smooth'}); }
 
 /* ── Sidebar filters ───────────────────────── */
+/* ── NCBI live count — updates "Total in NCBI" when filters change ── */
+let _ncbiTimer   = null;
+let _ncbiBusy    = false;
+
+function scheduleNcbiCount() {
+    clearTimeout(_ncbiTimer);
+    _ncbiTimer = setTimeout(fetchNcbiCount, 700);
+}
+
+async function fetchNcbiCount() {
+    if (_ncbiBusy) return;
+
+    // ── Collect all active sidebar filter states ──────────────────────
+    const dateVal  = document.querySelector('input[name="pub_date"]:checked')?.value || '';
+    const dateFrom = document.getElementById('date-from')?.value || '';
+    const dateTo   = document.getElementById('date-to')?.value   || '';
+
+    const filters = {
+        date_filter: dateVal,
+        date_from:   dateFrom ? parseInt(dateFrom) : '',
+        date_to:     dateTo   ? parseInt(dateTo)   : '',
+        free_pmc:    document.getElementById('f-free-pmc')?.checked  || false,
+        full_text:   document.getElementById('f-full-text')?.checked || false,
+        humans:      document.getElementById('f-humans')?.checked    || false,
+        animals:     document.getElementById('f-animals')?.checked   || false,
+        female:      document.getElementById('f-female')?.checked    || false,
+        male:        document.getElementById('f-male')?.checked      || false,
+        child:       document.getElementById('f-child')?.checked     || false,
+        adult:       document.getElementById('f-adult')?.checked     || false,
+        aged:        document.getElementById('f-aged')?.checked      || false,
+        infant:      document.getElementById('f-infant')?.checked    || false,
+        type_review:     document.getElementById('f-type-review')?.checked     || false,
+        type_clinical:   document.getElementById('f-type-clinical')?.checked   || false,
+        type_rct:        document.getElementById('f-type-rct')?.checked        || false,
+        type_meta:       document.getElementById('f-type-meta')?.checked       || false,
+        type_systematic: document.getElementById('f-type-systematic')?.checked || false,
+        type_case:       document.getElementById('f-type-case')?.checked       || false,
+        medline:         document.getElementById('f-medline')?.checked         || false,
+    };
+
+    // If no filters are active at all, restore original NCBI total instantly
+    const anyActive = Object.values(filters).some(v => v && v !== '');
+    if (!anyActive) {
+        setNcbiTotal(TOTAL_NCBI, false, null);   // null clears filtered totals
+        _filteredNcbiGrandTotal = null;
+        return;
+    }
+
+    _ncbiBusy = true;
+    setNcbiTotal(null, true);   // show spinner while fetching
+
+    try {
+        const resp = await fetch('/api/ncbi_count', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                keywords: KEYWORDS_STR.split(',').map(k => k.trim()).filter(Boolean),
+                filters:  filters,
+            })
+        });
+        const data = await resp.json();
+        if (data.grand_total !== undefined) {
+            setNcbiTotal(data.grand_total, false, data.totals || null);
+        } else {
+            setNcbiTotal(TOTAL_NCBI, false, null);
+        }
+    } catch(e) {
+        console.warn('NCBI count fetch failed:', e);
+        setNcbiTotal(TOTAL_NCBI, false, null);
+    } finally {
+        _ncbiBusy = false;
+    }
+}
+
+// Stores per-keyword NCBI totals after a filter fetch — updated by setNcbiTotal
+let _filteredNcbiTotals    = null;
+let _filteredNcbiGrandTotal = null;
+
+function setNcbiTotal(total, loading, perKeyword) {
+    // Store grand total and per-keyword totals
+    _filteredNcbiGrandTotal = (total !== null && !loading) ? total : null;
+    _filteredNcbiTotals     = perKeyword || null;
+
+    // Update the big "Total in NCBI" number in the summary strip
+    const numEl = document.getElementById('ncbi-total-num');
+    if (numEl) {
+        if (loading) {
+            numEl.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:.9rem;opacity:.7"></i>';
+        } else {
+            numEl.textContent = (total !== null ? total : TOTAL_NCBI).toLocaleString();
+        }
+    }
+
+    // Store per-keyword totals so renderCards can update "/ available"
+    _filteredNcbiTotals = perKeyword || null;
+
+    // Re-render cards with updated available counts
+    if (!loading) {
+        const limitRaw = document.getElementById('ctrl-limit')?.value.trim();
+        const limit    = limitRaw ? Math.max(1, parseInt(limitRaw,10)) : DEFAULT_LIMIT;
+        const kwOrder  = document.getElementById('ctrl-kw-sort')?.value || 'ascending';
+        const sorted   = sortKwGroups(ALL_DATA, kwOrder);
+        // Get current fc from last render (approx via fc map)
+        const fc = {};
+        sorted.forEach(kw => {
+            const base     = limit ? kw.results.slice(0,limit) : kw.results;
+            fc[kw.keyword] = base.filter(articlePassesSidebarFilters).length;
+        });
+        const freeCounts = {};
+        sorted.forEach(kw => {
+            const base = limit ? kw.results.slice(0,limit) : kw.results;
+            freeCounts[kw.keyword] = base.filter(articlePassesSidebarFilters).filter(a=>a.is_free_pmc).length;
+        });
+        renderCards(sorted, limit, fc, freeCounts);
+        renderMatchingBar(sorted, freeCounts);
+    }
+
+    // Refresh the filter-showing line
+    const shown   = document.getElementById('shown-count')?.textContent || '—';
+    const ncbiStr = loading ? '…' : (total !== null ? total : TOTAL_NCBI).toLocaleString();
+    const fsEl    = document.getElementById('filter-showing');
+    if (fsEl) {
+        fsEl.innerHTML = `<strong id="shown-count">${shown}</strong> / <strong>${TOTAL_ALL.toLocaleString()}</strong> fetched &nbsp;·&nbsp; <strong>${ncbiStr}</strong> total in NCBI`;
+    }
+}
+
 function getChecked(id){ return document.getElementById(id)?.checked||false; }
 
 function articlePassesSidebarFilters(art) {
@@ -653,6 +795,7 @@ function articlePassesSidebarFilters(art) {
 function toggleCustomDate(){
     document.getElementById('custom-date-wrap').classList.toggle('visible',
         document.querySelector('input[name="pub_date"]:checked')?.value==='custom');
+    scheduleNcbiCount();
     applyFilters();
 }
 function toggleAgeFilters(){
@@ -664,6 +807,7 @@ function clearAllFilters(){
     document.querySelectorAll('.sidebar input[type="checkbox"]').forEach(c=>c.checked=false);
     document.querySelector('input[name="pub_date"][value=""]').checked=true;
     document.getElementById('custom-date-wrap').classList.remove('visible');
+    scheduleNcbiCount();
     applyFilters();
 }
 
@@ -713,14 +857,21 @@ function renderArticle(art,uid){
 
 /* ── Render sections ───────────────────────── */
 function renderSections(sorted, limit, artMode){
-    let html=''; const fc={};
+    let html='';
+    const fc         = {};   // {keyword: shownCount}
+    const freeCounts = {};   // {keyword: filteredFreeCount}
+
     sorted.forEach((kw,i)=>{
-        const base=limit?kw.results.slice(0,limit):kw.results;
-        const articles=sortArticles(base.filter(articlePassesSidebarFilters),artMode);
-        fc[kw.keyword]=articles.length;
-        const hasMore=kw.has_more||(kw.ncbi_total||kw.count)>kw.count;
+        const base     = limit ? kw.results.slice(0,limit) : kw.results;
+        const articles = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
+
+        fc[kw.keyword]         = articles.length;
+        freeCounts[kw.keyword] = articles.filter(a => a.is_free_pmc).length;
+
+        const hasMore = kw.has_more||(kw.ncbi_total||kw.count)>kw.count;
+        const freeCount = freeCounts[kw.keyword];
         const cb=(limit&&kw.count>limit)?`<span class="badge badge-grey">Showing ${articles.length} of ${kw.count}</span>`:`<span class="badge badge-blue">${articles.length} article${articles.length!==1?'s':''}</span>`;
-        const fb=articles.filter(a=>a.is_free_pmc).length?`<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${articles.filter(a=>a.is_free_pmc).length} Free PMC</span>`:'';
+        const fb=freeCount?`<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${freeCount} Free PMC</span>`:'';
         const mb=articles.filter(a=>(a.keyword_match_count||0)>1).length?`<span class="badge badge-orange"><i class="fas fa-tags"></i> ${articles.filter(a=>(a.keyword_match_count||0)>1).length} multi-kw</span>`:'';
         let rows=''; let phase=null;
         if(!articles.length) rows='<div class="no-results-msg">No articles match the current filters.</div>';
@@ -734,57 +885,203 @@ function renderSections(sorted, limit, artMode){
         html+=`<div class="kw-section" id="kws-${i}"><div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw.keyword)}</h2>${cb}${fb}${mb}</div><div class="article-list" id="article-list-${i}">${rows}</div>${lmBar}</div>`;
     });
     document.getElementById('kw-sections').innerHTML=html;
-    return fc;
+    return { fc, freeCounts };
 }
 
 /* ── Render summary cards ──────────────────── */
-function renderCards(sorted, limit, fc){
-    document.getElementById('kw-summary').innerHTML=sorted.map((kw,i)=>{
-        const shown=fc[kw.keyword]??(limit?Math.min(kw.count,limit):kw.count);
-        const ncbt=kw.ncbi_total||kw.count;
-        return `<a href="#kws-${i}" class="kw-card"><div class="kw-name">${esc(kw.keyword)}</div><div class="kw-total">${shown.toLocaleString()}<span style="font-size:.75rem;color:#718096"> / ${ncbt.toLocaleString()}</span></div><div class="kw-shown">shown / available</div>${kw.free_count?`<div class="kw-free-badge"><i class="fas fa-unlock-alt"></i> ${kw.free_count} Free PMC</div>`:''}</a>`;
+function renderCards(sorted, limit, fc, freeCounts){
+    const isFiltered = _filteredNcbiTotals !== null;
+
+    document.getElementById('kw-summary').innerHTML = sorted.map((kw, i) => {
+        const fetched     = kw.count;
+        const matchFilter = fc[kw.keyword] ?? fetched;
+        const ncbiTotal   = _filteredNcbiTotals?.[kw.keyword] ?? kw.ncbi_total ?? fetched;
+        const freeNum     = freeCounts?.[kw.keyword] ?? kw.free_count;
+
+        let countHtml;
+        if (isFiltered) {
+            // Show: how many pass the filter, and NCBI filtered total
+            // Do NOT show fetched — it's the unfiltered fetch, shown in banner already
+            countHtml = `
+                <div class="kw-total">
+                    <span style="color:#2b6cb0">${matchFilter.toLocaleString()}</span>
+                    <span style="font-size:.72rem;color:#718096;font-weight:400"> / ${ncbiTotal.toLocaleString()}</span>
+                </div>
+                <div class="kw-shown">
+                    match filter / in NCBI
+                </div>`;
+        } else {
+            // No filter: show fetched / NCBI total
+            countHtml = `
+                <div class="kw-total">
+                    ${fetched.toLocaleString()}
+                    <span style="font-size:.72rem;color:#718096;font-weight:400"> / ${ncbiTotal.toLocaleString()}</span>
+                </div>
+                <div class="kw-shown">fetched / available in NCBI</div>`;
+        }
+
+        return `<a href="#kws-${i}" class="kw-card">
+            <div class="kw-name">${esc(kw.keyword)}</div>
+            ${countHtml}
+            ${freeNum ? `<div class="kw-free-badge"><i class="fas fa-unlock-alt"></i> ${freeNum.toLocaleString()} Free PMC</div>` : ''}
+        </a>`;
     }).join('');
 }
 
 /* ── Update export links ───────────────────── */
+/* ── Collect all active sidebar filters as URL params ──────────── */
+function collectFilterParams() {
+    const params = new URLSearchParams();
+
+    // Date
+    const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value || '';
+    if (dateVal) params.set('f_date', dateVal);
+    if (dateVal === 'custom') {
+        const from = document.getElementById('date-from')?.value;
+        const to   = document.getElementById('date-to')?.value;
+        if (from) params.set('f_date_from', from);
+        if (to)   params.set('f_date_to',   to);
+    }
+
+    // Checkboxes
+    const checkMap = {
+        'f-free-pmc':          'f_free_pmc',
+        'f-abstract':          'f_abstract',
+        'f-humans':            'f_humans',
+        'f-animals':           'f_animals',
+        'f-female':            'f_female',
+        'f-male':              'f_male',
+        'f-child':             'f_child',
+        'f-adult':             'f_adult',
+        'f-aged':              'f_aged',
+        'f-infant':            'f_infant',
+        'f-type-review':       'f_type_review',
+        'f-type-clinical':     'f_type_clinical',
+        'f-type-rct':          'f_type_rct',
+        'f-type-meta':         'f_type_meta',
+        'f-type-systematic':   'f_type_systematic',
+        'f-type-case':         'f_type_case',
+        'f-exclude-preprints': 'f_exclude_preprints',
+        'f-medline':           'f_medline',
+    };
+    Object.entries(checkMap).forEach(([id, param]) => {
+        if (document.getElementById(id)?.checked) params.set(param, '1');
+    });
+
+    return params.toString();
+}
+
 function updateExports(limit, kwOrder){
-    const max=limit||10000;
-    const qs=`keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
-    // Section 1: abstract only (no full text — use same endpoint, Excel skips PDF fetch for speed)
+    const max       = limit || 10000;
+    const filterStr = collectFilterParams();
+    const base      = `keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
+    const qs        = filterStr ? `${base}&${filterStr}` : base;
+
     document.getElementById('export-csv-abs').href   = `/export/multi/csv?${qs}&mode=abstract`;
     document.getElementById('export-excel-abs').href = `/export/multi/excel?${qs}&mode=abstract`;
-    // Section 2: with full text
     document.getElementById('export-csv-full').href   = `/export/multi/csv?${qs}`;
     document.getElementById('export-excel-full').href = `/export/multi/excel?${qs}`;
     document.getElementById('export-json').href        = `/export/multi/json?${qs}`;
-    // Section 3: free PDFs only
     document.getElementById('export-csv-pdf').href    = `/export/multi/csv?${qs}&mode=pmc_only`;
     document.getElementById('export-excel-pdf').href  = `/export/multi/excel?${qs}&mode=pmc_only`;
+    document.getElementById('export-pdfs').href       = `/export/pdfs?${qs}`;
+
+    // Update PDF count badge from current filtered free PMC count
+    const totalFreePmc = parseInt(document.getElementById('ss-free-pmc')?.textContent?.replace(/,/g,'')) || 0;
+    const badge = document.getElementById('pdf-count-badge');
+    const num   = document.getElementById('pdf-count-num');
+    if (badge && num) {
+        num.textContent = totalFreePmc.toLocaleString();
+        badge.style.display = totalFreePmc > 0 ? '' : 'none';
+    }
+}
+
+function confirmPdfDownload(el) {
+    const count = parseInt(document.getElementById('pdf-count-num')?.textContent?.replace(/,/g,'')) || 0;
+    if (count === 0) {
+        alert('No Free PMC articles in the current filtered results.\nApply less restrictive filters or search different keywords.');
+        return false;
+    }
+    if (count > 100) {
+        if (!confirm(
+            `You are about to download ${count.toLocaleString()} PDFs as a ZIP file.\n\n` +
+            `Estimated time: ${Math.ceil(count * 3 / 60)} minutes\n` +
+            `Estimated size: ~${Math.round(count * 0.8)} MB\n\n` +
+            `Continue?`
+        )) return false;
+    }
+    return true;   // allow the href navigation
 }
 
 /* ── Update counters ───────────────────────── */
 function updateCounters(sorted, limit, fc){
-    const shown=Object.values(fc).reduce((s,v)=>s+v,0);
-    const fmt=n=>n.toLocaleString();
-    document.getElementById('shown-count').textContent=fmt(shown);
-    document.getElementById('stat-shown').textContent=fmt(shown);
-    const sb=document.getElementById('sb-shown'); if(sb)sb.textContent=fmt(shown);
-    document.getElementById('filter-showing').innerHTML=`<strong id="shown-count">${fmt(shown)}</strong> / <strong>${fmt(TOTAL_ALL)}</strong>`;
-    document.getElementById('header-showing') && (document.getElementById('header-showing').textContent=`${fmt(shown)} of ${fmt(TOTAL_NCBI)} matched`);
+    const fmt = n => n.toLocaleString();
+
+    // ── Count shown & free PMC from filtered+limited articles ─────────
+    let shown   = 0;
+    let freePmc = 0;
+    sorted.forEach(kw => {
+        const base     = limit ? kw.results.slice(0, limit) : kw.results;
+        const filtered = base.filter(articlePassesSidebarFilters);
+        shown   += filtered.length;
+        freePmc += filtered.filter(a => a.is_free_pmc).length;
+    });
+
+    // ── Summary strip ─────────────────────────────────────────────────
+    const sbShown = document.getElementById('sb-shown');
+    if (sbShown) sbShown.textContent = fmt(shown);
+
+    const ssFreePmc = document.getElementById('ss-free-pmc');
+    if (ssFreePmc) ssFreePmc.textContent = fmt(freePmc);
+
+    // Update note text when filters are active
+    const noteEl = document.getElementById('ss-note');
+    if (noteEl) {
+        const anyFilter = document.querySelectorAll('.sidebar input[type="checkbox"]:checked').length > 0
+            || (document.querySelector('input[name="pub_date"]:checked')?.value || '') !== '';
+        if (anyFilter) {
+            noteEl.innerHTML = `<strong>${fmt(shown)} articles</strong> match current filters.<br>
+                <span style="color:#68d391"><i class="fas fa-unlock-alt"></i> ${fmt(freePmc)} Free PMC</span> in filtered results.`;
+        } else {
+            noteEl.innerHTML = '<strong>First 1,000 shown by default.</strong><br>Use left filters or controls below to refine.';
+        }
+    }
+
+    // ── Action row ────────────────────────────────────────────────────
+    const statShown = document.getElementById('stat-shown');
+    if (statShown) statShown.textContent = fmt(shown);
+
+    const statFree = document.getElementById('stat-free-pmc');
+    if (statFree) statFree.textContent = fmt(freePmc);
+
+    // ── Sort/filter bar ───────────────────────────────────────────────
+    const shownCount = document.getElementById('shown-count');
+    if (shownCount) shownCount.textContent = fmt(shown);
+
+    const fsEl = document.getElementById('filter-showing');
+    if (fsEl) {
+        const ncbiEl  = document.getElementById('ncbi-total-num');
+        const ncbiStr = ncbiEl ? ncbiEl.textContent : fmt(TOTAL_NCBI);
+        fsEl.innerHTML = `<strong id="shown-count">${fmt(shown)}</strong> / <strong>${fmt(TOTAL_ALL)}</strong> fetched &nbsp;·&nbsp; <strong>${ncbiStr}</strong> total in NCBI`;
+    }
 }
 
 /* ── Main apply ────────────────────────────── */
 function applyFilters(){
-    const limitRaw=document.getElementById('ctrl-limit').value.trim();
-    const limit=limitRaw?Math.max(1,parseInt(limitRaw,10)):DEFAULT_LIMIT;
-    const kwOrder=document.getElementById('ctrl-kw-sort').value;
-    const artMode=document.getElementById('ctrl-art-sort').value;
-    const sorted=sortKwGroups(ALL_DATA,kwOrder);
-    renderMatchingBar(sorted);
-    const fc=renderSections(sorted,limit,artMode);
-    renderCards(sorted,limit,fc);
-    updateExports(limit,kwOrder);
-    updateCounters(sorted,limit,fc);
+    const limitRaw = document.getElementById('ctrl-limit').value.trim();
+    const limit    = limitRaw ? Math.max(1,parseInt(limitRaw,10)) : DEFAULT_LIMIT;
+    const kwOrder  = document.getElementById('ctrl-kw-sort').value;
+    const artMode  = document.getElementById('ctrl-art-sort').value;
+    const sorted   = sortKwGroups(ALL_DATA, kwOrder);
+
+    // renderSections returns {keyword: shownCount} and {keyword: freeCount}
+    const { fc, freeCounts } = renderSections(sorted, limit, artMode);
+
+    // Pass filtered free counts to cards and matching bar
+    renderCards(sorted, limit, fc, freeCounts);
+    renderMatchingBar(sorted, freeCounts);
+    updateExports(limit, kwOrder);
+    updateCounters(sorted, limit, fc);
 }
 
 /* ── Load More ─────────────────────────────── */
@@ -805,13 +1102,6 @@ async function loadMore(idx,keyword,currentOffset,ncbiTotal){
         else{bar.innerHTML=`<span class="load-more-info" style="width:100%;text-align:center"><i class="fas fa-check-circle" style="color:#276749"></i> All ${data.ncbi_total.toLocaleString()} articles loaded</span>`;}
         const se=document.getElementById('stat-shown');if(se)se.textContent=(parseInt(se.textContent.replace(/,/g,''))+data.fetched).toLocaleString();
     }catch(e){alert('Network error: '+e.message);btn.disabled=false;btn.classList.remove('loading');}
-}
-
-/* ── Bulk CSV ──────────────────────────────── */
-function startBulkDownload(){
-    const target=parseInt(document.getElementById('bulk-target').value,10)||10000;
-    if(target>100000&&!confirm(`Download up to ${target.toLocaleString()} per keyword?\nThis may take a long time.\n\nContinue?`))return;
-    window.location.href=`/export/bulk_csv?${new URLSearchParams({keywords:KEYWORDS_STR,target,already:0})}`;
 }
 
 /* ── Abstract toggle ───────────────────────── */

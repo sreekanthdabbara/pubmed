@@ -260,17 +260,6 @@
         .btn-exp-word  { background: #ebf8ff; color: #2b6cb0; }
         .btn-exp-pdf   { background: #fff5f5; color: #c53030; }
 
-        /* Bulk download in export panel */
-        .bulk-section {
-            background: #fff; border-radius: 10px; padding: .85rem .95rem;
-            box-shadow: 0 1px 6px rgba(0,0,0,.07);
-        }
-        .bulk-section-title { font-size: .78rem; font-weight: 700; color: #1a365d; margin-bottom: .55rem; display: flex; align-items: center; gap: .35rem; }
-        .bulk-input { border: 1.5px solid #cbd5e0; border-radius: 6px; padding: .32rem .5rem; font-size: .76rem; color: #2d3748; width: 100%; margin-bottom: .4rem; }
-        .btn-bulk { display: flex; align-items: center; justify-content: center; gap: .35rem; background: linear-gradient(135deg,#276749,#22543d); color: #fff; border: none; border-radius: 6px; padding: .42rem .65rem; font-size: .75rem; font-weight: 600; cursor: pointer; width: 100%; }
-        .btn-bulk:hover { opacity: .88; }
-        .bulk-note { font-size: .68rem; color: #718096; margin-top: .35rem; line-height: 1.4; }
-
         /* Footer */
         footer { text-align: center; padding: 1.25rem 1rem; color: #718096; font-size: .75rem; }
         .footer-logo { height: 28px; width: auto; opacity: .65; display: block; margin: 0 auto .4rem; }
@@ -302,7 +291,7 @@
 <!-- TOP ACTION TABS -->
 <div class="action-tabs">
     <a href="/" class="action-tab active"><i class="fas fa-search"></i> Search, extract and curate</a>
-    <a href="#" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+    <a href="/analyze?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
 </div>
 
 <!-- SEARCH MODE TABS -->
@@ -354,55 +343,40 @@
             <label class="filter-item"><input type="checkbox" id="f-full-text" onchange="scheduleNcbiCount();applyFilters()"> Full text</label>
         </div>
 
-        <!-- Article Attribute -->
+        <!-- Article Type -->
         <div class="filter-group">
-            <div class="filter-group-title"><i class="fas fa-database" style="color:#2b6cb0"></i> Article Attribute</div>
-            <label class="filter-item"><input type="checkbox" id="f-assoc-data" onchange="scheduleNcbiCount();applyFilters()"> Associated data</label>
+            <div class="filter-group-title"><i class="fas fa-tag" style="color:#2b6cb0"></i> Article Type</div>
+            <label class="filter-item"><input type="checkbox" id="f-type-journal"      onchange="scheduleNcbiCount();applyFilters()"> Journal Article</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-review"       onchange="scheduleNcbiCount();applyFilters()"> Review</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-systematic"   onchange="scheduleNcbiCount();applyFilters()"> Systematic Review</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-meta"         onchange="scheduleNcbiCount();applyFilters()"> Meta-Analysis</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-rct"          onchange="scheduleNcbiCount();applyFilters()"> Randomized Controlled Trial</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical"     onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-case"         onchange="scheduleNcbiCount();applyFilters()"> Case Reports</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-observational" onchange="scheduleNcbiCount();applyFilters()"> Observational Study</label>
         </div>
 
         <!-- Species -->
         <div class="filter-group">
-            <div class="filter-group-title">
-                <i class="fas fa-dna" style="color:#2b6cb0"></i> Species
-                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem" title="Filter by study population"></i>
-            </div>
+            <div class="filter-group-title"><i class="fas fa-dna" style="color:#2b6cb0"></i> Species</div>
             <label class="filter-item"><input type="checkbox" id="f-humans"  onchange="scheduleNcbiCount();applyFilters()"> Humans</label>
             <label class="filter-item"><input type="checkbox" id="f-animals" onchange="scheduleNcbiCount();applyFilters()"> Other Animals</label>
         </div>
 
         <!-- Sex -->
         <div class="filter-group">
-            <div class="filter-group-title">
-                <i class="fas fa-venus-mars" style="color:#2b6cb0"></i> Sex
-                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem"></i>
-            </div>
+            <div class="filter-group-title"><i class="fas fa-venus-mars" style="color:#2b6cb0"></i> Sex</div>
             <label class="filter-item"><input type="checkbox" id="f-female" onchange="scheduleNcbiCount();applyFilters()"> Female</label>
             <label class="filter-item"><input type="checkbox" id="f-male"   onchange="scheduleNcbiCount();applyFilters()"> Male</label>
         </div>
 
         <!-- Age -->
         <div class="filter-group">
-            <div class="filter-group-title">
-                <i class="fas fa-user-clock" style="color:#2b6cb0"></i> Age
-                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem"></i>
-            </div>
-            <label class="filter-item"><input type="checkbox" id="f-child" onchange="scheduleNcbiCount();applyFilters()"> Child: birth–18 years</label>
-            <label class="filter-item"><input type="checkbox" id="f-adult" onchange="scheduleNcbiCount();applyFilters()"> Adult: 19+ years</label>
-            <div id="age-extra" style="display:none">
-                <label class="filter-item"><input type="checkbox" id="f-aged"    onchange="scheduleNcbiCount();applyFilters()"> Aged: 65+ years</label>
-                <label class="filter-item"><input type="checkbox" id="f-infant"  onchange="scheduleNcbiCount();applyFilters()"> Infant: birth–23 mo</label>
-            </div>
-            <span class="see-more-link" id="age-toggle" onclick="toggleAgeFilters()">See all age filters</span>
-        </div>
-
-        <!-- Other -->
-        <div class="filter-group">
-            <div class="filter-group-title">
-                <i class="fas fa-ellipsis-h" style="color:#2b6cb0"></i> Other
-                <i class="fas fa-info-circle" style="color:#a0aec0;font-size:.6rem"></i>
-            </div>
-            <label class="filter-item"><input type="checkbox" id="f-exclude-preprints" onchange="scheduleNcbiCount();applyFilters()"> Exclude preprints</label>
-            <label class="filter-item"><input type="checkbox" id="f-medline"            onchange="scheduleNcbiCount();applyFilters()"> MEDLINE</label>
+            <div class="filter-group-title"><i class="fas fa-user-clock" style="color:#2b6cb0"></i> Age</div>
+            <label class="filter-item"><input type="checkbox" id="f-child"  onchange="scheduleNcbiCount();applyFilters()"> Child: birth–18 years</label>
+            <label class="filter-item"><input type="checkbox" id="f-adult"  onchange="scheduleNcbiCount();applyFilters()"> Adult: 19+ years</label>
+            <label class="filter-item"><input type="checkbox" id="f-aged"   onchange="scheduleNcbiCount();applyFilters()"> Aged: 65+ years</label>
+            <label class="filter-item"><input type="checkbox" id="f-infant" onchange="scheduleNcbiCount();applyFilters()"> Infant: birth–23 mo</label>
         </div>
     </aside>
 
@@ -545,15 +519,28 @@
             </div>
         </div>
 
-        <!-- Bulk download -->
-        <div class="bulk-section">
-            <div class="bulk-section-title"><i class="fas fa-cloud-download-alt"></i> Bulk CSV</div>
-            <label style="font-size:.7rem;font-weight:600;color:#4a5568;display:block;margin-bottom:.25rem">Per keyword:</label>
-            <input type="number" id="bulk-target" class="bulk-input" value="10000" min="1" max="500000" placeholder="e.g. 50000">
-            <button class="btn-bulk" onclick="startBulkDownload()">
-                <i class="fas fa-file-csv"></i> Download Bulk CSV
-            </button>
-            <div class="bulk-note">Streams directly — no row limit.</div>
+        <!-- Download all PDFs -->
+        <div class="export-section" style="border-top:2px solid #e53e3e">
+            <div class="export-section-title" style="color:#c53030">
+                <span class="section-num" style="background:#e53e3e">4</span>
+                Download All PDFs
+            </div>
+            <p style="font-size:.72rem;color:#718096;margin-bottom:.65rem;line-height:1.5">
+                Downloads all <strong>Free PMC</strong> articles matching current filters as a ZIP file of PDFs.
+            </p>
+            <div id="pdf-count-badge" style="display:none;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;padding:.35rem .6rem;font-size:.72rem;color:#c53030;margin-bottom:.55rem;text-align:center">
+                <i class="fas fa-file-pdf"></i> <span id="pdf-count-num">0</span> PDFs to download
+            </div>
+            <a id="export-pdfs" href="#" class="btn-exp btn-exp-pdf"
+               style="justify-content:center;padding:.5rem;font-size:.8rem"
+               onclick="return confirmPdfDownload(this)">
+                <i class="fas fa-file-archive"></i> Download ZIP of PDFs
+            </a>
+            <div style="font-size:.68rem;color:#718096;margin-top:.35rem;line-height:1.4">
+                <i class="fas fa-info-circle"></i>
+                Only Free PMC articles included.
+                Large downloads may take several minutes.
+            </div>
         </div>
 
     </div><!-- /export-panel -->
@@ -646,26 +633,26 @@ async function fetchNcbiCount() {
     const dateTo   = document.getElementById('date-to')?.value   || '';
 
     const filters = {
-        date_filter: dateVal,
-        date_from:   dateFrom ? parseInt(dateFrom) : '',
-        date_to:     dateTo   ? parseInt(dateTo)   : '',
-        free_pmc:    document.getElementById('f-free-pmc')?.checked  || false,
-        full_text:   document.getElementById('f-full-text')?.checked || false,
-        humans:      document.getElementById('f-humans')?.checked    || false,
-        animals:     document.getElementById('f-animals')?.checked   || false,
-        female:      document.getElementById('f-female')?.checked    || false,
-        male:        document.getElementById('f-male')?.checked      || false,
-        child:       document.getElementById('f-child')?.checked     || false,
-        adult:       document.getElementById('f-adult')?.checked     || false,
-        aged:        document.getElementById('f-aged')?.checked      || false,
-        infant:      document.getElementById('f-infant')?.checked    || false,
-        type_review:     document.getElementById('f-type-review')?.checked     || false,
-        type_clinical:   document.getElementById('f-type-clinical')?.checked   || false,
-        type_rct:        document.getElementById('f-type-rct')?.checked        || false,
-        type_meta:       document.getElementById('f-type-meta')?.checked       || false,
-        type_systematic: document.getElementById('f-type-systematic')?.checked || false,
-        type_case:       document.getElementById('f-type-case')?.checked       || false,
-        medline:         document.getElementById('f-medline')?.checked         || false,
+        date_filter:     dateVal,
+        date_from:       dateFrom ? parseInt(dateFrom) : '',
+        date_to:         dateTo   ? parseInt(dateTo)   : '',
+        free_pmc:        document.getElementById('f-free-pmc')?.checked         || false,
+        type_journal:    document.getElementById('f-type-journal')?.checked     || false,
+        type_review:     document.getElementById('f-type-review')?.checked      || false,
+        type_systematic: document.getElementById('f-type-systematic')?.checked  || false,
+        type_meta:       document.getElementById('f-type-meta')?.checked        || false,
+        type_rct:        document.getElementById('f-type-rct')?.checked         || false,
+        type_clinical:   document.getElementById('f-type-clinical')?.checked    || false,
+        type_case:       document.getElementById('f-type-case')?.checked        || false,
+        type_observational: document.getElementById('f-type-observational')?.checked || false,
+        humans:  document.getElementById('f-humans')?.checked  || false,
+        animals: document.getElementById('f-animals')?.checked || false,
+        female:  document.getElementById('f-female')?.checked  || false,
+        male:    document.getElementById('f-male')?.checked    || false,
+        child:   document.getElementById('f-child')?.checked   || false,
+        adult:   document.getElementById('f-adult')?.checked   || false,
+        aged:    document.getElementById('f-aged')?.checked    || false,
+        infant:  document.getElementById('f-infant')?.checked  || false,
     };
 
     // If no filters are active at all, restore original NCBI total instantly
@@ -756,37 +743,65 @@ function setNcbiTotal(total, loading, perKeyword) {
 
 function getChecked(id){ return document.getElementById(id)?.checked||false; }
 
+/* Extract 4-digit year from any date format like "Jan 2025", "2025", "Mar 2024" */
+function extractYear(dateStr) {
+    const m = (dateStr||'').match(/\b(19|20)\d{2}\b/);
+    return m ? parseInt(m[0]) : 9999;  // unknown year → keep (9999 never triggers filter)
+}
+
 function articlePassesSidebarFilters(art) {
+    // ── Publication date ──────────────────────────────────────────────
     const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value||'';
     if (dateVal && dateVal!=='custom') {
-        const cutYear = new Date().getFullYear()-parseInt(dateVal);
-        const pubYear = parseInt((art.publication_date||'').replace(/\D.*$/,''));
-        if (pubYear && pubYear<cutYear) return false;
+        const cutYear = new Date().getFullYear() - parseInt(dateVal);
+        const pubYear = extractYear(art.publication_date);
+        if (pubYear < cutYear) return false;
     }
     if (dateVal==='custom') {
-        const from=parseInt(document.getElementById('date-from').value);
-        const to=parseInt(document.getElementById('date-to').value);
-        const pubYear=parseInt((art.publication_date||'').replace(/\D.*$/,''));
-        if(from&&pubYear&&pubYear<from) return false;
-        if(to&&pubYear&&pubYear>to)     return false;
+        const from    = parseInt(document.getElementById('date-from').value);
+        const to      = parseInt(document.getElementById('date-to').value);
+        const pubYear = extractYear(art.publication_date);
+        if (from && pubYear !== 9999 && pubYear < from) return false;
+        if (to   && pubYear !== 9999 && pubYear > to)   return false;
     }
+
+    // ── Text availability ─────────────────────────────────────────────
     if (getChecked('f-free-pmc') && !art.is_free_pmc) return false;
     if (getChecked('f-abstract') && (!art.abstract||art.abstract==='N/A')) return false;
-    const pt = (art.publication_type||'').toLowerCase();
-    if (getChecked('f-type-review')    && !pt.includes('review'))        return false;
-    if (getChecked('f-type-clinical')  && !pt.includes('clinical trial'))return false;
-    if (getChecked('f-type-rct')       && !pt.includes('randomized'))    return false;
-    if (getChecked('f-type-meta')      && !pt.includes('meta-analysis')) return false;
-    if (getChecked('f-type-systematic')&& !pt.includes('systematic'))    return false;
-    if (getChecked('f-type-case')      && !pt.includes('case report'))   return false;
-    const txt=((art.abstract||'')+(art.affiliation||'')).toLowerCase();
-    if(getChecked('f-humans') &&!txt.includes('human')&&!txt.includes('patient')&&!txt.includes('cohort')) return false;
-    if(getChecked('f-female') &&!txt.includes('female')&&!txt.includes('women')) return false;
-    if(getChecked('f-male')   &&!txt.includes('male')&&!txt.includes('men'))     return false;
-    if(getChecked('f-child')  &&!txt.includes('child')&&!txt.includes('pediatric')) return false;
-    if(getChecked('f-adult')  &&!txt.includes('adult'))  return false;
-    if(getChecked('f-aged')   &&!txt.includes('elderly')&&!txt.includes('aged')&&!txt.includes('geriatric')) return false;
-    if(getChecked('f-exclude-preprints')&&(pt.includes('preprint')||(art.journal||'').toLowerCase().includes('preprint'))) return false;
+
+    // ── Article type — OR logic: keep if matches ANY checked type ─────
+    const typeIds = ['f-type-journal','f-type-review','f-type-systematic',
+        'f-type-meta','f-type-rct','f-type-clinical','f-type-case','f-type-observational'];
+    const anyTypeChecked = typeIds.some(id => getChecked(id));
+    if (anyTypeChecked) {
+        const pt = (art.publication_type||'').toLowerCase();
+        const matchesType =
+            (getChecked('f-type-journal')       && (pt.includes('journal article') || !pt)) ||
+            (getChecked('f-type-review')        && pt.includes('review'))         ||
+            (getChecked('f-type-systematic')    && pt.includes('systematic'))     ||
+            (getChecked('f-type-meta')          && pt.includes('meta-analysis'))  ||
+            (getChecked('f-type-rct')           && pt.includes('randomized'))     ||
+            (getChecked('f-type-clinical')      && pt.includes('clinical trial')) ||
+            (getChecked('f-type-case')          && pt.includes('case report'))    ||
+            (getChecked('f-type-observational') && pt.includes('observational'));
+        if (!matchesType) return false;
+    }
+
+    // ── Species ───────────────────────────────────────────────────────
+    const txt = ((art.abstract||'') + ' ' + (art.affiliation||'')).toLowerCase();
+    if (getChecked('f-humans')  && !txt.match(/human|patient|cohort/))   return false;
+    if (getChecked('f-animals') && !txt.match(/animal|mouse|rat|murine/)) return false;
+
+    // ── Sex ───────────────────────────────────────────────────────────
+    if (getChecked('f-female') && !txt.match(/female|women|woman/))      return false;
+    if (getChecked('f-male')   && !txt.match(/\bmale\b|\bmen\b/))         return false;
+
+    // ── Age ───────────────────────────────────────────────────────────
+    if (getChecked('f-child')  && !txt.match(/child|pediatric|adolescent/)) return false;
+    if (getChecked('f-adult')  && !txt.match(/adult/))                       return false;
+    if (getChecked('f-aged')   && !txt.match(/elderly|aged|geriatric/))      return false;
+    if (getChecked('f-infant') && !txt.match(/infant|newborn|neonatal/))     return false;
+
     return true;
 }
 
@@ -802,10 +817,15 @@ function toggleAgeFilters(){
     t.textContent=vis?'See all age filters':'Hide age filters';
 }
 function clearAllFilters(){
-    document.querySelectorAll('.sidebar input[type="checkbox"]').forEach(c=>c.checked=false);
-    document.querySelector('input[name="pub_date"][value=""]').checked=true;
+    document.querySelectorAll('.sidebar input').forEach(c=>{
+        if(c.type==='checkbox') c.checked=false;
+        if(c.type==='radio' && c.value==='') c.checked=true;
+        else if(c.type==='radio') c.checked=false;
+    });
     document.getElementById('custom-date-wrap').classList.remove('visible');
-    scheduleNcbiCount();
+    _filteredNcbiGrandTotal = null;
+    _filteredNcbiTotals = null;
+    setNcbiTotal(TOTAL_NCBI, false, null);
     applyFilters();
 }
 
@@ -943,24 +963,23 @@ function collectFilterParams() {
 
     // Checkboxes
     const checkMap = {
-        'f-free-pmc':          'f_free_pmc',
-        'f-abstract':          'f_abstract',
-        'f-humans':            'f_humans',
-        'f-animals':           'f_animals',
-        'f-female':            'f_female',
-        'f-male':              'f_male',
-        'f-child':             'f_child',
-        'f-adult':             'f_adult',
-        'f-aged':              'f_aged',
-        'f-infant':            'f_infant',
-        'f-type-review':       'f_type_review',
-        'f-type-clinical':     'f_type_clinical',
-        'f-type-rct':          'f_type_rct',
-        'f-type-meta':         'f_type_meta',
-        'f-type-systematic':   'f_type_systematic',
-        'f-type-case':         'f_type_case',
-        'f-exclude-preprints': 'f_exclude_preprints',
-        'f-medline':           'f_medline',
+        'f-free-pmc':              'f_free_pmc',
+        'f-type-journal':          'f_type_journal',
+        'f-type-review':           'f_type_review',
+        'f-type-systematic':       'f_type_systematic',
+        'f-type-meta':             'f_type_meta',
+        'f-type-rct':              'f_type_rct',
+        'f-type-clinical':         'f_type_clinical',
+        'f-type-case':             'f_type_case',
+        'f-type-observational':    'f_type_observational',
+        'f-humans':   'f_humans',
+        'f-animals':  'f_animals',
+        'f-female':   'f_female',
+        'f-male':     'f_male',
+        'f-child':    'f_child',
+        'f-adult':    'f_adult',
+        'f-aged':     'f_aged',
+        'f-infant':   'f_infant',
     };
     Object.entries(checkMap).forEach(([id, param]) => {
         if (document.getElementById(id)?.checked) params.set(param, '1');
@@ -970,10 +989,10 @@ function collectFilterParams() {
 }
 
 function updateExports(limit, kwOrder){
-    const max        = limit || 10000;
-    const filterStr  = collectFilterParams();
-    const base       = `keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
-    const qs         = filterStr ? `${base}&${filterStr}` : base;
+    const max       = limit || 10000;
+    const filterStr = collectFilterParams();
+    const base      = `keywords=${encodeURIComponent(KEYWORDS_STR)}&max_results=${max}&sort_order=${kwOrder}&search_id=${SEARCH_ID}`;
+    const qs        = filterStr ? `${base}&${filterStr}` : base;
 
     document.getElementById('export-csv-abs').href   = `/export/multi/csv?${qs}&mode=abstract`;
     document.getElementById('export-excel-abs').href = `/export/multi/excel?${qs}&mode=abstract`;
@@ -982,6 +1001,33 @@ function updateExports(limit, kwOrder){
     document.getElementById('export-json').href        = `/export/multi/json?${qs}`;
     document.getElementById('export-csv-pdf').href    = `/export/multi/csv?${qs}&mode=pmc_only`;
     document.getElementById('export-excel-pdf').href  = `/export/multi/excel?${qs}&mode=pmc_only`;
+    document.getElementById('export-pdfs').href       = `/export/pdfs?${qs}`;
+
+    // Update PDF count badge from current filtered free PMC count
+    const totalFreePmc = parseInt(document.getElementById('ss-free-pmc')?.textContent?.replace(/,/g,'')) || 0;
+    const badge = document.getElementById('pdf-count-badge');
+    const num   = document.getElementById('pdf-count-num');
+    if (badge && num) {
+        num.textContent = totalFreePmc.toLocaleString();
+        badge.style.display = totalFreePmc > 0 ? '' : 'none';
+    }
+}
+
+function confirmPdfDownload(el) {
+    const count = parseInt(document.getElementById('pdf-count-num')?.textContent?.replace(/,/g,'')) || 0;
+    if (count === 0) {
+        alert('No Free PMC articles in the current filtered results.\nApply less restrictive filters or search different keywords.');
+        return false;
+    }
+    if (count > 100) {
+        if (!confirm(
+            `You are about to download ${count.toLocaleString()} PDFs as a ZIP file.\n\n` +
+            `Estimated time: ${Math.ceil(count * 3 / 60)} minutes\n` +
+            `Estimated size: ~${Math.round(count * 0.8)} MB\n\n` +
+            `Continue?`
+        )) return false;
+    }
+    return true;   // allow the href navigation
 }
 
 /* ── Update counters ───────────────────────── */
@@ -1073,13 +1119,6 @@ async function loadMore(idx,keyword,currentOffset,ncbiTotal){
         else{bar.innerHTML=`<span class="load-more-info" style="width:100%;text-align:center"><i class="fas fa-check-circle" style="color:#276749"></i> All ${data.ncbi_total.toLocaleString()} articles loaded</span>`;}
         const se=document.getElementById('stat-shown');if(se)se.textContent=(parseInt(se.textContent.replace(/,/g,''))+data.fetched).toLocaleString();
     }catch(e){alert('Network error: '+e.message);btn.disabled=false;btn.classList.remove('loading');}
-}
-
-/* ── Bulk CSV ──────────────────────────────── */
-function startBulkDownload(){
-    const target=parseInt(document.getElementById('bulk-target').value,10)||10000;
-    if(target>100000&&!confirm(`Download up to ${target.toLocaleString()} per keyword?\nThis may take a long time.\n\nContinue?`))return;
-    window.location.href=`/export/bulk_csv?${new URLSearchParams({keywords:KEYWORDS_STR,target,already:0})}`;
 }
 
 /* ── Abstract toggle ───────────────────────── */
