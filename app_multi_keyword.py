@@ -2102,11 +2102,61 @@ def export_pdfs():
         os.close(tmp_fd)   # close raw fd — zipfile will reopen by path
 
         try:
+            browser_hdrs = {
+                'User-Agent': f'EpiLite/1.0 ({NCBI_EMAIL})',
+                'Accept': 'application/pdf,*/*',
+            }
+
+            def _fetch_pdf(art):
+                """Fetch real PDF for one article — returns (fname, bytes, source)."""
+                pmc_id = art.get('pmc_id', '')
+                fname  = safe_filename(art['pmid'], art['title'])
+                # Attempt 1: NCBI OA FTP
+                if pmc_id and pmc_id != 'N/A':
+                    try:
+                        _r = http_requests.get(
+                            f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmc_id}",
+                            timeout=6, headers=browser_hdrs)
+                        if _r.status_code == 200:
+                            from xml.etree import ElementTree as _ET
+                            for _lnk in _ET.fromstring(_r.content).iter('link'):
+                                if _lnk.get('format') == 'pdf':
+                                    _url = _lnk.get('href','').replace('ftp://','https://')
+                                    _r2  = http_requests.get(_url, timeout=20,
+                                                             headers=browser_hdrs, allow_redirects=True)
+                                    if _r2.status_code == 200 and _r2.content[:4] == b'%PDF':
+                                        return fname, _r2.content, 'NCBI OA FTP'
+                                    break
+                    except Exception:
+                        pass
+                # Attempt 2: Europe PMC
+                if pmc_id and pmc_id != 'N/A':
+                    try:
+                        _r = http_requests.get(
+                            f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf",
+                            timeout=15, headers=browser_hdrs, allow_redirects=True)
+                        if _r.status_code == 200 and _r.content[:4] == b'%PDF':
+                            return fname, _r.content, 'Europe PMC'
+                    except Exception:
+                        pass
+                return fname, None, None
+
+            # ── Fetch all real PDFs in parallel ───────────────────────────
+            print(f"[export_pdfs] Parallel fetch: {total} articles, 8 workers")
+            real_pdfs = {}
+            with ThreadPoolExecutor(max_workers=8) as _pool:
+                _futs = {_pool.submit(_fetch_pdf, a): a for a in pmc_articles}
+                for _fut in as_completed(_futs):
+                    try:
+                        _fn, _pb, _src = _fut.result()
+                        real_pdfs[_fn] = (_pb, _src)
+                    except Exception:
+                        pass
+
             with zipfile.ZipFile(tmp_path, mode='w',
                                  compression=zipfile.ZIP_DEFLATED,
                                  allowZip64=True) as zf:
 
-                # Write an index file listing all articles
                 index_lines = [
                     f"EpiLite PDF Export — {total} articles",
                     f"Downloaded: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
@@ -2114,158 +2164,69 @@ def export_pdfs():
                 ]
 
                 for i, art in enumerate(pmc_articles, 1):
-                    fname  = safe_filename(art['pmid'], art['title'])
                     pmc_id = art.get('pmc_id', '')
+                    fname  = safe_filename(art['pmid'], art['title'])
                     print(f"  [{i}/{total}] {fname}")
-
-                    pdf_bytes   = None
-                    source_used = None
-
-                    browser_hdrs = {
-                        'User-Agent': f'EpiLite/1.0 ({NCBI_EMAIL})',
-                        'Accept': 'application/pdf,*/*',
-                    }
-
-                    # ── Attempt 1: NCBI OA FTP (real publisher PDF) ───────────
-                    if pmc_id and pmc_id != 'N/A':
-                        try:
-                            _r = http_requests.get(
-                                f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmc_id}",
-                                timeout=10, headers=browser_hdrs
-                            )
-                            if _r.status_code == 200:
-                                from xml.etree import ElementTree as _ET
-                                _root = _ET.fromstring(_r.content)
-                                for _link in _root.iter('link'):
-                                    if _link.get('format') == 'pdf':
-                                        _ftp  = _link.get('href', '')
-                                        _http = _ftp.replace('ftp://', 'https://')
-                                        _r2 = http_requests.get(_http, timeout=30,
-                                                                headers=browser_hdrs,
-                                                                allow_redirects=True)
-                                        if _r2.status_code == 200 and _r2.content[:4] == b'%PDF':
-                                            pdf_bytes   = _r2.content
-                                            source_used = 'NCBI OA FTP'
-                                        break
-                        except Exception as _e:
-                            print(f"    OA API: {_e}")
-
-                    # ── Attempt 2: Europe PMC ─────────────────────────────────
-                    if not pdf_bytes and pmc_id and pmc_id != 'N/A':
-                        try:
-                            _r = http_requests.get(
-                                f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf",
-                                timeout=30, headers=browser_hdrs, allow_redirects=True
-                            )
-                            if _r.status_code == 200 and _r.content[:4] == b'%PDF':
-                                pdf_bytes   = _r.content
-                                source_used = 'Europe PMC'
-                        except Exception:
-                            pass
+                    pdf_bytes, source_used = real_pdfs.get(fname, (None, None))
 
                     if pdf_bytes:
-                        # ── Real PDF obtained — save directly ─────────────────
                         try:
                             zf.writestr(fname, pdf_bytes)
                             index_lines.append(f"[REAL PDF]  {fname}  ({source_used})")
                         except Exception as _e:
                             index_lines.append(f"[ERR] {fname}  ({_e})")
                     else:
-                        # ── Fallback: generate PDF from PMC XML content ────────
                         try:
                             full_text = fetch_pdf_text(art['pdf_url']) if art.get('pdf_url') else ''
-
                             from reportlab.lib.pagesizes import A4
                             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                             from reportlab.lib.units import mm
                             from reportlab.lib import colors
                             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
                             from reportlab.lib.enums import TA_JUSTIFY
-
                             pdf_buf = io.BytesIO()
                             doc = SimpleDocTemplate(pdf_buf, pagesize=A4,
                                 leftMargin=20*mm, rightMargin=20*mm,
                                 topMargin=20*mm, bottomMargin=20*mm)
                             styles = getSampleStyleSheet()
-
-                            def _sty(name, **kw):
-                                return ParagraphStyle(name, parent=styles['Normal'], **kw)
-
-                            t_s = _sty('T', fontSize=14, fontName='Helvetica-Bold',
-                                       textColor=colors.HexColor('#1a365d'), spaceAfter=6, leading=18)
-                            m_s = _sty('M', fontSize=9, fontName='Helvetica',
-                                       textColor=colors.HexColor('#4a5568'), spaceAfter=3, leading=13)
-                            s_s = _sty('S', fontSize=10, fontName='Helvetica-Bold',
-                                       textColor=colors.HexColor('#2b6cb0'), spaceBefore=10, spaceAfter=4)
-                            b_s = _sty('B', fontSize=9.5, fontName='Helvetica',
-                                       textColor=colors.HexColor('#2d3748'),
-                                       alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
-
+                            def _sty(n, **kw): return ParagraphStyle(n, parent=styles['Normal'], **kw)
+                            t_s = _sty('T', fontSize=14, fontName='Helvetica-Bold', textColor=colors.HexColor('#1a365d'), spaceAfter=6, leading=18)
+                            m_s = _sty('M', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#4a5568'), spaceAfter=3, leading=13)
+                            s_s = _sty('S', fontSize=10, fontName='Helvetica-Bold', textColor=colors.HexColor('#2b6cb0'), spaceBefore=10, spaceAfter=4)
+                            b_s = _sty('B', fontSize=9.5,fontName='Helvetica',      textColor=colors.HexColor('#2d3748'), alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
                             def _p(text, sty):
-                                try:
-                                    t = str(text or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
-                                    return Paragraph(t, sty)
-                                except Exception:
-                                    return Spacer(1, 2*mm)
-
+                                try: t=str(text or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;'); return Paragraph(t, sty)
+                                except: return Spacer(1, 2*mm)
                             story = []
-                            story.append(_p('<font color="#2b6cb0">EpiLite</font> AI Platform — Generated PDF (PMC XML content)', m_s))
-                            story.append(HRFlowable(width='100%', thickness=2,
-                                                    color=colors.HexColor('#2b6cb0'), spaceAfter=8))
+                            story.append(_p('<font color="#2b6cb0">EpiLite</font> — Generated PDF', m_s))
+                            story.append(HRFlowable(width='100%', thickness=2, color=colors.HexColor('#2b6cb0'), spaceAfter=8))
                             story.append(_p(art.get('title','Untitled'), t_s))
-
-                            for lbl, val in [
-                                ('PMID', art.get('pmid','')), ('PMC ID', pmc_id),
-                                ('Journal', art.get('journal','')),
-                                ('Date', art.get('publication_date','')),
-                                ('Authors', art.get('authors','')),
-                                ('URL', art.get('url','')),
-                            ]:
-                                if val and val not in ('N/A',''):
-                                    story.append(_p(f'<b>{lbl}:</b> {val}', m_s))
-
+                            for lbl, val in [('PMID',art.get('pmid','')), ('PMC ID',pmc_id), ('Journal',art.get('journal','')), ('Date',art.get('publication_date','')), ('Authors',art.get('authors','')), ('URL',art.get('url',''))]:
+                                if val and val not in ('N/A',''): story.append(_p(f'<b>{lbl}:</b> {val}', m_s))
                             abstract = art.get('abstract','') or ''
                             if abstract and abstract != 'N/A':
-                                story.append(Spacer(1, 4*mm))
-                                story.append(HRFlowable(width='100%', thickness=0.5,
-                                                        color=colors.HexColor('#e2e8f0'), spaceAfter=4))
-                                story.append(_p('Abstract', s_s))
-                                story.append(_p(abstract, b_s))
-
-                            if full_text and not full_text.startswith(('Error','Could not','No text')):
-                                wc = len(full_text.split())
-                                story.append(Spacer(1, 4*mm))
-                                story.append(HRFlowable(width='100%', thickness=0.5,
-                                                        color=colors.HexColor('#e2e8f0'), spaceAfter=4))
-                                story.append(_p(f'Full Text (PMC) <font color="#718096" size="8">~{wc:,} words</font>', s_s))
-                                for block in full_text.split('\n\n'):
-                                    block = block.strip()
-                                    if not block:
-                                        continue
-                                    for line in block.split('\n'):
-                                        line = line.strip()
-                                        if not line:
-                                            story.append(Spacer(1, 2*mm))
-                                        elif len(line) < 80 and line == line.upper() and len(line) > 3:
-                                            story.append(_p(f'<b>{line}</b>', s_s))
-                                        elif len(line) > 3:
-                                            story.append(_p(line, b_s))
-                                    story.append(Spacer(1, 1*mm))
-
+                                story.append(Spacer(1,4*mm)); story.append(HRFlowable(width='100%',thickness=0.5,color=colors.HexColor('#e2e8f0'),spaceAfter=4))
+                                story.append(_p('Abstract', s_s)); story.append(_p(abstract, b_s))
+                            if full_text and not full_text.startswith(('Error','Could not')):
+                                story.append(Spacer(1,4*mm)); story.append(HRFlowable(width='100%',thickness=0.5,color=colors.HexColor('#e2e8f0'),spaceAfter=4))
+                                story.append(_p(f'Full Text ~{len(full_text.split()):,} words', s_s))
+                                for blk in full_text.split('\n\n'):
+                                    blk=blk.strip()
+                                    if not blk: continue
+                                    for ln in blk.split('\n'):
+                                        ln=ln.strip()
+                                        if not ln: story.append(Spacer(1,2*mm))
+                                        elif len(ln)<80 and ln==ln.upper() and len(ln)>3: story.append(_p(f'<b>{ln}</b>',s_s))
+                                        elif len(ln)>3: story.append(_p(ln,b_s))
+                                    story.append(Spacer(1,1*mm))
                             doc.build(story)
                             zf.writestr(fname, pdf_buf.getvalue())
-                            index_lines.append(f"[GENERATED] {fname}  (PMC XML — not in OA subset)")
-
+                            index_lines.append(f"[GENERATED] {fname}")
                         except Exception as _e:
-                            print(f"    PDF gen error: {_e}")
                             note = fname.replace('.pdf', '_info.txt')
-                            zf.writestr(note,
-                                f"Title: {art.get('title','')}\n"
-                                f"PMID: {art.get('pmid','')}\n"
-                                f"URL: {art.get('url','')}\n\n"
-                                f"Abstract:\n{art.get('abstract','')}\n"
-                            )
+                            zf.writestr(note, f"Title: {art.get('title','')}\nPMID: {art.get('pmid','')}\nURL: {art.get('url','')}\n")
                             index_lines.append(f"[ERR] {fname}  ({_e})")
+
                 zf.writestr('_index.txt', '\n'.join(index_lines))
 
         except Exception as e:
@@ -2571,26 +2532,33 @@ def _run_extract_job(job_id: str, articles: list):
             break
         job['current'] = i
 
-        # ── Normalise column names — handle both lower and Title Case ─────
-        # The exported CSV/Excel uses friendly names like "Title", "Abstract"
+        # ── Normalise column names — exact names from EpiLite export ────
         def _get(d, *keys):
             for k in keys:
-                v = d.get(k) or d.get(k.lower()) or d.get(k.title()) or d.get(k.upper()) or ''
+                v = d.get(k, '') or d.get(k.lower(), '') or ''
                 if v and str(v).strip() not in ('', 'nan', 'None'):
                     return str(v).strip()
             return ''
 
-        title    = _get(art, 'title',            'Study title',  'Title')
-        abstract = _get(art, 'abstract',         'Abstract')
-        fulltext = _get(art, 'Free article complete content', 'Full Text (PMC)',
-                             'full_text',         'Full Text')
-        authors  = _get(art, 'authors',          'Authors')
-        journal  = _get(art, 'journal',          'Journal')
-        pub_date = _get(art, 'publication_date', 'Publication Date')
-        pub_type = _get(art, 'publication_type', 'Publication Type')
-        country  = _get(art, 'country',          'Country')
-        url      = _get(art, 'url',              'PubMed URL',   'URL')
-        pmid     = _get(art, 'pmid',             'PMID')
+        title    = _get(art, 'Title', 'title', 'Study title')
+        abstract = _get(art, 'Abstract', 'abstract')
+        # Use merged full text if available, else individual parts
+        fulltext = _get(art, 'full_text_merged',
+                             'Full Text (PMC)',
+                             'full_text', 'Free article complete content')
+        if not fulltext:
+            # Manually join parts if merge wasn't done
+            parts = [_get(art, f'Full Text (PMC) - Part {n}') for n in range(2, 8)]
+            base  = _get(art, 'Full Text (PMC)')
+            fulltext = ' '.join(p for p in [base] + parts if p)
+
+        authors  = _get(art, 'Authors', 'authors')
+        journal  = _get(art, 'Journal', 'journal')
+        pub_date = _get(art, 'Publication Date', 'publication_date')
+        pub_type = _get(art, 'Publication Type', 'publication_type')
+        country  = _get(art, 'Country', 'country')
+        url      = _get(art, 'PubMed URL', 'url', 'URL')
+        pmid     = _get(art, 'PMID', 'pmid')
 
         if not title and not abstract:
             print(f"  [extract] Article {i}: no title or abstract — skipping. Keys: {list(art.keys())[:8]}")
@@ -2599,7 +2567,11 @@ def _run_extract_job(job_id: str, articles: list):
         job['status'] = f"Extracting article {i} of {len(articles)}: {title[:60]}…"
         print(f"  [extract] Article {i}: {title[:60]}")
 
-        content = (abstract + '\n\n' + fulltext[:3000]) if fulltext else abstract
+        # For PDFs use full text; for CSV/Excel use abstract + fulltext
+        if art.get('_source') == 'pdf':
+            content = fulltext[:4000] if fulltext else abstract[:2000]
+        else:
+            content = (abstract + '\n\n' + fulltext[:3000]) if fulltext else abstract
 
         prompt = f"""You are a clinical research data extractor for oncology adverse event studies. Extract ALL available information from this article and return ONLY a valid JSON object — no explanation, no markdown, no code fences.
 
@@ -2914,31 +2886,114 @@ Return JSON: {{"rows": [{{"author_year":"","country":"","study_title":"","publis
 @login_required
 def extract_report():
     """
-    Accept uploaded CSV/Excel, start background extraction job.
+    Accept uploaded CSV/Excel/ZIP-of-PDFs, start background extraction job.
     Returns: { job_id }
     """
     import uuid as _uuid
+    import zipfile as _zipfile
 
     f = request.files.get('file')
     if not f:
         return jsonify({'error': 'No file uploaded'}), 400
 
     fname = f.filename or ''
+    articles = []
+
     try:
         if fname.endswith('.csv'):
             df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+            articles = df.to_dict(orient='records')
+
         elif fname.endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(f, dtype=str).fillna('')
+            # ── Read the All Results sheet if present, else first data sheet ──
+            xl = pd.ExcelFile(f)
+            sheet_name = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
+            # Skip Summary sheet if it's the only option
+            if sheet_name == 'Summary' and len(xl.sheet_names) > 1:
+                sheet_name = xl.sheet_names[1]
+            df = pd.read_excel(xl, sheet_name=sheet_name, dtype=str).fillna('')
+
+            # ── Merge Full Text part columns back into one field ──────────
+            ft_cols = [c for c in df.columns if c.startswith('Full Text (PMC)')]
+            if ft_cols:
+                df['full_text_merged'] = df[ft_cols].apply(
+                    lambda row: ' '.join(str(v) for v in row if v and str(v) not in ('', 'nan')),
+                    axis=1
+                )
+            articles = df.to_dict(orient='records')
+
+        elif fname.endswith('.zip'):
+            # ── Extract text from each PDF in the ZIP ─────────────────────
+            zip_bytes = f.read()
+            zf = _zipfile.ZipFile(io.BytesIO(zip_bytes))
+            pdf_files = [n for n in zf.namelist()
+                         if n.lower().endswith('.pdf') and not n.startswith('__')]
+
+            if not pdf_files:
+                return jsonify({'error': 'No PDF files found in ZIP'}), 400
+
+            for pdf_name in pdf_files[:100]:
+                try:
+                    pdf_bytes = zf.read(pdf_name)
+                    text = ''
+
+                    if PDF_SUPPORT:
+                        import pdfplumber
+                        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                            pages_text = []
+                            for page in pdf.pages[:30]:  # first 30 pages
+                                pt = page.extract_text() or ''
+                                pages_text.append(pt)
+                            text = '\n\n'.join(pages_text)
+                    else:
+                        # Fallback: try basic text extraction without pdfplumber
+                        try:
+                            import PyPDF2
+                            reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+                            pages_text = []
+                            for page in reader.pages[:30]:
+                                pages_text.append(page.extract_text() or '')
+                            text = '\n\n'.join(pages_text)
+                        except Exception:
+                            text = ''
+
+                    # Parse filename for PMID/title hints
+                    # Filename format: PMID_12345_Title_of_article.pdf
+                    clean_name = pdf_name.replace('.pdf', '').replace('_', ' ')
+                    pmid = ''
+                    if clean_name.startswith('PMID '):
+                        parts = clean_name.split(' ', 2)
+                        pmid  = parts[1] if len(parts) > 1 else ''
+                        title_hint = parts[2] if len(parts) > 2 else clean_name
+                    else:
+                        title_hint = clean_name
+
+                    articles.append({
+                        'pmid':     pmid,
+                        'title':    title_hint[:120],
+                        'abstract': text[:500],    # first 500 chars as abstract proxy
+                        'full_text': text,          # full PDF text for extraction
+                        'url':      f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/' if pmid else '',
+                        '_source':  'pdf',
+                        '_filename': pdf_name,
+                    })
+                except Exception as e:
+                    print(f"[extract] PDF read error {pdf_name}: {e}")
+                    articles.append({
+                        'title':    pdf_name.replace('.pdf',''),
+                        'abstract': '',
+                        'full_text': '',
+                        '_source':  'pdf_error',
+                    })
         else:
-            return jsonify({'error': 'Please upload a CSV or Excel (.xlsx) file'}), 400
+            return jsonify({'error': 'Please upload a CSV, Excel (.xlsx), or PDF ZIP file'}), 400
+
     except Exception as e:
         return jsonify({'error': f'Could not read file: {e}'}), 400
 
-    articles = df.to_dict(orient='records')
     if not articles:
-        return jsonify({'error': 'File contains no rows'}), 400
+        return jsonify({'error': 'No articles found in file'}), 400
 
-    # Cap at 100 articles to keep runtime reasonable
     articles = articles[:100]
 
     job_id = _uuid.uuid4().hex[:12]

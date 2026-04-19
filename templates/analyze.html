@@ -19,7 +19,7 @@
         .steps-sidebar { width:100px; background:#1a365d; padding:1.5rem .6rem; display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
         .step-pill { background:#2b6cb0; color:#fff; font-size:.75rem; font-weight:800; padding:.4rem .75rem; border-radius:6px; width:80px; text-align:center; }
         .step-pill.active { background:#63b3ed; box-shadow:0 0 0 3px rgba(99,179,237,.35); }
-        .step-connector { width:2px; height:48px; background:#2b4c7e; margin:.3rem 0; }
+        .step-connector { width:2px; height:200px; background:#2b4c7e; margin:.3rem 0; }
         .main-content { flex:1; display:flex; flex-direction:column; overflow-y:auto; }
         .step-panel { padding:1.25rem 1.5rem; border-bottom:2px solid #e2e8f0; }
         .step-panel.step1 { background:#dbeafe; }
@@ -104,7 +104,6 @@
                     <div class="export-btn-row">
                         <a id="dl-csv-full"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV</a>
                         <a id="dl-excel-full" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel</a>
-                        <a id="dl-json"       href="#" class="export-btn btn-json"><i class="fas fa-code"></i> JSON</a>
                     </div>
                 </div>
                 <div class="export-card">
@@ -134,12 +133,13 @@
                         <div class="upload-title">Upload exported file</div>
                         <div class="upload-hint">
                             Drag &amp; drop or click to browse<br>
-                            <b>CSV or Excel</b> exported from Step 1<br><br>
-                            Tip: Use <b>Abstract + Full text</b> for best results
+                            <b>CSV, Excel, or ZIP of PDFs</b> from Step 1<br><br>
+                            Tip: <b>Abstract + Full text Excel</b> = best results<br>
+                            <b>PDF ZIP</b> = also supported
                         </div>
                         <div class="file-name" id="file-name-display" style="display:none"></div>
                     </div>
-                    <input type="file" id="file-input" accept=".csv,.xlsx,.xls" onchange="fileSelected(this)">
+                    <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" onchange="fileSelected(this)">
 
                     <button class="btn-extract" id="btn-extract" disabled onclick="startExtraction()">
                         <i class="fas fa-magic"></i> Extract &amp; Generate Report
@@ -210,7 +210,6 @@ document.getElementById('dl-csv-abs').href    = '/export/multi/csv?'   + QS + '&
 document.getElementById('dl-excel-abs').href  = '/export/multi/excel?' + QS + '&mode=abstract';
 document.getElementById('dl-csv-full').href   = '/export/multi/csv?'   + QS;
 document.getElementById('dl-excel-full').href = '/export/multi/excel?' + QS;
-document.getElementById('dl-json').href       = '/export/multi/json?'  + QS;
 document.getElementById('dl-csv-pmc').href    = '/export/multi/csv?'   + QS + '&mode=pmc_only';
 document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&mode=pmc_only';
 document.getElementById('dl-pdfs').href       = '/export/pdfs?'        + QS;
@@ -225,8 +224,8 @@ function handleDrop(e){
     e.preventDefault();
     document.getElementById('drop-zone').classList.remove('dragging');
     var f=e.dataTransfer.files[0];
-    if(f&&(f.name.endsWith('.csv')||f.name.endsWith('.xlsx')||f.name.endsWith('.xls'))){ selectedFile=f; showFile(f.name); }
-    else{ alert('Please drop a CSV or Excel file.'); }
+    if(f&&(f.name.endsWith('.csv')||f.name.endsWith('.xlsx')||f.name.endsWith('.xls')||f.name.endsWith('.zip'))){ selectedFile=f; showFile(f.name); }
+    else{ alert('Please drop a CSV, Excel, or ZIP file.'); }
 }
 function showFile(n){
     document.getElementById('drop-zone').classList.add('file-selected');
