@@ -1942,483 +1942,6 @@ def about():
     return render_template('about.html')
 
 
-@app.route('/export/pdfs')
-@login_required
-def export_pdfs():
-    """
-    Download all free PMC PDFs as a ZIP file.
-
-    Fetches the actual PDF binary from PMC for every free PMC article
-    in the current search (applying the same sidebar filters) and bundles
-    them into a single ZIP streamed directly to the browser.
-
-    Each PDF is named: PMID_{pmid}_{first30charsoftitle}.pdf
-
-    Query params:  same as export_multi (search_id, keywords, max_results,
-                   sort_order, mode, all f_* sidebar filter params)
-    """
-    import zipfile
-
-    try:
-        search_id    = request.args.get('search_id', '')
-        keywords_str = request.args.get('keywords', '')
-        max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
-        sort_order   = request.args.get('sort_order', 'ascending')
-
-        # ── Load from cache or re-search ─────────────────────────────────
-        if search_id and search_id in _search_cache:
-            cached         = _search_cache[search_id]
-            sorted_results = cached['sorted_results']
-            keywords       = cached['keywords']
-        else:
-            if not keywords_str:
-                return "No keywords provided", 400
-            keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
-            all_results, _ = scraper.search_multiple_keywords(keywords, max_results)
-            all_results    = scraper.compute_keyword_scores(all_results, keywords)
-            sorted_results = scraper.sort_results_by_count(
-                all_results, ascending=(sort_order == 'ascending')
-            )
-
-        # ── Collect all free PMC articles (apply sidebar filters) ─────────
-        # Reuse the same apply_sidebar_filters logic via inline params read
-        f_date            = request.args.get('f_date', '').strip()
-        f_date_from       = request.args.get('f_date_from', '').strip()
-        f_date_to         = request.args.get('f_date_to', '').strip()
-        f_free_pmc        = True   # always True for PDF download
-        f_abstract        = request.args.get('f_abstract', '') == '1'
-        f_humans          = request.args.get('f_humans', '') == '1'
-        f_animals         = request.args.get('f_animals', '') == '1'
-        f_female          = request.args.get('f_female', '') == '1'
-        f_male            = request.args.get('f_male', '') == '1'
-        f_child           = request.args.get('f_child', '') == '1'
-        f_adult           = request.args.get('f_adult', '') == '1'
-        f_aged            = request.args.get('f_aged', '') == '1'
-        f_infant          = request.args.get('f_infant', '') == '1'
-        f_type_review     = request.args.get('f_type_review', '') == '1'
-        f_type_clinical   = request.args.get('f_type_clinical', '') == '1'
-        f_type_rct        = request.args.get('f_type_rct', '') == '1'
-        f_type_meta       = request.args.get('f_type_meta', '') == '1'
-        f_type_systematic = request.args.get('f_type_systematic', '') == '1'
-        f_type_case       = request.args.get('f_type_case', '') == '1'
-        f_excl_preprints  = request.args.get('f_exclude_preprints', '') == '1'
-        f_medline         = request.args.get('f_medline', '') == '1'
-
-        # ── Helper: parse year from publication_date ─────────────────────
-        def _parse_pub_year(d):
-            """Extract 4-digit year from date string like 'Jan 2025' or '2025'."""
-            m = re.search(r'\b(19|20)\d{2}\b', str(d))
-            return int(m.group()) if m else 9999  # unknown year → keep article
-
-        # Gather articles across all keywords
-        seen_pmids = set()
-        pmc_articles = []
-
-        for kw, df in sorted_results.items():
-            if df.empty:
-                continue
-            df = df.head(max_results)
-
-            # Apply sidebar filters
-            import pandas as _pd
-            mask = _pd.Series([True] * len(df), index=df.index)
-
-            if f_date and f_date != 'custom':
-                cutoff = datetime.now().year - int(f_date)
-                mask &= df['publication_date'].apply(_parse_pub_year) >= cutoff
-            elif f_date == 'custom':
-                years = df['publication_date'].apply(_parse_pub_year)
-                if f_date_from: mask &= years >= int(f_date_from)
-                if f_date_to:   mask &= years <= int(f_date_to)
-
-            if f_abstract:
-                mask &= df['abstract'].notna() & (df['abstract'] != 'N/A')
-            if any([f_type_review, f_type_clinical, f_type_rct,
-                    f_type_meta, f_type_systematic, f_type_case]):
-                pt = df['publication_type'].fillna('').str.lower()
-                tm = _pd.Series([False]*len(df), index=df.index)
-                if f_type_review:     tm |= pt.str.contains('review', na=False)
-                if f_type_clinical:   tm |= pt.str.contains('clinical trial', na=False)
-                if f_type_rct:        tm |= pt.str.contains('randomized', na=False)
-                if f_type_meta:       tm |= pt.str.contains('meta-analysis', na=False)
-                if f_type_systematic: tm |= pt.str.contains('systematic', na=False)
-                if f_type_case:       tm |= pt.str.contains('case report', na=False)
-                mask &= tm
-
-            txt = (df['abstract'].fillna('') + ' ' + df['affiliation'].fillna('')).str.lower()
-            if f_humans  and not f_animals: mask &= txt.str.contains('human|patient|cohort', na=False, regex=True)
-            if f_animals and not f_humans:  mask &= txt.str.contains('animal|mouse|rat', na=False, regex=True)
-            if f_female  and not f_male:    mask &= txt.str.contains('female|women|woman', na=False, regex=True)
-            if f_male    and not f_female:  mask &= txt.str.contains(r'\bmale\b|men\b', na=False, regex=True)
-            if f_child:  mask &= txt.str.contains('child|pediatric|adolescent', na=False, regex=True)
-            if f_adult:  mask &= txt.str.contains('adult', na=False, regex=True)
-            if f_aged:   mask &= txt.str.contains('elderly|aged|geriatric', na=False, regex=True)
-            if f_infant: mask &= txt.str.contains('infant|newborn|neonatal', na=False, regex=True)
-            if f_excl_preprints:
-                pt = df['publication_type'].fillna('').str.lower()
-                jn = df['journal'].fillna('').str.lower()
-                mask &= ~(pt.str.contains('preprint', na=False) | jn.str.contains('preprint', na=False))
-
-            df_filtered = df[mask]
-
-            # Only free PMC articles have downloadable PDFs
-            if 'is_free_pmc' in df_filtered.columns:
-                df_filtered = df_filtered[df_filtered['is_free_pmc'] == True]
-
-            for _, row in df_filtered.iterrows():
-                pmid = str(row.get('pmid', ''))
-                if pmid in seen_pmids:
-                    continue
-                seen_pmids.add(pmid)
-                if row.get('pdf_url'):
-                    pmc_articles.append({
-                        'pmid':    pmid,
-                        'title':   str(row.get('title', 'untitled')),
-                        'pmc_id':  str(row.get('pmc_id', '')),
-                        'pdf_url': row['pdf_url'],
-                    })
-
-        if not pmc_articles:
-            return "No free PMC articles found matching the current filters.", 404
-
-        total = len(pmc_articles)
-        print(f"[export_pdfs] Downloading {total} PDFs into ZIP...")
-
-        # ── Stream ZIP directly to browser ───────────────────────────────
-        def safe_filename(pmid, title):
-            """Build a safe filename from PMID + title."""
-            clean = re.sub(r'[^\w\s-]', '', title)[:50].strip()
-            clean = re.sub(r'\s+', '_', clean)
-            return f"PMID_{pmid}_{clean}.pdf"
-
-        # ── Write ZIP to a temp file, then send_file it ───────────────────
-        # We cannot stream a ZIP incrementally because ZIP requires a central
-        # directory written at the END — the browser would get an incomplete
-        # file if we tried to stream before the ZIP is finalised.
-        # Using send_file on a temp file is the correct approach.
-        import tempfile
-
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix='.zip')
-        os.close(tmp_fd)   # close raw fd — zipfile will reopen by path
-
-        try:
-            browser_hdrs = {
-                'User-Agent': f'EpiLite/1.0 ({NCBI_EMAIL})',
-                'Accept': 'application/pdf,*/*',
-            }
-
-            def _fetch_pdf(art):
-                """Fetch real PDF for one article — returns (fname, bytes, source)."""
-                pmc_id = art.get('pmc_id', '')
-                fname  = safe_filename(art['pmid'], art['title'])
-                # Attempt 1: NCBI OA FTP
-                if pmc_id and pmc_id != 'N/A':
-                    try:
-                        _r = http_requests.get(
-                            f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmc_id}",
-                            timeout=6, headers=browser_hdrs)
-                        if _r.status_code == 200:
-                            from xml.etree import ElementTree as _ET
-                            for _lnk in _ET.fromstring(_r.content).iter('link'):
-                                if _lnk.get('format') == 'pdf':
-                                    _url = _lnk.get('href','').replace('ftp://','https://')
-                                    _r2  = http_requests.get(_url, timeout=20,
-                                                             headers=browser_hdrs, allow_redirects=True)
-                                    if _r2.status_code == 200 and _r2.content[:4] == b'%PDF':
-                                        return fname, _r2.content, 'NCBI OA FTP'
-                                    break
-                    except Exception:
-                        pass
-                # Attempt 2: Europe PMC
-                if pmc_id and pmc_id != 'N/A':
-                    try:
-                        _r = http_requests.get(
-                            f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf",
-                            timeout=15, headers=browser_hdrs, allow_redirects=True)
-                        if _r.status_code == 200 and _r.content[:4] == b'%PDF':
-                            return fname, _r.content, 'Europe PMC'
-                    except Exception:
-                        pass
-                return fname, None, None
-
-            # ── Fetch all real PDFs in parallel ───────────────────────────
-            print(f"[export_pdfs] Parallel fetch: {total} articles, 8 workers")
-            real_pdfs = {}
-            with ThreadPoolExecutor(max_workers=8) as _pool:
-                _futs = {_pool.submit(_fetch_pdf, a): a for a in pmc_articles}
-                for _fut in as_completed(_futs):
-                    try:
-                        _fn, _pb, _src = _fut.result()
-                        real_pdfs[_fn] = (_pb, _src)
-                    except Exception:
-                        pass
-
-            with zipfile.ZipFile(tmp_path, mode='w',
-                                 compression=zipfile.ZIP_DEFLATED,
-                                 allowZip64=True) as zf:
-
-                index_lines = [
-                    f"EpiLite PDF Export — {total} articles",
-                    f"Downloaded: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    "=" * 60, ""
-                ]
-
-                for i, art in enumerate(pmc_articles, 1):
-                    pmc_id = art.get('pmc_id', '')
-                    fname  = safe_filename(art['pmid'], art['title'])
-                    print(f"  [{i}/{total}] {fname}")
-                    pdf_bytes, source_used = real_pdfs.get(fname, (None, None))
-
-                    if pdf_bytes:
-                        try:
-                            zf.writestr(fname, pdf_bytes)
-                            index_lines.append(f"[REAL PDF]  {fname}  ({source_used})")
-                        except Exception as _e:
-                            index_lines.append(f"[ERR] {fname}  ({_e})")
-                    else:
-                        try:
-                            full_text = fetch_pdf_text(art['pdf_url']) if art.get('pdf_url') else ''
-                            from reportlab.lib.pagesizes import A4
-                            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                            from reportlab.lib.units import mm
-                            from reportlab.lib import colors
-                            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-                            from reportlab.lib.enums import TA_JUSTIFY
-                            pdf_buf = io.BytesIO()
-                            doc = SimpleDocTemplate(pdf_buf, pagesize=A4,
-                                leftMargin=20*mm, rightMargin=20*mm,
-                                topMargin=20*mm, bottomMargin=20*mm)
-                            styles = getSampleStyleSheet()
-                            def _sty(n, **kw): return ParagraphStyle(n, parent=styles['Normal'], **kw)
-                            t_s = _sty('T', fontSize=14, fontName='Helvetica-Bold', textColor=colors.HexColor('#1a365d'), spaceAfter=6, leading=18)
-                            m_s = _sty('M', fontSize=9,  fontName='Helvetica',      textColor=colors.HexColor('#4a5568'), spaceAfter=3, leading=13)
-                            s_s = _sty('S', fontSize=10, fontName='Helvetica-Bold', textColor=colors.HexColor('#2b6cb0'), spaceBefore=10, spaceAfter=4)
-                            b_s = _sty('B', fontSize=9.5,fontName='Helvetica',      textColor=colors.HexColor('#2d3748'), alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
-                            def _p(text, sty):
-                                try: t=str(text or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;'); return Paragraph(t, sty)
-                                except: return Spacer(1, 2*mm)
-                            story = []
-                            story.append(_p('<font color="#2b6cb0">EpiLite</font> — Generated PDF', m_s))
-                            story.append(HRFlowable(width='100%', thickness=2, color=colors.HexColor('#2b6cb0'), spaceAfter=8))
-                            story.append(_p(art.get('title','Untitled'), t_s))
-                            for lbl, val in [('PMID',art.get('pmid','')), ('PMC ID',pmc_id), ('Journal',art.get('journal','')), ('Date',art.get('publication_date','')), ('Authors',art.get('authors','')), ('URL',art.get('url',''))]:
-                                if val and val not in ('N/A',''): story.append(_p(f'<b>{lbl}:</b> {val}', m_s))
-                            abstract = art.get('abstract','') or ''
-                            if abstract and abstract != 'N/A':
-                                story.append(Spacer(1,4*mm)); story.append(HRFlowable(width='100%',thickness=0.5,color=colors.HexColor('#e2e8f0'),spaceAfter=4))
-                                story.append(_p('Abstract', s_s)); story.append(_p(abstract, b_s))
-                            if full_text and not full_text.startswith(('Error','Could not')):
-                                story.append(Spacer(1,4*mm)); story.append(HRFlowable(width='100%',thickness=0.5,color=colors.HexColor('#e2e8f0'),spaceAfter=4))
-                                story.append(_p(f'Full Text ~{len(full_text.split()):,} words', s_s))
-                                for blk in full_text.split('\n\n'):
-                                    blk=blk.strip()
-                                    if not blk: continue
-                                    for ln in blk.split('\n'):
-                                        ln=ln.strip()
-                                        if not ln: story.append(Spacer(1,2*mm))
-                                        elif len(ln)<80 and ln==ln.upper() and len(ln)>3: story.append(_p(f'<b>{ln}</b>',s_s))
-                                        elif len(ln)>3: story.append(_p(ln,b_s))
-                                    story.append(Spacer(1,1*mm))
-                            doc.build(story)
-                            zf.writestr(fname, pdf_buf.getvalue())
-                            index_lines.append(f"[GENERATED] {fname}")
-                        except Exception as _e:
-                            note = fname.replace('.pdf', '_info.txt')
-                            zf.writestr(note, f"Title: {art.get('title','')}\nPMID: {art.get('pmid','')}\nURL: {art.get('url','')}\n")
-                            index_lines.append(f"[ERR] {fname}  ({_e})")
-
-                zf.writestr('_index.txt', '\n'.join(index_lines))
-
-        except Exception as e:
-            os.unlink(tmp_path)
-            raise e
-
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        zip_name  = f'pubmed_pdfs_{total}articles_{timestamp}.zip'
-
-        return send_file(
-            tmp_path,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name=zip_name,
-        )
-
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return f"PDF export error: {str(e)}", 500
-
-
-
-@login_required
-def export_bulk_csv():
-    """
-    Streaming bulk CSV export — fetches articles from NCBI in batches of 500
-    and writes rows directly to the response stream without loading everything
-    into memory. Supports up to the full NCBI result count per keyword.
-
-    Query params:
-        keywords   — comma-separated keyword list
-        target     — total articles to fetch per keyword (default 10000)
-        already    — already-fetched count to skip (start offset, default 0)
-    """
-    from flask import Response, stream_with_context
-    import csv
-
-    keywords_str = request.args.get('keywords', '')
-    target       = min(int(request.args.get('target', 10000)), 500000)
-    already      = int(request.args.get('already', 0))
-
-    if not keywords_str:
-        return "No keywords provided", 400
-
-    keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
-
-    # ── Column map: same order and friendly names as Excel export ───────
-    BULK_RENAME = {
-        'keyword':              'Keyword',
-        'pmid':                 'PMID',
-        'title':                'Title',
-        'publication_type':     'Publication Type',
-        'authors':              'Authors',
-        'affiliation':          'Affiliation',
-        'country':              'Country',
-        'journal':              'Journal',
-        'publication_date':     'Publication Date',
-        'abstract':             'Abstract',
-        'pmc_id':               'PMC ID',
-        'url':                  'PubMed URL',
-        'keyword_match_count':  'Keyword Match Count',
-        'matched_keywords':     'Matched Keywords',
-        'per_keyword_hits':     'Hits Per Keyword',
-        'keyword_total_hits':   'Total Keyword Hits',
-        'pdf_per_keyword_hits': 'PDF Hits Per Keyword',
-        'pdf_total_hits':       'PDF Total Keyword Hits',
-        'full_text':            'Full Text (PMC)',   # LAST
-    }
-    BULK_INTERNAL_COLS = list(BULK_RENAME.keys())
-    BULK_FRIENDLY_COLS = [BULK_RENAME[k] for k in BULK_INTERNAL_COLS]
-
-    # Whether to include full text (always yes — free PMC articles are rare)
-    include_fulltext = True
-
-    def generate():
-        """
-        Generator: for each batch of articles —
-          1. Score keyword hits in title+abstract
-          2. If free PMC article, fetch full text via PMC XML API and
-             score keyword hits in the PDF body too
-          3. Write the row immediately to the stream
-        Free PMC articles are typically only in the hundreds even for
-        million-article searches, so the extra fetch time is small.
-        """
-        # Write CSV header
-        buf = io.StringIO()
-        csv.DictWriter(buf, fieldnames=BULK_FRIENDLY_COLS,
-                       extrasaction='ignore',
-                       quoting=csv.QUOTE_ALL,
-                       lineterminator='\n').writeheader()
-        yield buf.getvalue()
-
-        # Pre-compile per-keyword patterns once
-        kw_patterns = {}
-        for kw in keywords:
-            terms = scraper._terms_from_keyword(kw)
-            if terms:
-                kw_patterns[kw] = re.compile(
-                    '|'.join(re.escape(t) for t in terms), re.IGNORECASE
-                )
-
-        for kw in keywords:
-            fetched_so_far = already
-            remaining      = target
-
-            while remaining > 0:
-                batch_size = min(500, remaining)
-                articles   = scraper.fetch_more(kw, offset=fetched_so_far,
-                                                batch=batch_size)
-                articles   = [a for a in articles if a is not None]
-                if not articles:
-                    break
-
-                for art in articles:
-                    # ── Metadata scores (title + abstract) ───────────────
-                    ab_text = (
-                        str(art.get('title', '') or '') + ' ' +
-                        str(art.get('abstract', '') or '')
-                    ).lower()
-
-                    art['keyword_match_count'] = 1
-                    art['matched_keywords']    = kw
-                    art['keyword']             = kw
-
-                    per_parts  = []
-                    total_hits = 0
-                    for k, pat in kw_patterns.items():
-                        c = len(pat.findall(ab_text))
-                        total_hits += c
-                        if c:
-                            per_parts.append(f"{k}: {c}")
-                    art['keyword_total_hits'] = total_hits
-                    art['per_keyword_hits']   = '; '.join(per_parts)
-
-                    # ── Full text for free PMC articles ───────────────────
-                    art['full_text']            = ''
-                    art['pdf_per_keyword_hits'] = ''
-                    art['pdf_total_hits']       = 0
-
-                    if include_fulltext and art.get('is_free_pmc')                             and art.get('pdf_url'):
-                        print(f"  [bulk] fetching full text PMID "
-                              f"{art.get('pmid','?')} ...")
-                        ft = fetch_pdf_text(art['pdf_url'])
-                        art['full_text'] = ft
-
-                        if ft and not ft.startswith('Error')                                 and not ft.startswith('Could not')                                 and not ft.startswith('No text')                                 and not ft.startswith('pdfplumber'):
-                            ft_lower      = ft.lower()
-                            pdf_parts     = []
-                            pdf_total     = 0
-                            for k, pat in kw_patterns.items():
-                                c = len(pat.findall(ft_lower))
-                                pdf_total += c
-                                if c:
-                                    pdf_parts.append(f"{k}: {c}")
-                            art['pdf_per_keyword_hits'] = '; '.join(pdf_parts)
-                            art['pdf_total_hits']       = pdf_total
-
-                    # ── Clean text fields & write row ─────────────────────
-                    friendly_row = {}
-                    for k in BULK_INTERNAL_COLS:
-                        val = art.get(k, '') or ''
-                        val = str(val)
-                        # Remove embedded newlines and stray quotes so each
-                        # article stays on one CSV row and columns don't shift
-                        val = val.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
-                        val = val.replace('"', "'")   # stray quotes → single quote
-                        import re as _re
-                        val = _re.sub(r'  +', ' ', val).strip()
-                        friendly_row[BULK_RENAME[k]] = val
-                    buf = io.StringIO()
-                    csv.DictWriter(buf, fieldnames=BULK_FRIENDLY_COLS,
-                                   extrasaction='ignore',
-                                   quoting=csv.QUOTE_ALL,
-                                   lineterminator='\n').writerow(friendly_row)
-                    yield buf.getvalue()
-
-                fetched_so_far += len(articles)
-                remaining      -= len(articles)
-                if len(articles) < batch_size:
-                    break   # NCBI has no more results
-
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/csv',
-        headers={
-            'Content-Disposition':
-                f'attachment; filename="pubmed_bulk_{timestamp}.csv"'
-        }
-    )
-
-
 @app.route('/api/health')
 def health():
     """Health check endpoint"""
@@ -2460,6 +1983,349 @@ def analyze():
 
 # ── In-memory extract jobs ──────────────────────────────────────────────
 _extract_jobs: dict = {}  # job_id -> {status, done, total, rows, error, filename}
+_pdf_jobs:     dict = {}  # job_id -> {status, done, zip_path, error}
+
+
+def _run_pdf_job(job_id: str, pmc_articles: list, tmp_path: str):
+    """Background thread: download/generate PDFs and write ZIP."""
+    import zipfile as _zf
+    import uuid as _uuid
+
+    job = _pdf_jobs[job_id]
+    total = len(pmc_articles)
+    job['total'] = total
+
+    browser_hdrs = {
+        'User-Agent': f'EpiLite/1.0 ({NCBI_EMAIL})',
+        'Accept': 'application/pdf,*/*',
+    }
+
+    def _safe_fn(pmid, title):
+        clean = re.sub(r'[^\w\s-]', '', title)[:50].strip()
+        clean = re.sub(r'\s+', '_', clean)
+        return f"PMID_{pmid}_{clean}.pdf"
+
+    def _fetch_pdf(art):
+        pmc_id = art.get('pmc_id', '')
+        fname  = _safe_fn(art['pmid'], art['title'])
+        if pmc_id and pmc_id != 'N/A':
+            try:
+                _r = http_requests.get(
+                    f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmc_id}",
+                    timeout=6, headers=browser_hdrs)
+                if _r.status_code == 200:
+                    from xml.etree import ElementTree as _ET
+                    for _lnk in _ET.fromstring(_r.content).iter('link'):
+                        if _lnk.get('format') == 'pdf':
+                            _url = _lnk.get('href','').replace('ftp://','https://')
+                            _r2  = http_requests.get(_url, timeout=20,
+                                                     headers=browser_hdrs, allow_redirects=True)
+                            if _r2.status_code == 200 and _r2.content[:4] == b'%PDF':
+                                return fname, _r2.content, 'NCBI OA FTP'
+                            break
+            except Exception:
+                pass
+        if pmc_id and pmc_id != 'N/A':
+            try:
+                _r = http_requests.get(
+                    f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf",
+                    timeout=15, headers=browser_hdrs, allow_redirects=True)
+                if _r.status_code == 200 and _r.content[:4] == b'%PDF':
+                    return fname, _r.content, 'Europe PMC'
+            except Exception:
+                pass
+        return fname, None, None
+
+    try:
+        job['status'] = f'Fetching {total} PDFs in parallel...'
+        real_pdfs = {}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futs = {pool.submit(_fetch_pdf, a): a for a in pmc_articles}
+            done_count = 0
+            for fut in as_completed(futs):
+                done_count += 1
+                try:
+                    fn, pb, src = fut.result()
+                    real_pdfs[fn] = (pb, src)
+                except Exception:
+                    pass
+                job['status']  = f'Fetching PDFs... {done_count}/{total}'
+                job['current'] = done_count
+
+        # Write ZIP
+        job['status'] = 'Building ZIP file...'
+        index_lines = [
+            f"EpiLite PDF Export — {total} articles",
+            f"Downloaded: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "=" * 60, ""
+        ]
+
+        with _zf.ZipFile(tmp_path, mode='w',
+                         compression=_zf.ZIP_DEFLATED,
+                         allowZip64=True) as zf:
+            for i, art in enumerate(pmc_articles, 1):
+                pmc_id = art.get('pmc_id', '')
+                fname  = _safe_fn(art['pmid'], art['title'])
+                pdf_bytes, source = real_pdfs.get(fname, (None, None))
+
+                if pdf_bytes:
+                    zf.writestr(fname, pdf_bytes)
+                    index_lines.append(f"[REAL PDF]  {fname}  ({source})")
+                else:
+                    # Generate from PMC XML
+                    try:
+                        full_text = fetch_pdf_text(art['pdf_url']) if art.get('pdf_url') else ''
+                        from reportlab.lib.pagesizes import A4
+                        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                        from reportlab.lib.units import mm
+                        from reportlab.lib import colors
+                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+                        from reportlab.lib.enums import TA_JUSTIFY
+                        buf = io.BytesIO()
+                        doc = SimpleDocTemplate(buf, pagesize=A4,
+                            leftMargin=20*mm, rightMargin=20*mm,
+                            topMargin=20*mm, bottomMargin=20*mm)
+                        st  = getSampleStyleSheet()
+                        def _sty(n, **kw): return ParagraphStyle(n, parent=st['Normal'], **kw)
+                        t_s = _sty('T', fontSize=14, fontName='Helvetica-Bold',
+                                   textColor=colors.HexColor('#1a365d'), spaceAfter=6, leading=18)
+                        m_s = _sty('M', fontSize=9, fontName='Helvetica',
+                                   textColor=colors.HexColor('#4a5568'), spaceAfter=3, leading=13)
+                        s_s = _sty('S', fontSize=10, fontName='Helvetica-Bold',
+                                   textColor=colors.HexColor('#2b6cb0'), spaceBefore=8, spaceAfter=4)
+                        b_s = _sty('B', fontSize=9.5, fontName='Helvetica',
+                                   textColor=colors.HexColor('#2d3748'),
+                                   alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
+                        def _p(txt, sty):
+                            try:
+                                t = str(txt or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+                                return Paragraph(t, sty)
+                            except:
+                                return Spacer(1, 2*mm)
+                        story = [
+                            _p('<font color="#2b6cb0">EpiLite</font> — Generated PDF', m_s),
+                            HRFlowable(width='100%', thickness=2,
+                                      color=colors.HexColor('#2b6cb0'), spaceAfter=8),
+                            _p(art.get('title',''), t_s),
+                        ]
+                        for lbl, val in [('PMID',art.get('pmid','')),('PMC ID',pmc_id),
+                                         ('Journal',art.get('journal','')),
+                                         ('Date',art.get('publication_date','')),
+                                         ('Authors',art.get('authors','')),
+                                         ('URL',art.get('url',''))]:
+                            if val and val not in ('N/A',''):
+                                story.append(_p(f'<b>{lbl}:</b> {val}', m_s))
+                        abstract = art.get('abstract','') or ''
+                        if abstract and abstract != 'N/A':
+                            story += [Spacer(1,4*mm),
+                                      HRFlowable(width='100%',thickness=0.5,
+                                                 color=colors.HexColor('#e2e8f0'),spaceAfter=4),
+                                      _p('Abstract', s_s), _p(abstract, b_s)]
+                        if full_text:
+                            story += [Spacer(1,4*mm),
+                                      HRFlowable(width='100%',thickness=0.5,
+                                                 color=colors.HexColor('#e2e8f0'),spaceAfter=4),
+                                      _p('Full Text (PMC)', s_s)]
+                            for blk in full_text.split('\n\n'):
+                                blk = blk.strip()
+                                if not blk: continue
+                                for ln in blk.split('\n'):
+                                    ln = ln.strip()
+                                    if not ln: story.append(Spacer(1,2*mm))
+                                    elif len(ln)<80 and ln==ln.upper() and len(ln)>3:
+                                        story.append(_p(f'<b>{ln}</b>', s_s))
+                                    elif len(ln)>3: story.append(_p(ln, b_s))
+                                story.append(Spacer(1,1*mm))
+                        doc.build(story)
+                        zf.writestr(fname, buf.getvalue())
+                        index_lines.append(f"[GENERATED] {fname}")
+                    except Exception as _e:
+                        note = fname.replace('.pdf','_info.txt')
+                        zf.writestr(note, f"Title: {art.get('title','')}\nPMID: {art.get('pmid','')}\nURL: {art.get('url','')}\n")
+                        index_lines.append(f"[ERR] {fname} ({_e})")
+
+            zf.writestr('_index.txt', '\n'.join(index_lines))
+
+        job['done']     = True
+        job['zip_path'] = tmp_path
+        job['status']   = f'Complete — {total} PDFs ready'
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        job['done']  = True
+        job['error'] = str(e)
+
+
+@app.route('/export/pdfs')
+@login_required
+def export_pdfs():
+    """
+    Start a background PDF export job and return job_id immediately.
+    Client polls /export/pdfs/progress/<job_id> then downloads from /export/pdfs/download/<job_id>.
+    This avoids Render's 30-second request timeout.
+    """
+    import uuid as _uuid, tempfile as _tmp
+
+    try:
+        search_id    = request.args.get('search_id', '')
+        keywords_str = request.args.get('keywords', '')
+        max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
+        sort_order   = request.args.get('sort_order', 'ascending')
+
+        # Read sidebar filters
+        f_date            = request.args.get('f_date', '').strip()
+        f_date_from       = request.args.get('f_date_from', '').strip()
+        f_date_to         = request.args.get('f_date_to', '').strip()
+        f_abstract        = request.args.get('f_abstract', '') == '1'
+        f_type_journal    = request.args.get('f_type_journal', '') == '1'
+        f_type_review     = request.args.get('f_type_review', '') == '1'
+        f_type_systematic = request.args.get('f_type_systematic', '') == '1'
+        f_type_meta       = request.args.get('f_type_meta', '') == '1'
+        f_type_rct        = request.args.get('f_type_rct', '') == '1'
+        f_type_clinical   = request.args.get('f_type_clinical', '') == '1'
+        f_type_case       = request.args.get('f_type_case', '') == '1'
+        f_type_observational = request.args.get('f_type_observational', '') == '1'
+        f_humans          = request.args.get('f_humans', '') == '1'
+        f_animals         = request.args.get('f_animals', '') == '1'
+        f_female          = request.args.get('f_female', '') == '1'
+        f_male            = request.args.get('f_male', '') == '1'
+        f_child           = request.args.get('f_child', '') == '1'
+        f_adult           = request.args.get('f_adult', '') == '1'
+        f_aged            = request.args.get('f_aged', '') == '1'
+        f_infant          = request.args.get('f_infant', '') == '1'
+
+        # Load from cache or re-search
+        if search_id and search_id in _search_cache:
+            cached         = _search_cache[search_id]
+            sorted_results = cached['sorted_results']
+        else:
+            if not keywords_str:
+                return jsonify({'error': 'No keywords provided'}), 400
+            keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
+            all_results, _ = scraper.search_multiple_keywords(keywords, max_results)
+            all_results    = scraper.compute_keyword_scores(all_results, keywords)
+            sorted_results = scraper.sort_results_by_count(
+                all_results, ascending=(sort_order == 'ascending'))
+
+        # Collect free PMC articles with sidebar filters applied
+        def parse_year(d):
+            m = re.search(r'\b(19|20)\d{2}\b', str(d))
+            return int(m.group()) if m else 9999
+
+        seen_pmids   = set()
+        pmc_articles = []
+
+        for kw, df in sorted_results.items():
+            if df.empty:
+                continue
+            df = df.head(max_results)
+            if 'is_free_pmc' in df.columns:
+                df = df[df['is_free_pmc'] == True]
+
+            # Apply date filter
+            if f_date and f_date != 'custom':
+                cutoff = datetime.now().year - int(f_date)
+                df = df[df['publication_date'].apply(parse_year) >= cutoff]
+            elif f_date == 'custom':
+                years = df['publication_date'].apply(parse_year)
+                if f_date_from: df = df[years >= int(f_date_from)]
+                if f_date_to:   df = df[years <= int(f_date_to)]
+
+            # Apply type filter
+            any_type = any([f_type_journal, f_type_review, f_type_systematic,
+                            f_type_meta, f_type_rct, f_type_clinical,
+                            f_type_case, f_type_observational])
+            if any_type:
+                pt = df['publication_type'].fillna('').str.lower()
+                tm = pd.Series([False]*len(df), index=df.index)
+                if f_type_journal:      tm |= pt.str.contains('journal article', na=False)
+                if f_type_review:       tm |= pt.str.contains('review', na=False)
+                if f_type_systematic:   tm |= pt.str.contains('systematic', na=False)
+                if f_type_meta:         tm |= pt.str.contains('meta-analysis', na=False)
+                if f_type_rct:          tm |= pt.str.contains('randomized', na=False)
+                if f_type_clinical:     tm |= pt.str.contains('clinical trial', na=False)
+                if f_type_case:         tm |= pt.str.contains('case report', na=False)
+                if f_type_observational: tm |= pt.str.contains('observational', na=False)
+                df = df[tm]
+
+            for _, row in df.iterrows():
+                pmid = str(row.get('pmid', ''))
+                if pmid in seen_pmids:
+                    continue
+                seen_pmids.add(pmid)
+                pmc_id = str(row.get('pmc_id', '') or '')
+                pdf_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmc_id}/pdf/" if pmc_id else ''
+                pmc_articles.append({
+                    'pmid':             pmid,
+                    'title':            str(row.get('title', '') or ''),
+                    'pmc_id':           pmc_id,
+                    'pdf_url':          pdf_url,
+                    'abstract':         str(row.get('abstract', '') or ''),
+                    'authors':          str(row.get('authors', '') or ''),
+                    'journal':          str(row.get('journal', '') or ''),
+                    'publication_date': str(row.get('publication_date', '') or ''),
+                    'url':              str(row.get('url', '') or ''),
+                })
+
+        if not pmc_articles:
+            return jsonify({'error': 'No free PMC articles found for current filters'}), 404
+
+        # Create temp file for ZIP
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix='.zip')
+        os.close(tmp_fd)
+
+        # Start background job
+        job_id = _uuid.uuid4().hex[:12]
+        _pdf_jobs[job_id] = {
+            'status':   'Starting...',
+            'done':     False,
+            'current':  0,
+            'total':    len(pmc_articles),
+            'zip_path': None,
+            'zip_name': f'pubmed_pdfs_{len(pmc_articles)}articles_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip',
+            'error':    None,
+        }
+
+        t = threading.Thread(target=_run_pdf_job,
+                             args=(job_id, pmc_articles, tmp_path), daemon=True)
+        t.start()
+
+        return jsonify({'job_id': job_id, 'total': len(pmc_articles)})
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/export/pdfs/progress/<job_id>')
+@login_required
+def pdf_progress(job_id):
+    job = _pdf_jobs.get(job_id)
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify({
+        'status':  job['status'],
+        'done':    job['done'],
+        'current': job['current'],
+        'total':   job['total'],
+        'error':   job['error'],
+    })
+
+
+@app.route('/export/pdfs/download/<job_id>')
+@login_required
+def pdf_download(job_id):
+    job = _pdf_jobs.get(job_id)
+    if not job or not job['done'] or not job['zip_path']:
+        return "Job not ready", 404
+    if job['error']:
+        return f"Job failed: {job['error']}", 500
+    return send_file(
+        job['zip_path'],
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=job['zip_name'],
+    )
 
 # ── Exact column order for the output Excel ────────────────────────────
 EXTRACT_COLUMNS = [
@@ -2786,7 +2652,128 @@ Return this exact JSON structure:
         import traceback; traceback.print_exc()
 
 
-@app.route('/api/extract_debug', methods=['POST'])
+@app.route('/api/copilot_file', methods=['POST'])
+@login_required
+def copilot_file():
+    """
+    Copilot chat using uploaded file as context.
+    Accepts multipart form with:
+      - file: CSV/Excel/ZIP uploaded by user
+      - history: JSON array of {role, content} messages
+      - question: current user question
+    """
+    try:
+        f        = request.files.get('file')
+        history  = json.loads(request.form.get('history', '[]'))
+        question = request.form.get('question', '')
+
+        if not f or not question:
+            return jsonify({'error': 'File and question required'}), 400
+
+        fname = f.filename or ''
+
+        # ── Read file content for context ────────────────────────────────
+        articles = []
+        try:
+            if fname.endswith('.csv'):
+                df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+                articles = df.to_dict(orient='records')
+            elif fname.endswith(('.xlsx', '.xls')):
+                xl = pd.ExcelFile(f)
+                sheet = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
+                if sheet == 'Summary' and len(xl.sheet_names) > 1:
+                    sheet = xl.sheet_names[1]
+                df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
+                # Merge full text parts
+                ft_cols = [c for c in df.columns if c.startswith('Full Text (PMC)')]
+                if ft_cols:
+                    df['_fulltext'] = df[ft_cols].apply(
+                        lambda r: ' '.join(str(v) for v in r if v and str(v) not in ('','nan')), axis=1)
+                articles = df.to_dict(orient='records')
+            elif fname.endswith('.zip'):
+                articles = [{'title': 'PDF ZIP file uploaded', 'abstract': 'PDF content available'}]
+        except Exception as e:
+            return jsonify({'error': f'Could not read file: {e}'}), 400
+
+        # ── Build context summary (cap at 80 articles to keep tokens manageable)
+        context_lines = [f"Uploaded file: {fname} — {len(articles)} articles\n"]
+        for i, art in enumerate(articles[:80], 1):
+            def _g(*keys):
+                for k in keys:
+                    v = art.get(k,'') or ''
+                    if v and str(v).strip() not in ('','nan'): return str(v).strip()
+                return ''
+            title    = _g('Title','title')
+            abstract = _g('Abstract','abstract')
+            authors  = _g('Authors','authors')
+            journal  = _g('Journal','journal')
+            pub_date = _g('Publication Date','publication_date')
+            country  = _g('Country','country')
+            pub_type = _g('Publication Type','publication_type')
+            fulltext = _g('_fulltext','Full Text (PMC)','full_text')
+            # Use abstract + first 500 chars of full text
+            content  = abstract
+            if fulltext:
+                content += ' ' + fulltext[:500]
+            context_lines.append(
+                f"{i}. {title} | {journal} | {pub_date} | {pub_type} | {country}\n"
+                f"   Authors: {authors[:80]}\n"
+                f"   {content[:300]}\n"
+            )
+
+        article_context = '\n'.join(context_lines)
+
+        system_prompt = f"""You are EpiLite Co-pilot, an expert biomedical research assistant.
+
+The user has uploaded a file containing {len(articles)} PubMed articles. Your job is to analyze and answer questions about this research data.
+
+UPLOADED ARTICLE DATA:
+{article_context}
+
+Guidelines:
+- Answer based on the article data above
+- Be specific — cite titles, journals, or authors when relevant
+- If asked about AE grades, treatments, or clinical data, extract from the abstracts/content
+- If data is not available in the provided content, say so clearly
+- Format responses clearly with bullet points where helpful"""
+
+        GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
+        if not GROQ_KEY:
+            return jsonify({'error': 'GROQ_API_KEY not set in .env file'}), 500
+
+        groq_messages = [{'role': 'system', 'content': system_prompt}]
+        # Add previous history (last 6 turns to keep tokens manageable)
+        for msg in history[-6:]:
+            groq_messages.append({'role': msg['role'], 'content': msg['content']})
+
+        resp = http_requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={
+                'Content-Type':  'application/json',
+                'Authorization': f'Bearer {GROQ_KEY}',
+            },
+            json={
+                'model':       'llama-3.1-8b-instant',
+                'max_tokens':  1200,
+                'temperature': 0.3,
+                'messages':    groq_messages,
+            },
+            timeout=30,
+        )
+
+        if resp.status_code != 200:
+            err = resp.json().get('error', {}).get('message', resp.text[:150])
+            return jsonify({'error': f'AI error: {err}'}), 500
+
+        answer = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '')
+        return jsonify({'answer': answer, 'articles_used': len(articles)})
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+
 @login_required
 def extract_debug():
     """

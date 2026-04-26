@@ -1002,6 +1002,7 @@ function updateExports(limit, kwOrder){
     document.getElementById('export-csv-pdf').href    = `/export/multi/csv?${qs}&mode=pmc_only`;
     document.getElementById('export-excel-pdf').href  = `/export/multi/excel?${qs}&mode=pmc_only`;
     document.getElementById('export-pdfs').href       = `/export/pdfs?${qs}`;
+    document.getElementById('export-pdfs').setAttribute('data-qs', qs);
 
     // Update PDF count badge from current filtered free PMC count
     const totalFreePmc = parseInt(document.getElementById('ss-free-pmc')?.textContent?.replace(/,/g,'')) || 0;
@@ -1016,18 +1017,74 @@ function updateExports(limit, kwOrder){
 function confirmPdfDownload(el) {
     const count = parseInt(document.getElementById('pdf-count-num')?.textContent?.replace(/,/g,'')) || 0;
     if (count === 0) {
-        alert('No Free PMC articles in the current filtered results.\nApply less restrictive filters or search different keywords.');
+        alert('No Free PMC articles in the current filtered results.');
         return false;
     }
-    if (count > 100) {
-        if (!confirm(
-            `You are about to download ${count.toLocaleString()} PDFs as a ZIP file.\n\n` +
-            `Estimated time: ${Math.ceil(count * 3 / 60)} minutes\n` +
-            `Estimated size: ~${Math.round(count * 0.8)} MB\n\n` +
-            `Continue?`
-        )) return false;
+    const msg = count > 100
+        ? `You are about to download ${count.toLocaleString()} PDFs as a ZIP file.\n\nEstimated time: ~${Math.ceil(count * 3 / 60)} minutes\n\nThe download will start automatically when ready.\n\nContinue?`
+        : null;
+    if (msg && !confirm(msg)) return false;
+
+    // Trigger async job
+    const qs = el.getAttribute('data-qs');
+    startPdfJob(qs);
+    return false;   // prevent default href navigation
+}
+
+async function startPdfJob(qs) {
+    const btn = document.getElementById('export-pdfs');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+    btn.style.pointerEvents = 'none';
+
+    try {
+        const resp = await fetch(`/export/pdfs?${qs}`);
+        const data = await resp.json();
+        if (data.error) {
+            alert('PDF export error: ' + data.error);
+            btn.innerHTML = '<i class="fas fa-file-archive"></i> Download ZIP of PDFs';
+            btn.style.pointerEvents = '';
+            return;
+        }
+
+        const jobId = data.job_id;
+        const total = data.total;
+        btn.innerHTML = `<i class="fas fa-cog fa-spin"></i> Preparing ${total} PDFs...`;
+
+        // Poll for completion
+        const poll = setInterval(async () => {
+            try {
+                const pr = await fetch(`/export/pdfs/progress/${jobId}`);
+                const pd = await pr.json();
+                const pct = total > 0 ? Math.round((pd.current / total) * 100) : 0;
+                btn.innerHTML = `<i class="fas fa-cog fa-spin"></i> ${pct}% (${pd.current}/${total})`;
+
+                if (pd.done) {
+                    clearInterval(poll);
+                    if (pd.error) {
+                        alert('PDF error: ' + pd.error);
+                        btn.innerHTML = '<i class="fas fa-file-archive"></i> Download ZIP of PDFs';
+                        btn.style.pointerEvents = '';
+                    } else {
+                        btn.innerHTML = '<i class="fas fa-check-circle"></i> Ready — Click to Download';
+                        btn.style.pointerEvents = '';
+                        btn.style.background = 'linear-gradient(135deg,#276749,#22543d)';
+                        btn.onclick = () => { window.location.href = `/export/pdfs/download/${jobId}`; };
+                        // Auto-trigger download
+                        window.location.href = `/export/pdfs/download/${jobId}`;
+                    }
+                }
+            } catch(e) {
+                clearInterval(poll);
+                btn.innerHTML = '<i class="fas fa-file-archive"></i> Download ZIP of PDFs';
+                btn.style.pointerEvents = '';
+            }
+        }, 2000);
+
+    } catch(e) {
+        alert('Network error: ' + e.message);
+        btn.innerHTML = '<i class="fas fa-file-archive"></i> Download ZIP of PDFs';
+        btn.style.pointerEvents = '';
     }
-    return true;   // allow the href navigation
 }
 
 /* ── Update counters ───────────────────────── */

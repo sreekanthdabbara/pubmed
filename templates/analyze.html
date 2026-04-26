@@ -6,63 +6,96 @@
     <title>Analyze &amp; Report - EpiLite</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #2d3748; min-height: 100vh; display: flex; flex-direction: column; }
-        .topbar { background: linear-gradient(135deg,#1a365d,#2b6cb0); color:#fff; padding:.65rem 1.5rem; display:flex; align-items:center; justify-content:space-between; }
-        .topbar-brand { font-size:1.1rem; font-weight:800; display:flex; align-items:center; gap:.5rem; }
-        .topbar-meta  { font-size:.78rem; opacity:.85; }
-        .action-tabs { display:flex; gap:.5rem; padding:.6rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; }
-        .action-tab  { display:flex; align-items:center; gap:.4rem; padding:.45rem 1rem; border-radius:20px; font-size:.82rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
-        .action-tab.active { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
-        .action-tab:hover  { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
-        .page-body { display:flex; flex:1; }
-        .steps-sidebar { width:100px; background:#1a365d; padding:1.5rem .6rem; display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
-        .step-pill { background:#2b6cb0; color:#fff; font-size:.75rem; font-weight:800; padding:.4rem .75rem; border-radius:6px; width:80px; text-align:center; }
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:#f0f4f8; color:#2d3748; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+        .topbar { background:linear-gradient(135deg,#1a365d,#2b6cb0); color:#fff; padding:.6rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+        .topbar-brand { font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:.5rem; }
+        .topbar-meta  { font-size:.75rem; opacity:.85; }
+        .action-tabs  { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; }
+        .action-tab   { display:flex; align-items:center; gap:.4rem; padding:.4rem 1rem; border-radius:20px; font-size:.8rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
+        .action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
+
+        /* ── Layout ── */
+        .page-body { display:flex; flex:1; min-height:0; }
+        .steps-sidebar { width:96px; background:#1a365d; padding:1.25rem .5rem; display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+        .step-pill { background:#2b6cb0; color:#fff; font-size:.72rem; font-weight:800; padding:.38rem .7rem; border-radius:6px; width:76px; text-align:center; }
         .step-pill.active { background:#63b3ed; box-shadow:0 0 0 3px rgba(99,179,237,.35); }
-        .step-connector { width:2px; height:200px; background:#2b4c7e; margin:.3rem 0; }
-        .main-content { flex:1; display:flex; flex-direction:column; overflow-y:auto; }
-        .step-panel { padding:1.25rem 1.5rem; border-bottom:2px solid #e2e8f0; }
-        .step-panel.step1 { background:#dbeafe; }
-        .step-panel.step2 { background:#fff; }
-        .panel-title { font-size:.88rem; font-weight:700; color:#1e3a5f; margin-bottom:.9rem; display:flex; align-items:center; gap:.5rem; }
-        .export-grid { display:flex; gap:.85rem; flex-wrap:wrap; }
-        .export-card { background:#fff; border-radius:10px; padding:.9rem 1rem; min-width:170px; flex:1; max-width:220px; box-shadow:0 1px 4px rgba(0,0,0,.08); border:1.5px solid #bfdbfe; }
-        .export-card-title { font-size:.7rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.6rem; padding-bottom:.35rem; border-bottom:2px solid #ebf8ff; }
-        .export-btn-row { display:flex; flex-direction:column; gap:.3rem; }
-        .export-btn { display:flex; align-items:center; gap:.35rem; padding:.28rem .55rem; border-radius:5px; font-size:.73rem; font-weight:600; text-decoration:none; border:1.5px solid; transition:opacity .15s; }
+        .step-connector { width:2px; height:200px; background:#2b4c7e; margin:.25rem 0; }
+        .main-content { flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+
+        /* ── Step 1 ── */
+        .step1-panel { background:#dbeafe; padding:1rem 1.5rem; border-bottom:2px solid #bfdbfe; flex-shrink:0; }
+        .panel-title { font-size:.85rem; font-weight:700; color:#1e3a5f; margin-bottom:.75rem; display:flex; align-items:center; gap:.45rem; }
+        .export-grid { display:flex; gap:.75rem; flex-wrap:wrap; }
+        .export-card { background:#fff; border-radius:10px; padding:.8rem .9rem; min-width:160px; flex:1; max-width:210px; box-shadow:0 1px 4px rgba(0,0,0,.07); border:1.5px solid #bfdbfe; }
+        .export-card-title { font-size:.68rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.5rem; padding-bottom:.3rem; border-bottom:2px solid #ebf8ff; }
+        .export-btn-row { display:flex; flex-direction:column; gap:.28rem; }
+        .export-btn { display:flex; align-items:center; gap:.32rem; padding:.25rem .5rem; border-radius:5px; font-size:.71rem; font-weight:600; text-decoration:none; border:1.5px solid; transition:opacity .15s; }
         .export-btn:hover { opacity:.75; }
         .btn-csv   { background:#e6fffa; color:#234e52; border-color:#81e6d9; }
         .btn-excel { background:#f0fff4; color:#22543d; border-color:#9ae6b4; }
-        .btn-json  { background:#faf5ff; color:#44337a; border-color:#d6bcfa; }
         .btn-zip   { background:#ebf8ff; color:#2c5282; border-color:#90cdf4; }
-        .step2-inner { display:flex; gap:1.25rem; flex-wrap:wrap; }
-        .upload-zone { flex:1; min-width:260px; }
-        .upload-box { border:2.5px dashed #90cdf4; border-radius:12px; padding:2rem 1.5rem; text-align:center; cursor:pointer; transition:all .2s; background:#f7fbff; }
-        .upload-box:hover, .upload-box.dragging { border-color:#2b6cb0; background:#ebf8ff; }
-        .upload-icon { font-size:2rem; color:#90cdf4; margin-bottom:.75rem; }
-        .upload-title { font-size:.88rem; font-weight:700; color:#2b6cb0; margin-bottom:.3rem; }
-        .upload-hint { font-size:.75rem; color:#718096; line-height:1.55; }
-        .upload-hint b { color:#2b6cb0; }
-        .file-name { font-size:.78rem; font-weight:600; color:#22543d; margin-top:.55rem; }
-        .upload-box.file-selected { border-color:#9ae6b4; background:#f0fff4; }
+
+        /* ── Step 2: upload + chat ── */
+        .step2-panel { flex:1; display:flex; flex-direction:column; min-height:0; background:#fff; }
+
+        /* Upload bar — compact, collapses after upload */
+        .upload-bar { padding:.75rem 1.5rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:.85rem; flex-shrink:0; background:#f7fbff; transition:all .2s; }
+        .upload-bar.has-file { background:#f0fff4; border-color:#9ae6b4; }
+        .upload-drop { border:2px dashed #90cdf4; border-radius:8px; padding:.5rem 1rem; cursor:pointer; display:flex; align-items:center; gap:.6rem; font-size:.78rem; color:#2b6cb0; font-weight:600; transition:all .15s; flex-shrink:0; }
+        .upload-drop:hover, .upload-drop.dragging { border-color:#2b6cb0; background:#ebf8ff; }
+        .upload-drop.has-file { border-color:#9ae6b4; background:#f0fff4; color:#276749; }
         #file-input { display:none; }
-        .btn-extract { display:flex; align-items:center; justify-content:center; gap:.5rem; background:linear-gradient(135deg,#2b6cb0,#1a365d); color:#fff; border:none; border-radius:8px; padding:.65rem 1.5rem; font-size:.88rem; font-weight:700; cursor:pointer; width:100%; margin-top:.75rem; transition:opacity .15s; }
-        .btn-extract:hover { opacity:.9; }
-        .btn-extract:disabled { opacity:.45; cursor:not-allowed; }
-        .progress-area { flex:1; min-width:260px; display:flex; flex-direction:column; gap:.75rem; }
-        .pbox { background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:10px; padding:1rem 1.1rem; }
-        .ibox { background:#fffbeb; border:1.5px solid #fbd38d; border-radius:10px; padding:.9rem 1rem; }
-        .box-title { font-size:.78rem; font-weight:700; margin-bottom:.5rem; display:flex; align-items:center; gap:.4rem; }
-        .progress-bar-wrap { background:#e2e8f0; border-radius:99px; height:10px; overflow:hidden; margin-bottom:.5rem; }
-        .progress-bar { height:100%; background:linear-gradient(90deg,#2b6cb0,#63b3ed); border-radius:99px; transition:width .4s; }
-        .pstatus { font-size:.75rem; color:#4a5568; line-height:1.5; min-height:2em; }
-        .pcount  { font-size:.72rem; color:#718096; margin-top:.2rem; }
-        .btn-download { display:flex; align-items:center; justify-content:center; gap:.5rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:8px; padding:.65rem 1.5rem; font-size:.88rem; font-weight:700; cursor:pointer; width:100%; text-decoration:none; margin-top:.5rem; }
-        .btn-download:hover { opacity:.88; }
-        .col-preview-wrap { margin-top:.9rem; }
-        .cprev-title { font-size:.72rem; font-weight:700; color:#4a5568; margin-bottom:.35rem; }
-        .col-preview { background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:.6rem .75rem; max-height:145px; overflow-y:auto; }
-        .col-tag { display:inline-block; background:#ebf8ff; color:#2b6cb0; border:1px solid #bee3f8; border-radius:4px; font-size:.63rem; padding:.12rem .38rem; margin:.1rem; font-weight:600; }
+        .upload-hint-text { font-size:.72rem; color:#718096; line-height:1.4; }
+        .upload-hint-text b { color:#2b6cb0; }
+
+        /* ── Chat ── */
+        .chat-area { flex:1; display:flex; flex-direction:column; min-height:0; }
+        .chat-messages { flex:1; overflow-y:auto; padding:1rem 1.5rem; display:flex; flex-direction:column; gap:.75rem; }
+        .cmsg { display:flex; gap:.55rem; }
+        .cmsg.user { align-self:flex-end; flex-direction:row-reverse; max-width:82%; }
+        .cmsg.bot  { align-self:flex-start; max-width:90%; }
+        .cavatar { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; flex-shrink:0; margin-top:2px; }
+        .cmsg.user .cavatar { background:#2b6cb0; color:#fff; }
+        .cmsg.bot  .cavatar { background:#1a365d; color:#fff; }
+        .cbubble { padding:.55rem .85rem; border-radius:12px; font-size:.83rem; line-height:1.56; }
+        .cmsg.user .cbubble { background:#2b6cb0; color:#fff; border-bottom-right-radius:3px; }
+        .cmsg.bot  .cbubble { background:#f7fafc; border:1px solid #e2e8f0; color:#2d3748; border-bottom-left-radius:3px; }
+        .cbubble p  { margin-bottom:.4rem; }
+        .cbubble p:last-child { margin:0; }
+        .cbubble ul { margin:.25rem 0 .25rem 1rem; }
+        .cbubble li { margin-bottom:.2rem; }
+        .cbubble b, .cbubble strong { color:#1a365d; }
+        .cmsg.user .cbubble b, .cmsg.user .cbubble strong { color:#bee3f8; }
+        .thinking-dots { display:flex; gap:4px; padding:.3rem .1rem; }
+        .thinking-dots span { width:6px; height:6px; border-radius:50%; background:#a0aec0; animation:tdot .9s infinite; }
+        .thinking-dots span:nth-child(2){animation-delay:.2s}
+        .thinking-dots span:nth-child(3){animation-delay:.4s}
+        @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+        /* Download btn inside chat */
+        .dl-excel-btn { display:inline-flex; align-items:center; gap:.4rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:7px; padding:.45rem 1rem; font-size:.78rem; font-weight:700; cursor:pointer; text-decoration:none; margin-top:.4rem; transition:opacity .15s; }
+        .dl-excel-btn:hover { opacity:.88; }
+
+        /* Suggest chips */
+        .suggest-row { display:flex; flex-wrap:wrap; gap:.32rem; padding:.5rem 1.5rem .25rem; flex-shrink:0; }
+        .suggest-chip { font-size:.69rem; background:#ebf8ff; color:#2b6cb0; border:1px solid #bee3f8; border-radius:14px; padding:.22rem .62rem; cursor:pointer; transition:background .12s; white-space:nowrap; }
+        .suggest-chip:hover { background:#bee3f8; }
+        .suggest-row.hidden { display:none; }
+
+        /* Input */
+        .chat-input-wrap { padding:.65rem 1.2rem .75rem; border-top:1px solid #e2e8f0; flex-shrink:0; }
+        .chat-input-row { display:flex; align-items:flex-end; gap:.45rem; background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:.42rem .55rem .42rem .85rem; }
+        .chat-input-row:focus-within { border-color:#2b6cb0; background:#fff; }
+        #chat-input { flex:1; border:none; background:transparent; font-size:.85rem; font-family:inherit; resize:none; max-height:90px; outline:none; color:#2d3748; line-height:1.5; }
+        #chat-input::placeholder { color:#a0aec0; }
+        #chat-input:disabled { opacity:.5; }
+        .chat-send { background:#2b6cb0; color:#fff; border:none; border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:background .15s; }
+        .chat-send:hover { background:#2c5282; }
+        .chat-send:disabled { background:#a0aec0; cursor:not-allowed; }
+        .input-hint { font-size:.67rem; color:#a0aec0; margin-top:.3rem; }
+        .chat-messages::-webkit-scrollbar { width:4px; }
+        .chat-messages::-webkit-scrollbar-thumb { background:#cbd5e0; border-radius:3px; }
     </style>
 </head>
 <body>
@@ -73,9 +106,7 @@
 </div>
 
 <div class="action-tabs">
-    <a href="javascript:history.back()" class="action-tab">
-        <i class="fas fa-search"></i> Search, extract and curate
-    </a>
+    <a href="javascript:history.back()" class="action-tab"><i class="fas fa-search"></i> Search, extract and curate</a>
     <a href="#" class="action-tab active"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
 </div>
 
@@ -89,7 +120,7 @@
     <div class="main-content">
 
         <!-- Step 1: Export -->
-        <div class="step-panel step1">
+        <div class="step1-panel">
             <div class="panel-title"><i class="fas fa-file-export" style="color:#2b6cb0"></i> Select required data to export to Co-pilot</div>
             <div class="export-grid">
                 <div class="export-card">
@@ -117,92 +148,63 @@
             </div>
         </div>
 
-        <!-- Step 2: Upload + Extract -->
-        <div class="step-panel step2">
-            <div class="panel-title"><i class="fas fa-robot" style="color:#2b6cb0"></i> Analyze the data through Co-pilot</div>
-            <div class="step2-inner">
+        <!-- Step 2: Upload + Chat -->
+        <div class="step2-panel">
 
-                <!-- Upload side -->
-                <div class="upload-zone">
-                    <div class="upload-box" id="drop-zone"
-                         onclick="document.getElementById('file-input').click()"
-                         ondragover="event.preventDefault();this.classList.add('dragging')"
-                         ondragleave="this.classList.remove('dragging')"
-                         ondrop="handleDrop(event)">
-                        <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                        <div class="upload-title">Upload exported file</div>
-                        <div class="upload-hint">
-                            Drag &amp; drop or click to browse<br>
-                            <b>CSV, Excel, or ZIP of PDFs</b> from Step 1<br><br>
-                            Tip: <b>Abstract + Full text Excel</b> = best results<br>
-                            <b>PDF ZIP</b> = also supported
-                        </div>
-                        <div class="file-name" id="file-name-display" style="display:none"></div>
-                    </div>
-                    <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" onchange="fileSelected(this)">
-
-                    <button class="btn-extract" id="btn-extract" disabled onclick="startExtraction()">
-                        <i class="fas fa-magic"></i> Extract &amp; Generate Report
-                    </button>
-
-                    <div class="col-preview-wrap">
-                        <div class="cprev-title"><i class="fas fa-table" style="color:#2b6cb0"></i> Output Excel columns (51 fields):</div>
-                        <div class="col-preview" id="col-preview"></div>
-                    </div>
+            <!-- Compact upload bar -->
+            <div class="upload-bar" id="upload-bar"
+                 ondragover="event.preventDefault();this.classList.add('dragging')"
+                 ondragleave="this.classList.remove('dragging')"
+                 ondrop="handleDrop(event)">
+                <div class="upload-drop" id="upload-drop" onclick="document.getElementById('file-input').click()">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span id="upload-label">Upload exported file (CSV / Excel / ZIP)</span>
                 </div>
-
-                <!-- Progress side -->
-                <div class="progress-area">
-
-                    <div class="pbox" id="progress-box" style="display:none">
-                        <div class="box-title" style="color:#2b6cb0"><i class="fas fa-cog fa-spin"></i> Extracting clinical data...</div>
-                        <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
-                        <div class="pstatus" id="progress-status">Starting...</div>
-                        <div class="pcount"  id="progress-count"></div>
-                    </div>
-
-                    <div id="download-box" style="display:none">
-                        <div class="pbox" style="border-color:#9ae6b4;background:#f0fff4;">
-                            <div class="box-title" style="color:#276749"><i class="fas fa-check-circle"></i> Extraction complete!</div>
-                            <div class="pstatus" id="complete-status" style="color:#276749"></div>
-                            <a id="download-link" href="#" class="btn-download">
-                                <i class="fas fa-file-excel"></i> Download AE Extraction Excel
-                            </a>
-                            <div style="font-size:.68rem;color:#718096;margin-top:.45rem;line-height:1.4">
-                                <i class="fas fa-info-circle"></i> Please review AI-extracted values — some fields may need manual verification.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="error-box" style="display:none">
-                        <div class="pbox" style="border-color:#fed7d7;background:#fff5f5;">
-                            <div class="box-title" style="color:#c53030"><i class="fas fa-exclamation-circle"></i> Extraction error</div>
-                            <div class="pstatus" id="error-msg" style="color:#c53030"></div>
-                            <button onclick="resetExtraction()" style="margin-top:.5rem;font-size:.75rem;color:#2b6cb0;background:none;border:none;cursor:pointer;text-decoration:underline">
-                                Try again
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="ibox">
-                        <div class="box-title" style="color:#744210"><i class="fas fa-lightbulb"></i> How it works</div>
-                        <div class="pstatus" style="color:#744210;line-height:1.65">
-                            <b>1.</b> Export data using Step 1 (CSV or Excel)<br>
-                            <b>2.</b> Upload the exported file here<br>
-                            <b>3.</b> AI reads each article and extracts 51 clinical fields including:
-                            study design, cancer type, treatment details, and AE grades I-V with percentages<br>
-                            <b>4.</b> Download the populated Excel<br><br>
-                            <b>Max 100 articles &middot; ~1-3 min</b><br>
-                            <b>Best results:</b> Use "Abstract + Full text" export
-                        </div>
-                    </div>
-
+                <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" onchange="fileSelected(this)">
+                <div class="upload-hint-text">
+                    <b>Tip:</b> Use Abstract + Full text Excel for best AI extraction results
                 </div>
             </div>
-        </div>
 
-    </div>
-</div>
+            <!-- Chat area -->
+            <div class="chat-area">
+                <!-- Suggest chips (hidden until file loaded) -->
+                <div class="suggest-row hidden" id="suggest-row">
+                    <span class="suggest-chip" onclick="useChip(this)">Summarize key findings</span>
+                    <span class="suggest-chip" onclick="useChip(this)">What study types are included?</span>
+                    <span class="suggest-chip" onclick="useChip(this)">Which cancers are most studied?</span>
+                    <span class="suggest-chip" onclick="useChip(this)">What treatments are mentioned?</span>
+                    <span class="suggest-chip" onclick="useChip(this)">What AE grades are reported?</span>
+                    <span class="suggest-chip" onclick="useChip(this)">List top countries and institutions</span>
+                    <span class="suggest-chip" onclick="useChip(this)">Generate AE extraction Excel report</span>
+                    <span class="suggest-chip" onclick="useChip(this)">Compare findings across keywords</span>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="cmsg bot">
+                        <div class="cavatar"><i class="fas fa-robot"></i></div>
+                        <div class="cbubble">
+                            <p>Hello! I am your <b>EpiLite Co-pilot</b>.</p>
+                            <p>Upload your exported file above to get started. I can analyze your research data, answer questions, summarize findings, and generate a structured AE extraction Excel report.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-wrap">
+                    <div class="chat-input-row">
+                        <textarea id="chat-input" rows="1" placeholder="Upload a file above, then ask me anything..." disabled
+                                  onkeydown="chatKey(event)" oninput="grow(this)"></textarea>
+                        <button class="chat-send" id="chat-send" onclick="sendChat()" disabled title="Send">
+                            <i class="fas fa-paper-plane" style="font-size:.7rem"></i>
+                        </button>
+                    </div>
+                    <div class="input-hint"><i class="fas fa-info-circle"></i> Co-pilot uses your uploaded file as context. AI responses may need verification.</div>
+                </div>
+            </div>
+
+        </div><!-- /step2-panel -->
+    </div><!-- /main-content -->
+</div><!-- /page-body -->
 
 <script>
 const QS = 'keywords=' + encodeURIComponent('{{ keywords_str }}') + '&max_results={{ max_results }}&sort_order={{ sort_order }}&search_id={{ search_id }}';
@@ -212,74 +214,201 @@ document.getElementById('dl-csv-full').href   = '/export/multi/csv?'   + QS;
 document.getElementById('dl-excel-full').href = '/export/multi/excel?' + QS;
 document.getElementById('dl-csv-pmc').href    = '/export/multi/csv?'   + QS + '&mode=pmc_only';
 document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&mode=pmc_only';
-document.getElementById('dl-pdfs').href       = '/export/pdfs?'        + QS;
-
-var COLS = ["Author, year","Country","Study title","Published year","Study type","Trial phase","Tumor type","Cancer name","Disease definition","Stage/SEER Stage","Sample size","Mean or median age (Yr)","Race/ethnicity","Mon/Combo","Drug Class","Treatment","Dosage/strength","Target","Median Follow-up period","Duration of treatment (M)","Time to AE onset","SAE type","Prophylactics considered during treatment","AE reporting method (NCI CTCAE v5.0/v4.0/v4.1)","AE reporting criteria","Event by Organ Class","AE reported Name","Grade I (Mild) -%","Grade I - Denom","Grade II (Moderate) -%","Grade II - Denom","Grade I-II -%","Grade I-II - Denom","Grade III (Severe) -%","Grade III - Denom","Grade III-IV -%","Grade III-IV - Denom","Grade III+ -%","Grade III+ - Denom","Grade IV (Life threatening) -%","Grade IV - Denom","Grade V (Death) -%","Grade V - Denom","All Grade -%","All Grade - Denom","Bibliography","URL"];
-var prev = document.getElementById('col-preview');
-COLS.forEach(function(c){ var s=document.createElement('span'); s.className='col-tag'; s.textContent=c; prev.appendChild(s); });
+document.getElementById('dl-pdfs').setAttribute('data-qs', QS);
+document.getElementById('dl-pdfs').href = '#';
+document.getElementById('dl-pdfs').onclick = function(e){ e.preventDefault(); startPdfJobAnalyze(QS); };
 
 var selectedFile = null;
-function fileSelected(i){ if(i.files[0]){ selectedFile=i.files[0]; showFile(selectedFile.name); } }
+var chatHistory  = [];
+var jobId        = null;
+var pollTimer    = null;
+
+// ── File handling ─────────────────────────────────────────────────────
+function fileSelected(i){ if(i.files[0]){ selectedFile=i.files[0]; onFileReady(selectedFile.name); } }
 function handleDrop(e){
     e.preventDefault();
-    document.getElementById('drop-zone').classList.remove('dragging');
+    document.getElementById('upload-bar').classList.remove('dragging');
     var f=e.dataTransfer.files[0];
-    if(f&&(f.name.endsWith('.csv')||f.name.endsWith('.xlsx')||f.name.endsWith('.xls')||f.name.endsWith('.zip'))){ selectedFile=f; showFile(f.name); }
-    else{ alert('Please drop a CSV, Excel, or ZIP file.'); }
+    if(f){ selectedFile=f; onFileReady(f.name); }
+    else { alert('Please drop a CSV, Excel, or ZIP file.'); }
 }
-function showFile(n){
-    document.getElementById('drop-zone').classList.add('file-selected');
-    var d=document.getElementById('file-name-display'); d.style.display=''; d.textContent='File: '+n;
-    document.getElementById('btn-extract').disabled=false;
-}
-function resetExtraction(){ document.getElementById('error-box').style.display='none'; document.getElementById('btn-extract').disabled=!selectedFile; }
 
-var jobId=null, pollTimer=null;
-async function startExtraction(){
-    if(!selectedFile) return;
-    document.getElementById('btn-extract').disabled=true;
-    document.getElementById('progress-box').style.display='';
-    document.getElementById('download-box').style.display='none';
-    document.getElementById('error-box').style.display='none';
-    setProgress(0,'Uploading file...','');
-    var fd=new FormData(); fd.append('file',selectedFile);
+function onFileReady(name){
+    // Update upload bar to show file loaded
+    var drop = document.getElementById('upload-drop');
+    drop.classList.add('has-file');
+    document.getElementById('upload-bar').classList.add('has-file');
+    document.getElementById('upload-label').innerHTML = '<i class="fas fa-check-circle"></i> ' + name;
+
+    // Enable chat
+    document.getElementById('chat-input').disabled = false;
+    document.getElementById('chat-send').disabled  = false;
+    document.getElementById('chat-input').placeholder = 'Ask me about your data, or say "generate report"...';
+    document.getElementById('suggest-row').classList.remove('hidden');
+
+    // Welcome message with file context
+    appendBot('<p>File <b>' + name + '</b> loaded successfully!</p><p>You can now ask me questions about your articles, request summaries, or say <b>"generate AE extraction report"</b> to create the structured Excel with all 51 columns.</p>');
+}
+
+// ── Chat UI helpers ───────────────────────────────────────────────────
+function grow(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,90)+'px'; }
+function chatKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendChat(); } }
+function useChip(el){
+    document.getElementById('chat-input').value = el.textContent;
+    document.getElementById('suggest-row').classList.add('hidden');
+    sendChat();
+}
+
+function appendMsg(role, html){
+    var wrap=document.getElementById('chat-messages');
+    var div=document.createElement('div'); div.className='cmsg '+role;
+    var icon=role==='user'?'<i class="fas fa-user"></i>':'<i class="fas fa-robot"></i>';
+    div.innerHTML='<div class="cavatar">'+icon+'</div><div class="cbubble">'+html+'</div>';
+    wrap.appendChild(div); wrap.scrollTop=wrap.scrollHeight; return div;
+}
+function appendBot(html){ return appendMsg('bot', html); }
+function appendUser(t){ return appendMsg('user', t.replace(/</g,'&lt;').replace(/>/g,'&gt;')); }
+
+function showThinking(){
+    var wrap=document.getElementById('chat-messages');
+    var div=document.createElement('div'); div.className='cmsg bot'; div.id='thinking';
+    div.innerHTML='<div class="cavatar"><i class="fas fa-robot"></i></div><div class="cbubble"><div class="thinking-dots"><span></span><span></span><span></span></div></div>';
+    wrap.appendChild(div); wrap.scrollTop=wrap.scrollHeight;
+}
+function removeThinking(){ var el=document.getElementById('thinking'); if(el)el.remove(); }
+
+function fmtResponse(text){
+    text=text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    text=text.replace(/^[-*•]\s+(.+)$/gm,'<li>$1</li>');
+    return text.split(/\n\n+/).map(function(p){
+        p=p.trim(); if(!p) return '';
+        if(p.includes('<li>')) return '<ul>'+p+'</ul>';
+        return '<p>'+p.replace(/\n/g,'<br>')+'</p>';
+    }).join('');
+}
+
+// ── Detect if user wants to generate Excel report ─────────────────────
+function wantsReport(q){
+    var kw = ['generate','create','extract','report','excel','download','export report','ae extraction','51 column'];
+    q = q.toLowerCase();
+    return kw.some(function(k){ return q.includes(k); });
+}
+
+// ── Main send ─────────────────────────────────────────────────────────
+async function sendChat(){
+    var input=document.getElementById('chat-input');
+    var q=input.value.trim();
+    if(!q) return;
+    if(!selectedFile){ appendBot('<p style="color:#c53030">Please upload a file first.</p>'); return; }
+
+    appendUser(q);
+    input.value=''; input.style.height='auto';
+    document.getElementById('chat-send').disabled=true;
+    showThinking();
+    chatHistory.push({role:'user', content:q});
+
+    // If user wants a report, trigger extraction pipeline
+    if(wantsReport(q)){
+        removeThinking();
+        appendBot('<p><i class="fas fa-magic"></i> Starting AE extraction report... This will take 1-3 minutes depending on file size.</p>');
+        startExtraction(q);
+        document.getElementById('chat-send').disabled=false;
+        return;
+    }
+
+    // Otherwise chat normally
+    try{
+        var fd=new FormData();
+        fd.append('file', selectedFile);
+        fd.append('history', JSON.stringify(chatHistory));
+        fd.append('question', q);
+
+        var r=await fetch('/api/copilot_file',{method:'POST',body:fd});
+        var d=await r.json();
+        removeThinking();
+
+        if(d.error){
+            appendBot('<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> '+d.error+'</p>');
+            chatHistory.pop();
+        } else {
+            appendBot(fmtResponse(d.answer));
+            chatHistory.push({role:'assistant', content:d.answer});
+        }
+    }catch(e){
+        removeThinking();
+        appendBot('<p style="color:#c53030">Network error: '+e.message+'</p>');
+        chatHistory.pop();
+    } finally {
+        document.getElementById('chat-send').disabled=false;
+        document.getElementById('chat-input').focus();
+    }
+}
+
+// ── Extraction pipeline (triggered from chat) ─────────────────────────
+async function startExtraction(userRequest){
+    var fd=new FormData(); fd.append('file', selectedFile);
     try{
         var r=await fetch('/api/extract_report',{method:'POST',body:fd});
         var d=await r.json();
-        if(d.error){ showError(d.error); return; }
-        jobId=d.job_id; pollProgress(d.total);
-    }catch(e){ showError('Upload failed: '+e.message); }
+        if(d.error){ appendBot('<p style="color:#c53030">Extraction error: '+d.error+'</p>'); return; }
+        jobId=d.job_id;
+        pollExtraction(d.total);
+    }catch(e){ appendBot('<p style="color:#c53030">Failed to start extraction: '+e.message+'</p>'); }
 }
-function pollProgress(total){
+
+function pollExtraction(total){
+    var progMsg = appendBot('<p><i class="fas fa-cog fa-spin"></i> Processing article 0 / '+total+'...</p>');
     pollTimer=setInterval(async function(){
         try{
             var r=await fetch('/api/extract_progress/'+jobId);
             var d=await r.json();
             var pct=total>0?Math.round((d.current/total)*100):0;
-            setProgress(pct,d.status,d.current+' / '+d.total+' articles processed');
+            progMsg.querySelector('.cbubble').innerHTML=
+                '<p><i class="fas fa-cog fa-spin"></i> '+d.status+'</p>'+
+                '<div style="background:#e2e8f0;border-radius:99px;height:8px;margin:.35rem 0;overflow:hidden">'+
+                '<div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,#2b6cb0,#63b3ed);transition:width .4s"></div></div>'+
+                '<p style="font-size:.72rem;color:#718096">'+d.current+' / '+d.total+' articles</p>';
+            document.getElementById('chat-messages').scrollTop=999999;
             if(d.done){
                 clearInterval(pollTimer);
-                if(d.error){ showError(d.error); }
-                else{
-                    document.getElementById('progress-box').style.display='none';
-                    document.getElementById('download-box').style.display='';
-                    document.getElementById('complete-status').textContent=d.status;
-                    document.getElementById('download-link').href='/api/extract_download/'+jobId;
+                if(d.error){
+                    progMsg.querySelector('.cbubble').innerHTML='<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> '+d.error+'</p>';
+                } else {
+                    progMsg.querySelector('.cbubble').innerHTML=
+                        '<p><i class="fas fa-check-circle" style="color:#276749"></i> <b>Report ready!</b> '+d.status+'</p>'+
+                        '<a href="/api/extract_download/'+jobId+'" class="dl-excel-btn">'+
+                        '<i class="fas fa-file-excel"></i> Download AE Extraction Excel</a>'+
+                        '<p style="font-size:.68rem;color:#718096;margin-top:.4rem">Please review AI-extracted fields — some values may need manual verification.</p>';
+                    document.getElementById('chat-messages').scrollTop=999999;
+                    chatHistory.push({role:'assistant', content:'I have completed the AE extraction report. '+d.status+' You can download the Excel file above.'});
                 }
             }
-        }catch(e){ clearInterval(pollTimer); showError('Progress check failed: '+e.message); }
+        }catch(e){ clearInterval(pollTimer); appendBot('<p style="color:#c53030">Progress error: '+e.message+'</p>'); }
     },1500);
 }
-function setProgress(p,s,c){
-    document.getElementById('progress-bar').style.width=p+'%';
-    document.getElementById('progress-status').textContent=s;
-    document.getElementById('progress-count').textContent=c;
-}
-function showError(m){
-    document.getElementById('progress-box').style.display='none';
-    document.getElementById('error-box').style.display='';
-    document.getElementById('error-msg').textContent=m;
-    document.getElementById('btn-extract').disabled=false;
+
+async function startPdfJobAnalyze(qs) {
+    var btn = document.getElementById('dl-pdfs');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+    btn.style.pointerEvents = 'none';
+    try {
+        var r = await fetch('/export/pdfs?' + qs);
+        var d = await r.json();
+        if(d.error){ alert('PDF error: ' + d.error); btn.innerHTML='<i class="fas fa-file-archive"></i> Download PDFs (ZIP)'; btn.style.pointerEvents=''; return; }
+        var jobId=d.job_id, total=d.total;
+        btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Preparing '+total+' PDFs...';
+        var poll = setInterval(async function(){
+            var pr = await fetch('/export/pdfs/progress/'+jobId);
+            var pd = await pr.json();
+            var pct = total>0?Math.round((pd.current/total)*100):0;
+            btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> '+pct+'% ('+pd.current+'/'+total+')';
+            if(pd.done){
+                clearInterval(poll);
+                if(pd.error){ alert('PDF error: '+pd.error); btn.innerHTML='<i class="fas fa-file-archive"></i> Download PDFs (ZIP)'; btn.style.pointerEvents=''; }
+                else{ btn.innerHTML='<i class="fas fa-check-circle"></i> Download Ready'; btn.style.pointerEvents=''; window.location.href='/export/pdfs/download/'+jobId; }
+            }
+        }, 2000);
+    } catch(e){ alert('Network error: '+e.message); btn.innerHTML='<i class="fas fa-file-archive"></i> Download PDFs (ZIP)'; btn.style.pointerEvents=''; }
 }
 </script>
 </body>

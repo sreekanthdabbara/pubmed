@@ -1,21 +1,27 @@
 # Core dependencies for PubMed API Scraper
 biopython>=1.81
 pandas>=2.0.0
-openpyxl>=3.1.0  # For Excel export
+openpyxl>=3.1.0
+numpy>=1.24.0
 
 # Flask web application
 Flask>=2.3.0
 Werkzeug>=2.3.0
 
-# Optional: Web Scraper (NOT RECOMMENDED)
+# HTTP requests
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 
-# Optional: Production deployment
-# gunicorn>=21.2.0  # Uncomment for production
-# flask-caching>=2.0.0  # Uncomment for caching
-# flask-limiter>=3.3.0  # Uncomment for rate limiting
-pdfplumber>=0.10.0  # PDF text extraction for Excel full-text export
-reportlab>=4.0.0   # PDF generation for ZIP download feature
-gunicorn>=21.2.0   # Production WSGI server for Render deployment
+# PDF support
+pdfplumber>=0.10.0
+reportlab>=4.0.0
+
+# Production
+gunicorn>=21.2.0
+
+# AI
+groq>=0.4.0
+
+# Env
+python-dotenv>=1.0.0
