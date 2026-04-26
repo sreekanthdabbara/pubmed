@@ -473,7 +473,7 @@ class MultiKeywordPubMedScraper:
 EXCEL_CELL_LIMIT = 32_000  # Excel hard limit is 32,767 chars per cell
 
 
-def fetch_pdf_text(pdf_url: str) -> str:
+def fetch_pdf_text(pdf_url: str, timeout_secs: int = 20) -> str:
     """
     Fetch full text for a free PMC article using the official PMC XML API
     (Entrez efetch db=pmc). Strips the References section and returns
@@ -490,6 +490,8 @@ def fetch_pdf_text(pdf_url: str) -> str:
     pmc_numeric_id = pmc_match.group(1)
 
     try:
+        import socket
+        socket.setdefaulttimeout(timeout_secs)
         # ── Fetch full-text XML via Entrez ────────────────────────────────
         handle = Entrez.efetch(
             db='pmc',
@@ -729,8 +731,12 @@ def add_full_text_column(df, keywords=None):
 
     for _, row in df.iterrows():
         if row.get('is_free_pmc') and row.get('pdf_url'):
-            print(f"  Fetching PDF for PMID {row.get('pmid', '?')} ...")
-            text = fetch_pdf_text(row['pdf_url'])
+            try:
+                print(f"  Fetching PDF for PMID {row.get('pmid', '?')} ...")
+                text = fetch_pdf_text(row['pdf_url'])
+            except Exception as e:
+                print(f"  Full text fetch failed: {e}")
+                text = ''
         else:
             text = ''
 
@@ -1933,8 +1939,13 @@ def export_multi(format):
 
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        return f"Export error: {str(e)}", 500
+        tb = traceback.format_exc()
+        print(f"[export_multi] ERROR: {e}\n{tb}")
+        # Return detailed error so we can diagnose on Render
+        return jsonify({
+            'error': str(e),
+            'traceback': tb[-500:]   # last 500 chars of traceback
+        }), 500
 
 @app.route('/about')
 def about():
