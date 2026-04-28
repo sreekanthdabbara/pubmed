@@ -2786,6 +2786,80 @@ Guidelines:
 
 
 
+@app.route('/api/extract_article', methods=['POST'])
+@login_required
+def extract_article():
+    """
+    Extract 51-column AE report from a single attached article (PDF/TXT/Excel/CSV).
+    Returns job_id for polling — same flow as extract_report.
+    """
+    import uuid as _uuid
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file attached'}), 400
+
+    fname = f.filename or ''
+    text  = ''
+
+    try:
+        if fname.lower().endswith('.pdf'):
+            if PDF_SUPPORT:
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(f.read())) as pdf:
+                    pages = []
+                    for page in pdf.pages[:40]:
+                        pt = page.extract_text() or ''
+                        pages.append(pt)
+                    text = '\n\n'.join(pages)
+            else:
+                return jsonify({'error': 'PDF support not available. Please upload TXT or Excel.'}), 400
+        elif fname.lower().endswith('.txt'):
+            text = f.read().decode('utf-8', errors='ignore')
+        elif fname.lower().endswith(('.xlsx', '.xls')):
+            df   = pd.read_excel(f, dtype=str).fillna('')
+            text = df.to_string(index=False)[:8000]
+        elif fname.lower().endswith('.csv'):
+            df   = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+            text = df.to_string(index=False)[:8000]
+        else:
+            return jsonify({'error': f'Unsupported file type. Use PDF, TXT, Excel, or CSV.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Could not read file: {e}'}), 400
+
+    if not text.strip():
+        return jsonify({'error': 'No text could be extracted from the file.'}), 400
+
+    # Build article dict
+    article = {
+        'title':            fname.replace('.pdf','').replace('.txt','').replace('_',' ')[:120],
+        'abstract':         text[:1000],
+        'full_text':        text,
+        'url':              '', 'authors': '', 'journal': '',
+        'publication_date': '', 'publication_type': '',
+        'country':          '', 'pmid': '',
+        '_source':          'attached_article',
+        '_filename':        fname,
+    }
+
+    job_id = _uuid.uuid4().hex[:12]
+    _extract_jobs[job_id] = {
+        'status':      f'Extracting clinical data from {fname}...',
+        'done':        False,
+        'current':     0,
+        'total':       1,
+        'excel_bytes': None,
+        'error':       None,
+        'cancelled':   False,
+    }
+
+    t = threading.Thread(target=_run_extract_job,
+                         args=(job_id, [article]), daemon=True)
+    t.start()
+
+    return jsonify({'job_id': job_id, 'total': 1, 'filename': fname})
+
+
 @login_required
 def extract_debug():
     """
