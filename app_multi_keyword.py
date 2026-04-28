@@ -11,7 +11,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    pass  # dotenv not installed — env vars must be set another way (e.g. Render dashboard)
+    pass  # dotenv not installed -- env vars must be set another way (e.g. Render dashboard)
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, Response
@@ -33,7 +33,7 @@ try:
     PDF_SUPPORT = True
 except ImportError:
     PDF_SUPPORT = False
-    print("⚠️  pdfplumber not installed — PDF text extraction disabled.")
+    print("⚠️  pdfplumber not installed -- PDF text extraction disabled.")
     print("   Run: pip install pdfplumber")
 
 # ============================================================================
@@ -47,7 +47,7 @@ class MultiKeywordPubMedScraper:
 
         Args:
             email:   Your email (required by NCBI).
-            api_key: Optional NCBI API key — raises rate limit from 3 to 10
+            api_key: Optional NCBI API key -- raises rate limit from 3 to 10
                      req/sec and speeds up large fetches significantly.
                      Get a free key at: https://www.ncbi.nlm.nih.gov/account/
         """
@@ -394,10 +394,10 @@ class MultiKeywordPubMedScraper:
         keywords: List[str],
     ) -> Dict[str, pd.DataFrame]:
         """
-        Vectorised scoring — runs in milliseconds instead of minutes.
+        Vectorised scoring -- runs in milliseconds instead of minutes.
 
-        keyword_match_count  — how many searched keywords this PMID appeared in
-        keyword_total_hits   — total plain-term occurrences in title + abstract
+        keyword_match_count  -- how many searched keywords this PMID appeared in
+        keyword_total_hits   -- total plain-term occurrences in title + abstract
         """
         # ── PMID → set of matched keywords ─────────────────────────────
         # Tells us exactly which keywords each article appeared in
@@ -436,17 +436,17 @@ class MultiKeywordPubMedScraper:
             df = df.copy()
             pmids = df["pmid"].astype(str)
 
-            # keyword_match_count — how many searched keywords this article appeared in
+            # keyword_match_count -- how many searched keywords this article appeared in
             df["keyword_match_count"] = pmids.map(
                 lambda p: len(pmid_kw_set.get(p, {kw}))
             ).astype(int)
 
-            # matched_keywords — the actual keyword names (semicolon-separated)
+            # matched_keywords -- the actual keyword names (semicolon-separated)
             df["matched_keywords"] = pmids.map(
                 lambda p: "; ".join(sorted(pmid_kw_set.get(p, {kw})))
             )
 
-            # keyword_total_hits — total term occurrences across all keywords
+            # keyword_total_hits -- total term occurrences across all keywords
             text_series = (
                 df["title"].fillna("") + " " + df["abstract"].fillna("")
             ).str.lower()
@@ -458,7 +458,7 @@ class MultiKeywordPubMedScraper:
             else:
                 df["keyword_total_hits"] = 0
 
-            # per_keyword_hits — "lung cancer:5; breast cancer:2" style breakdown
+            # per_keyword_hits -- "lung cancer:5; breast cancer:2" style breakdown
             def per_kw_hits(text):
                 parts = []
                 for k, pat in kw_patterns.items():
@@ -518,7 +518,7 @@ def fetch_pdf_text(pdf_url: str, timeout_secs: int = 20) -> str:
             return 'Could not parse PMC XML response'
 
         # Tags whose entire subtree content should be skipped
-        # (but NOT their .tail — tail belongs to the parent level)
+        # (but NOT their .tail -- tail belongs to the parent level)
         SKIP_CONTENT = {
             'ref-list',    # References list
             'fn-group',    # Footnotes
@@ -547,9 +547,9 @@ def fetch_pdf_text(pdf_url: str, timeout_secs: int = 20) -> str:
             Recursively collect text in document order.
 
             Returns a string that preserves:
-              el.text  — text immediately inside the opening tag
-              children — each child's full text contribution
-              el.tail  — text immediately after the closing tag (parent context)
+              el.text  -- text immediately inside the opening tag
+              children -- each child's full text contribution
+              el.tail  -- text immediately after the closing tag (parent context)
 
             When el is in SKIP_CONTENT its internal text and children are
             suppressed, but el.tail is still returned (it belongs to the
@@ -619,7 +619,7 @@ def fetch_pdf_text(pdf_url: str, timeout_secs: int = 20) -> str:
         if m:
             full_text = full_text[:m.start()].rstrip()
 
-        # Return full text — truncation for Excel is applied in the Excel
+        # Return full text -- truncation for Excel is applied in the Excel
         # writer path only so CSV and JSON always get the complete content
         return full_text
 
@@ -647,7 +647,7 @@ EXPORT_COLUMNS = [
     'keyword_total_hits',
     'pdf_total_keyword_hits',          # keyword hit count in PDF full text
     'pdf_per_keyword_hits',            # per-keyword breakdown in PDF
-    'Free article complete content',   # LAST — full text (may span Part 2, Part 3 cols)
+    'Free article complete content',   # LAST -- full text (may span Part 2, Part 3 cols)
 ]
 
 # Columns that should never appear in exports
@@ -664,7 +664,7 @@ ABSTRACT_ONLY_COLUMNS = [
 ]
 
 # Mode: "pmc_only"  → same as abstract but filtered to free PMC articles
-# (column set same as ABSTRACT_ONLY_COLUMNS — filter applied on rows)
+# (column set same as ABSTRACT_ONLY_COLUMNS -- filter applied on rows)
 
 # Mode: default / "full"  → full export including full text and PDF scores
 # (uses full EXPORT_COLUMNS list already defined above)
@@ -714,7 +714,7 @@ def add_full_text_column(df, keywords=None):
     """
     Add full text column plus PDF keyword hit counts for each free PMC article.
 
-    keywords: list of original search keywords — used to count hits in the PDF.
+    keywords: list of original search keywords -- used to count hits in the PDF.
               If None, hit columns are skipped.
     """
     df = df.copy()
@@ -800,7 +800,7 @@ USERS = {
 }
 
 def login_required(f):
-    """Decorator — redirects to login page if user is not logged in."""
+    """Decorator -- redirects to login page if user is not logged in."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_email' not in session:
@@ -866,7 +866,7 @@ def logout():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Simple self-registration — adds user to in-memory store."""
+    """Simple self-registration -- adds user to in-memory store."""
     if request.method == 'POST':
         email    = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -889,7 +889,7 @@ def register():
 
 @app.route('/forgot-password')
 def forgot_password():
-    """Placeholder — implement email reset for production."""
+    """Placeholder -- implement email reset for production."""
     return render_template('login.html',
                            message="Password reset is not yet configured. Contact your administrator.")
 
@@ -906,7 +906,7 @@ def index():
 @app.route('/search', methods=['POST'])
 @login_required
 def search():
-    """Handle multi-keyword search requests — fetches ALL results, filtering done on results page"""
+    """Handle multi-keyword search requests -- fetches ALL results, filtering done on results page"""
     try:
         keywords_input = request.form.get('keywords', '').strip()
 
@@ -915,7 +915,7 @@ def search():
                                  error="Please enter at least one keyword",
                                  recent_searches=recent_searches[:10])
 
-        # Parse keywords — comma-separated or one per line
+        # Parse keywords -- comma-separated or one per line
         if ',' in keywords_input:
             keywords = [k.strip() for k in keywords_input.split(',') if k.strip()]
         else:
@@ -1313,7 +1313,7 @@ def _presplit_fulltext(df: 'pd.DataFrame') -> 'pd.DataFrame':
     EXCEL_CELL_LIMIT into separate columns: 'Full Text (PMC) - Part 2', etc.
 
     This must run BEFORE df.to_excel() because openpyxl silently truncates
-    any cell value longer than 32,767 chars — meaning _split_fulltext_across_cells
+    any cell value longer than 32,767 chars -- meaning _split_fulltext_across_cells
     would never see the overflowing text if we waited until after writing.
     """
     LIMIT = EXCEL_CELL_LIMIT
@@ -1440,7 +1440,7 @@ def _split_fulltext_across_cells(ws, wrap_align):
             continue
 
         if len(value) <= LIMIT:
-            # Fits — just set alignment and move on
+            # Fits -- just set alignment and move on
             cell.alignment = cell_align
             continue
 
@@ -1456,7 +1456,7 @@ def _split_fulltext_across_cells(ws, wrap_align):
             if cut < LIMIT * 0.75:
                 cut = text[:LIMIT].rfind(' ')
             if cut < LIMIT * 0.75:
-                cut = LIMIT    # no good break point — hard cut
+                cut = LIMIT    # no good break point -- hard cut
             chunks.append(text[:cut].rstrip())
             text = text[cut:].lstrip()
 
@@ -1496,12 +1496,12 @@ def _split_fulltext_across_cells(ws, wrap_align):
                 and orig_cell_fill.fgColor.rgb not in ('00000000', 'FF000000', '00FFFFFF', 'FFFFFFFF')):
             orig_fill = orig_cell_fill
 
-        # Part 1 — overwrite original cell
+        # Part 1 -- overwrite original cell
         c1 = ws.cell(row=row_num, column=ft_col_idx)
         c1.value     = chunks[0]
         c1.alignment = cell_align
 
-        # Parts 2+ — write into continuation columns
+        # Parts 2+ -- write into continuation columns
         for part, chunk in enumerate(chunks[1:], start=2):
             col_idx = part_col_map[part]
             c = ws.cell(row=row_num, column=col_idx)
@@ -1514,7 +1514,7 @@ def _split_fulltext_across_cells(ws, wrap_align):
 @app.route('/export/multi/<format>')
 @login_required
 def export_multi(format):
-    """Export results — reads from cache if available, else re-searches.
+    """Export results -- reads from cache if available, else re-searches.
 
     mode (query param):
         'abstract'  → abstract-only columns, no full text fetched (fast)
@@ -1540,7 +1540,7 @@ def export_multi(format):
             keywords       = cached['keywords']
             print(f"  [export] cached results  search_id={search_id}  mode={mode}")
         else:
-            print(f"  [export] cache miss — re-searching...  mode={mode}")
+            print(f"  [export] cache miss -- re-searching...  mode={mode}")
             if not keywords_str:
                 return "No keywords provided", 400
             keywords = [k.strip() for k in keywords_str.split(',') if k.strip()]
@@ -1613,7 +1613,7 @@ def export_multi(format):
             if f_abstract:
                 mask &= df['abstract'].notna() & (df['abstract'] != 'N/A') & (df['abstract'] != '')
 
-            # ── Article type — OR logic (keep if matches ANY checked) ──────
+            # ── Article type -- OR logic (keep if matches ANY checked) ──────
             any_type = any([f_type_journal, f_type_review, f_type_systematic,
                             f_type_meta, f_type_rct, f_type_clinical,
                             f_type_case, f_type_observational])
@@ -1630,7 +1630,7 @@ def export_multi(format):
                 if f_type_observational: type_mask |= pt.str.contains('observational', na=False)
                 mask &= type_mask
 
-            # ── Species / sex / age — text-based matching ─────────────────
+            # ── Species / sex / age -- text-based matching ─────────────────
             text = (df['abstract'].fillna('') + ' ' + df['affiliation'].fillna('')).str.lower()
             if f_humans  and not f_animals: mask &= text.str.contains('human|patient|cohort', na=False, regex=True)
             if f_animals and not f_humans:  mask &= text.str.contains('animal|mouse|rat|murine', na=False, regex=True)
@@ -1653,7 +1653,7 @@ def export_multi(format):
             # pmc_only mode: keep only free PMC rows
             if mode == 'pmc_only' and 'is_free_pmc' in df.columns:
                 df = df[df['is_free_pmc'] == True]
-            # Apply sidebar filters — this produces exactly the same
+            # Apply sidebar filters -- this produces exactly the same
             # article set that is shown on screen
             df = apply_sidebar_filters(df)
             limited_results[kw] = df
@@ -1669,7 +1669,7 @@ def export_multi(format):
             df = df.copy()
 
             if mode == 'abstract':
-                # ── Only abstract columns — fast, no network calls ────────
+                # ── Only abstract columns -- fast, no network calls ────────
                 drop_internal = [c for c in ['pub_type_label', 'pdf_url', 'pmc_url', 'is_free_pmc'] if c in df.columns]
                 if drop_internal:
                     df = df.drop(columns=drop_internal)
@@ -1696,7 +1696,7 @@ def export_multi(format):
                 df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
             elif mode == 'pmc_only':
-                # ── Free PMC only — fetch full text, include PDF hit scores ─
+                # ── Free PMC only -- fetch full text, include PDF hit scores ─
                 # Row filtering already done above (only is_free_pmc rows)
                 # Now fetch full text + PDF keyword scores
                 df = add_full_text_column(df, keywords=keywords)
@@ -1734,7 +1734,7 @@ def export_multi(format):
                 df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
             else:
-                # ── Full export — all columns + full text + PDF hits ────────
+                # ── Full export -- all columns + full text + PDF hits ────────
                 df = add_full_text_column(df, keywords=keywords)
                 df = clean_for_export(df)
 
@@ -1918,7 +1918,7 @@ def export_multi(format):
                             w = width_map.get(hdr, 18)
                         ws.column_dimensions[get_column_letter(col_cells[0].column)].width = w
 
-                    # Row heights — taller for rows that have full text content
+                    # Row heights -- taller for rows that have full text content
                     for row in ws.iter_rows(min_row=2):
                         has_ft = fulltext_col and row[fulltext_col - 1].value
                         # Set a generous row height so wrapped text is visible
@@ -1975,7 +1975,7 @@ def health():
 @app.route('/analyze')
 @login_required
 def analyze():
-    """Analyze & report page — wraps current search with AI copilot."""
+    """Analyze & report page -- wraps current search with AI copilot."""
     search_id    = request.args.get('search_id', '')
     keywords_str = request.args.get('keywords', '')
     max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
@@ -2074,7 +2074,7 @@ def _run_pdf_job(job_id: str, pmc_articles: list, tmp_path: str):
         # Write ZIP
         job['status'] = 'Building ZIP file...'
         index_lines = [
-            f"EpiLite PDF Export — {total} articles",
+            f"EpiLite PDF Export -- {total} articles",
             f"Downloaded: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "=" * 60, ""
         ]
@@ -2122,7 +2122,7 @@ def _run_pdf_job(job_id: str, pmc_articles: list, tmp_path: str):
                             except:
                                 return Spacer(1, 2*mm)
                         story = [
-                            _p('<font color="#2b6cb0">EpiLite</font> — Generated PDF', m_s),
+                            _p('<font color="#2b6cb0">EpiLite</font> -- Generated PDF', m_s),
                             HRFlowable(width='100%', thickness=2,
                                       color=colors.HexColor('#2b6cb0'), spaceAfter=8),
                             _p(art.get('title',''), t_s),
@@ -2167,7 +2167,7 @@ def _run_pdf_job(job_id: str, pmc_articles: list, tmp_path: str):
 
         job['done']     = True
         job['zip_path'] = tmp_path
-        job['status']   = f'Complete — {total} PDFs ready'
+        job['status']   = f'Complete -- {total} PDFs ready'
 
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -2396,6 +2396,25 @@ EXTRACT_KEYS = [
 ]
 
 
+def _make_fallback(title, authors, pub_date, country, journal, url, pmid):
+    """Create a metadata-only row when AI extraction fails."""
+    year = ''
+    m = re.search(r'\b(19|20)\d{2}\b', str(pub_date))
+    if m: year = m.group()
+    # Format author_year: "LastName et al., YYYY"
+    first_author = authors.split(',')[0].split()[-1] if authors else ''
+    author_year  = f"{first_author} et al., {year}" if first_author and year else authors[:40]
+    return {
+        'author_year':    author_year,
+        'country':        country,
+        'study_title':    title,
+        'published_year': year,
+        'journal':        journal,
+        'url':            url,
+        'bibliography':   f"{authors[:60]}. {title[:80]}. {journal}. {year}.",
+    }
+
+
 def _run_extract_job(job_id: str, articles: list):
     """Background thread: extract clinical fields from each article via Claude."""
     job = _extract_jobs[job_id]
@@ -2410,14 +2429,14 @@ def _run_extract_job(job_id: str, articles: list):
         job['done']  = True
         return
 
-    print(f"[extract] Starting job {job_id} — {len(articles)} articles")
+    print(f"[extract] Starting job {job_id} -- {len(articles)} articles")
 
     for i, art in enumerate(articles, 1):
         if job.get('cancelled'):
             break
         job['current'] = i
 
-        # ── Normalise column names — exact names from EpiLite export ────
+        # ── Normalise column names -- exact names from EpiLite export ────
         def _get(d, *keys):
             for k in keys:
                 v = d.get(k, '') or d.get(k.lower(), '') or ''
@@ -2446,7 +2465,7 @@ def _run_extract_job(job_id: str, articles: list):
         pmid     = _get(art, 'PMID', 'pmid')
 
         if not title and not abstract:
-            print(f"  [extract] Article {i}: no title or abstract — skipping. Keys: {list(art.keys())[:8]}")
+            print(f"  [extract] Article {i}: no title or abstract -- skipping. Keys: {list(art.keys())[:8]}")
             continue
 
         job['status'] = f"Extracting article {i} of {len(articles)}: {title[:60]}…"
@@ -2458,86 +2477,47 @@ def _run_extract_job(job_id: str, articles: list):
         else:
             content = (abstract + '\n\n' + fulltext[:3000]) if fulltext else abstract
 
-        prompt = f"""You are a clinical research data extractor for oncology adverse event studies. Extract ALL available information from this article and return ONLY a valid JSON object — no explanation, no markdown, no code fences.
+        # Truncate content smartly -- keep most relevant parts
+        max_content = 2500
+        if len(content) > max_content:
+            # Keep first 1500 (abstract/intro) + last 1000 (results/conclusion)
+            content = content[:1500] + '\n...\n' + content[-1000:]
 
-ARTICLE DATA:
-Title: {title}
-Authors: {authors}
-Journal: {journal}
-Date: {pub_date}
-Publication Type: {pub_type}
-Country: {country}
-PMID: {pmid}
-URL: {url}
+        # Build pre-filled defaults for the JSON template
+        year         = re.search(r'\b(19|20)\d{2}\b', pub_date).group() if re.search(r'\b(19|20)\d{2}\b', pub_date) else ''
+        first_author = authors.split(',')[0].strip().split()[-1] if authors else ''
+        author_year  = f"{first_author} et al., {year}".strip(' ,') if first_author else authors[:40]
+        bibliography = f"{authors[:60]}. {title[:80]}. {journal}. {year}."
 
-Content (abstract + any available full text):
-{content}
-
-INSTRUCTIONS:
-- Extract every field you can find in the content above
-- For fields not mentioned in the content, use "" (empty string)
-- Do NOT make up data — only extract what is explicitly stated
-- If multiple adverse events (AEs) are reported, create one row per AE
-- If no specific AE grades are reported, still create one row with all other fields filled
-- For author_year: format as "Lastname et al., YYYY" or "Lastname & Lastname, YYYY"
-- For study_type: look for RCT, cohort, retrospective, prospective, case series, meta-analysis, systematic review
-- For mon_combo: "Monotherapy" if single drug, "Combination" if multiple drugs
-- For ae_reporting_method: look for "CTCAE", "NCI CTCAE" followed by version number
-
-Return this exact JSON structure:
-{{
-  "rows": [
-    {{
-      "author_year": "",
-      "country": "",
-      "study_title": "",
-      "published_year": "",
-      "study_type": "",
-      "trial_phase": "",
-      "tumor_type": "",
-      "cancer_name": "",
-      "disease_definition": "",
-      "stage_seer": "",
-      "sample_size": "",
-      "mean_median_age": "",
-      "race_ethnicity": "",
-      "mon_combo": "",
-      "drug_class": "",
-      "treatment": "",
-      "dosage_strength": "",
-      "target": "",
-      "median_followup": "",
-      "duration_treatment_m": "",
-      "time_to_ae_onset": "",
-      "sae_type": "",
-      "prophylactics": "",
-      "ae_reporting_method": "",
-      "ae_reporting_criteria": "",
-      "event_organ_class": "",
-      "ae_name": "",
-      "grade1_pct": "",
-      "grade1_denom": "",
-      "grade2_pct": "",
-      "grade2_denom": "",
-      "grade12_pct": "",
-      "grade12_denom": "",
-      "grade3_pct": "",
-      "grade3_denom": "",
-      "grade34_pct": "",
-      "grade34_denom": "",
-      "grade3plus_pct": "",
-      "grade3plus_denom": "",
-      "grade4_pct": "",
-      "grade4_denom": "",
-      "grade5_pct": "",
-      "grade5_denom": "",
-      "all_grade_pct": "",
-      "all_grade_denom": "",
-      "bibliography": "",
-      "url": "{url}"
-    }}
-  ]
-}}"""
+        prompt = (
+            'Extract clinical data from this oncology article. '
+            'Return ONLY a valid JSON object with a "rows" array -- no markdown, no explanation.\n\n'
+            f'Title: {title}\n'
+            f'Authors: {authors}\n'
+            f'Journal: {journal} | Date: {pub_date} | Country: {country} | PMID: {pmid}\n\n'
+            f'Content:\n{content}\n\n'
+            'Return this JSON structure (fill all fields you find, use "" for unknown):\n'
+            '{"rows":[{'
+            '"author_year":"' + author_year + '",'
+            '"country":"' + country + '",'
+            '"study_title":"' + title[:80].replace('"', "'") + '",'
+            '"published_year":"' + year + '",'
+            '"study_type":"","trial_phase":"","tumor_type":"","cancer_name":"",'
+            '"disease_definition":"","stage_seer":"","sample_size":"","mean_median_age":"",'
+            '"race_ethnicity":"","mon_combo":"","drug_class":"","treatment":"",'
+            '"dosage_strength":"","target":"","median_followup":"","duration_treatment_m":"",'
+            '"time_to_ae_onset":"","sae_type":"","prophylactics":"","ae_reporting_method":"",'
+            '"ae_reporting_criteria":"","event_organ_class":"","ae_name":"",'
+            '"grade1_pct":"","grade1_denom":"","grade2_pct":"","grade2_denom":"",'
+            '"grade12_pct":"","grade12_denom":"","grade3_pct":"","grade3_denom":"",'
+            '"grade34_pct":"","grade34_denom":"","grade3plus_pct":"","grade3plus_denom":"",'
+            '"grade4_pct":"","grade4_denom":"","grade5_pct":"","grade5_denom":"",'
+            '"all_grade_pct":"","all_grade_denom":"",'
+            '"bibliography":"' + bibliography.replace('"', "'") + '",'
+            '"url":"' + url + '"'
+            '}]}\n\n'
+            'Fill every field you can find. Create multiple rows if multiple adverse events are reported.'
+        )
 
         try:
             # ── Call Groq with retry on rate limit ────────────────────
@@ -2550,50 +2530,69 @@ Return this exact JSON structure:
                         'Authorization': f'Bearer {GROQ_KEY}',
                     },
                     json={
-                        'model':       'llama-3.1-8b-instant',
+                        'model':       'llama-3.3-70b-versatile',
                         'max_tokens':  2000,
                         'temperature': 0,
                         'messages':    [
-                            {'role': 'system', 'content': 'You are a clinical research data extractor. Return ONLY valid JSON, no explanation, no markdown fences.'},
+                            {'role': 'system', 'content': 'You are a clinical research data extractor. Return ONLY valid JSON. No markdown. No explanation. Just the JSON object.'},
                             {'role': 'user',   'content': prompt},
                         ],
                     },
                     timeout=45,
                 )
                 if resp.status_code == 429:
-                    wait = 15 * (attempt + 1)   # 15s, 30s, 45s, 60s
-                    print(f"    Rate limit hit — waiting {wait}s (attempt {attempt+1}/4)")
-                    job['status'] = f"Rate limit — waiting {wait}s before retry… ({i}/{len(articles)})"
+                    wait = 15 * (attempt + 1)
+                    print(f"    Rate limit -- waiting {wait}s (attempt {attempt+1}/4)")
+                    job['status'] = f"Rate limit -- waiting {wait}s… ({i}/{len(articles)})"
                     time.sleep(wait)
                 else:
                     break
+
             print(f"    API status: {resp.status_code}")
             if resp.status_code == 200:
                 text = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '{}')
-                # Strip markdown fences if present
+                print(f"    Raw response (first 300): {text[:300]}")
+
+                # Strip markdown fences
                 text = re.sub(r'^```[a-z]*\n?', '', text.strip())
                 text = re.sub(r'\n?```$', '', text.strip())
+                # Find JSON object in response
+                json_match = re.search(r'\{.*\}', text, re.DOTALL)
+                if json_match:
+                    text = json_match.group()
+
                 try:
                     extracted = json.loads(text)
                     rows = extracted.get('rows', [])
                     if rows:
-                        print(f"    Extracted {len(rows)} row(s)")
-                        all_rows.extend(rows)
+                        # Filter out rows that only have the pre-filled defaults
+                        good_rows = []
+                        for row in rows:
+                            # Count non-empty non-default fields
+                            filled = sum(1 for k, v in row.items()
+                                        if v and v not in ('', 'null', 'None')
+                                        and k not in ('url',))
+                            if filled >= 3:
+                                good_rows.append(row)
+                        if good_rows:
+                            print(f"    Extracted {len(good_rows)} good row(s)")
+                            all_rows.extend(good_rows)
+                        else:
+                            print(f"    Rows found but too sparse -- using metadata fallback")
+                            all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
                     else:
-                        print(f"    No rows in response — using fallback")
-                        all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url})
+                        print(f"    No rows in response -- metadata fallback")
+                        all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
                 except json.JSONDecodeError as je:
-                    print(f"    JSON parse error: {je} — text: {text[:200]}")
-                    all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url,
-                                     'ae_name': f'JSON parse error: {str(je)[:80]}'})
+                    print(f"    JSON parse error: {je} | text: {text[:200]}")
+                    all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
             else:
                 err = resp.json().get('error', {}).get('message', resp.text[:200])
                 print(f"    API error {resp.status_code}: {err}")
-                all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url,
-                                 'ae_name': f'API error {resp.status_code}: {err[:80]}'})
+                all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
         except Exception as e:
-            all_rows.append({'author_year': authors[:50], 'study_title': title, 'url': url,
-                             'ae_name': f'Error: {str(e)[:80]}'})
+            print(f"    Exception: {e}")
+            all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
 
         time.sleep(2.5)  # Groq free tier: 30 req/min = 2s minimum between calls
 
@@ -2663,7 +2662,7 @@ Return this exact JSON structure:
 
         job['excel_bytes'] = buf.getvalue()
         job['done']   = True
-        job['status'] = f'Complete — {len(all_rows)} rows extracted from {len(articles)} articles'
+        job['status'] = f'Complete -- {len(all_rows)} rows extracted from {len(articles)} articles'
 
     except Exception as e:
         job['error']  = f'Excel build failed: {e}'
@@ -2715,7 +2714,7 @@ def copilot_file():
             return jsonify({'error': f'Could not read file: {e}'}), 400
 
         # ── Build context summary (cap at 80 articles to keep tokens manageable)
-        context_lines = [f"Uploaded file: {fname} — {len(articles)} articles\n"]
+        context_lines = [f"Uploaded file: {fname} -- {len(articles)} articles\n"]
         for i, art in enumerate(articles[:80], 1):
             def _g(*keys):
                 for k in keys:
@@ -2751,7 +2750,7 @@ UPLOADED ARTICLE DATA:
 
 Guidelines:
 - Answer based on the article data above
-- Be specific — cite titles, journals, or authors when relevant
+- Be specific -- cite titles, journals, or authors when relevant
 - If asked about AE grades, treatments, or clinical data, extract from the abstracts/content
 - If data is not available in the provided content, say so clearly
 - Format responses clearly with bullet points where helpful"""
@@ -2798,7 +2797,7 @@ Guidelines:
 def extract_article():
     """
     Extract 51-column AE report from a single attached article (PDF/TXT/Excel/CSV).
-    Returns job_id for polling — same flow as extract_report.
+    Returns job_id for polling -- same flow as extract_report.
     """
     import uuid as _uuid
 
@@ -2870,7 +2869,7 @@ def extract_article():
 @login_required
 def extract_debug():
     """
-    Debug endpoint — processes the FIRST article from uploaded file
+    Debug endpoint -- processes the FIRST article from uploaded file
     and returns raw Claude response + column mapping so we can diagnose issues.
     """
     f = request.files.get('file')
@@ -3127,7 +3126,7 @@ def extract_download(job_id):
 @login_required
 def copilot():
     """
-    AI copilot endpoint — uses article abstracts + metadata as context
+    AI copilot endpoint -- uses article abstracts + metadata as context
     and calls Claude to answer questions about the research.
 
     Request JSON:
@@ -3328,7 +3327,7 @@ def ncbi_count():
             if filters.get(key):
                 clauses.append(clause)
 
-        # Article types — OR logic (keep if matches any checked type)
+        # Article types -- OR logic (keep if matches any checked type)
         type_clauses = []
         type_map = {
             'type_journal':      '"Journal Article"[Publication Type]',
