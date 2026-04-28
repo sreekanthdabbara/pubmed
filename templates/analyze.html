@@ -10,47 +10,42 @@
         body { font-family:'Segoe UI',system-ui,sans-serif; background:#f0f4f8; color:#2d3748; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
         .topbar { background:linear-gradient(135deg,#1a365d,#2b6cb0); color:#fff; padding:.6rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
         .topbar-brand { font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:.5rem; }
-        .topbar-meta  { font-size:.75rem; opacity:.85; }
-        .action-tabs  { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; }
-        .action-tab   { display:flex; align-items:center; gap:.4rem; padding:.4rem 1rem; border-radius:20px; font-size:.8rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
+        .topbar-meta { font-size:.75rem; opacity:.85; }
+        .action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; }
+        .action-tab { display:flex; align-items:center; gap:.4rem; padding:.4rem 1rem; border-radius:20px; font-size:.8rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
         .action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
-
-        /* ── Layout ── */
         .page-body { display:flex; flex:1; min-height:0; }
         .steps-sidebar { width:96px; background:#1a365d; padding:1.25rem .5rem; display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
         .step-pill { background:#2b6cb0; color:#fff; font-size:.72rem; font-weight:800; padding:.38rem .7rem; border-radius:6px; width:76px; text-align:center; }
         .step-pill.active { background:#63b3ed; box-shadow:0 0 0 3px rgba(99,179,237,.35); }
         .step-connector { width:2px; height:200px; background:#2b4c7e; margin:.25rem 0; }
         .main-content { flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
-
-        /* ── Step 1 ── */
+        /* Step 1 */
         .step1-panel { background:#dbeafe; padding:1rem 1.5rem; border-bottom:2px solid #bfdbfe; flex-shrink:0; }
         .panel-title { font-size:.85rem; font-weight:700; color:#1e3a5f; margin-bottom:.75rem; display:flex; align-items:center; gap:.45rem; }
         .export-grid { display:flex; gap:.75rem; flex-wrap:wrap; }
         .export-card { background:#fff; border-radius:10px; padding:.8rem .9rem; min-width:160px; flex:1; max-width:210px; box-shadow:0 1px 4px rgba(0,0,0,.07); border:1.5px solid #bfdbfe; }
         .export-card-title { font-size:.68rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.5rem; padding-bottom:.3rem; border-bottom:2px solid #ebf8ff; }
         .export-btn-row { display:flex; flex-direction:column; gap:.28rem; }
-        .export-btn { display:flex; align-items:center; gap:.32rem; padding:.25rem .5rem; border-radius:5px; font-size:.71rem; font-weight:600; text-decoration:none; border:1.5px solid; transition:opacity .15s; }
+        .export-btn { display:flex; align-items:center; gap:.32rem; padding:.25rem .5rem; border-radius:5px; font-size:.71rem; font-weight:600; text-decoration:none; border:1.5px solid; transition:opacity .15s; cursor:pointer; background:none; }
         .export-btn:hover { opacity:.75; }
         .btn-csv   { background:#e6fffa; color:#234e52; border-color:#81e6d9; }
         .btn-excel { background:#f0fff4; color:#22543d; border-color:#9ae6b4; }
         .btn-zip   { background:#ebf8ff; color:#2c5282; border-color:#90cdf4; }
-
-        /* ── Step 2: upload + chat ── */
+        /* Step 2 */
         .step2-panel { flex:1; display:flex; flex-direction:column; min-height:0; background:#fff; }
-
-        /* Upload bar — compact, collapses after upload */
-        .upload-bar { padding:.75rem 1.5rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:.85rem; flex-shrink:0; background:#f7fbff; transition:all .2s; }
+        .upload-bar { padding:.7rem 1.5rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:.85rem; flex-shrink:0; background:#f7fbff; }
         .upload-bar.has-file { background:#f0fff4; border-color:#9ae6b4; }
-        .upload-drop { border:2px dashed #90cdf4; border-radius:8px; padding:.5rem 1rem; cursor:pointer; display:flex; align-items:center; gap:.6rem; font-size:.78rem; color:#2b6cb0; font-weight:600; transition:all .15s; flex-shrink:0; }
-        .upload-drop:hover, .upload-drop.dragging { border-color:#2b6cb0; background:#ebf8ff; }
+        .upload-drop { border:2px dashed #90cdf4; border-radius:8px; padding:.45rem 1rem; cursor:pointer; display:flex; align-items:center; gap:.5rem; font-size:.76rem; color:#2b6cb0; font-weight:600; flex-shrink:0; transition:all .15s; }
+        .upload-drop:hover { border-color:#2b6cb0; background:#ebf8ff; }
         .upload-drop.has-file { border-color:#9ae6b4; background:#f0fff4; color:#276749; }
-        #file-input { display:none; }
-        .upload-hint-text { font-size:.72rem; color:#718096; line-height:1.4; }
+        .upload-hint-text { font-size:.7rem; color:#718096; line-height:1.4; }
         .upload-hint-text b { color:#2b6cb0; }
-
-        /* ── Chat ── */
+        /* Chat */
         .chat-area { flex:1; display:flex; flex-direction:column; min-height:0; }
+        .suggest-row { display:flex; flex-wrap:wrap; gap:.32rem; padding:.5rem 1.5rem .2rem; flex-shrink:0; }
+        .suggest-chip { font-size:.69rem; background:#ebf8ff; color:#2b6cb0; border:1px solid #bee3f8; border-radius:14px; padding:.22rem .62rem; cursor:pointer; white-space:nowrap; }
+        .suggest-chip:hover { background:#bee3f8; }
         .chat-messages { flex:1; overflow-y:auto; padding:1rem 1.5rem; display:flex; flex-direction:column; gap:.75rem; }
         .cmsg { display:flex; gap:.55rem; }
         .cmsg.user { align-self:flex-end; flex-direction:row-reverse; max-width:82%; }
@@ -61,41 +56,33 @@
         .cbubble { padding:.55rem .85rem; border-radius:12px; font-size:.83rem; line-height:1.56; }
         .cmsg.user .cbubble { background:#2b6cb0; color:#fff; border-bottom-right-radius:3px; }
         .cmsg.bot  .cbubble { background:#f7fafc; border:1px solid #e2e8f0; color:#2d3748; border-bottom-left-radius:3px; }
-        .cbubble p  { margin-bottom:.4rem; }
-        .cbubble p:last-child { margin:0; }
-        .cbubble ul { margin:.25rem 0 .25rem 1rem; }
-        .cbubble li { margin-bottom:.2rem; }
+        .cbubble p { margin-bottom:.4rem; } .cbubble p:last-child { margin:0; }
+        .cbubble ul { margin:.25rem 0 .25rem 1rem; } .cbubble li { margin-bottom:.2rem; }
         .cbubble b, .cbubble strong { color:#1a365d; }
         .cmsg.user .cbubble b, .cmsg.user .cbubble strong { color:#bee3f8; }
         .thinking-dots { display:flex; gap:4px; padding:.3rem .1rem; }
         .thinking-dots span { width:6px; height:6px; border-radius:50%; background:#a0aec0; animation:tdot .9s infinite; }
-        .thinking-dots span:nth-child(2){animation-delay:.2s}
-        .thinking-dots span:nth-child(3){animation-delay:.4s}
+        .thinking-dots span:nth-child(2){animation-delay:.2s} .thinking-dots span:nth-child(3){animation-delay:.4s}
         @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
-
-        /* Download btn inside chat */
-        .dl-excel-btn { display:inline-flex; align-items:center; gap:.4rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:7px; padding:.45rem 1rem; font-size:.78rem; font-weight:700; cursor:pointer; text-decoration:none; margin-top:.4rem; transition:opacity .15s; }
+        .dl-excel-btn { display:inline-flex; align-items:center; gap:.4rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:7px; padding:.45rem 1rem; font-size:.78rem; font-weight:700; cursor:pointer; text-decoration:none; margin-top:.4rem; }
         .dl-excel-btn:hover { opacity:.88; }
-
-        /* Suggest chips */
-        .suggest-row { display:flex; flex-wrap:wrap; gap:.32rem; padding:.5rem 1.5rem .25rem; flex-shrink:0; }
-        .suggest-chip { font-size:.69rem; background:#ebf8ff; color:#2b6cb0; border:1px solid #bee3f8; border-radius:14px; padding:.22rem .62rem; cursor:pointer; transition:background .12s; white-space:nowrap; }
-        .suggest-chip:hover { background:#bee3f8; }
-        .suggest-row.hidden { display:none; }
-
-        /* Input */
-        .chat-input-wrap { padding:.65rem 1.2rem .75rem; border-top:1px solid #e2e8f0; flex-shrink:0; }
-        .chat-input-row { display:flex; align-items:flex-end; gap:.45rem; background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:.42rem .55rem .42rem .85rem; }
+        /* Input area */
+        .chat-input-wrap { padding:.6rem 1.2rem .7rem; border-top:1px solid #e2e8f0; flex-shrink:0; }
+        .attach-preview { display:none; background:#ebf8ff; border:1px solid #bee3f8; border-radius:8px; padding:.3rem .75rem; margin-bottom:.35rem; font-size:.73rem; color:#2b6cb0; align-items:center; justify-content:space-between; gap:.5rem; }
+        .attach-preview.show { display:flex; }
+        .chat-input-row { display:flex; align-items:flex-end; gap:.45rem; background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:.4rem .5rem .4rem .85rem; }
         .chat-input-row:focus-within { border-color:#2b6cb0; background:#fff; }
         #chat-input { flex:1; border:none; background:transparent; font-size:.85rem; font-family:inherit; resize:none; max-height:90px; outline:none; color:#2d3748; line-height:1.5; }
         #chat-input::placeholder { color:#a0aec0; }
-        #chat-input:disabled { opacity:.5; }
-        .chat-send { background:#2b6cb0; color:#fff; border:none; border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:background .15s; }
+        .clip-btn { background:none; border:none; color:#a0aec0; cursor:pointer; padding:.1rem .2rem; flex-shrink:0; font-size:1rem; }
+        .clip-btn:hover { color:#2b6cb0; }
+        .chat-send { background:#2b6cb0; color:#fff; border:none; border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
         .chat-send:hover { background:#2c5282; }
-        .chat-send:disabled { background:#a0aec0; cursor:not-allowed; }
-        .input-hint { font-size:.67rem; color:#a0aec0; margin-top:.3rem; }
+        .input-hint { font-size:.66rem; color:#a0aec0; margin-top:.28rem; }
         .chat-messages::-webkit-scrollbar { width:4px; }
         .chat-messages::-webkit-scrollbar-thumb { background:#cbd5e0; border-radius:3px; }
+        .pbar-wrap { background:#e2e8f0; border-radius:99px; height:7px; margin:.3rem 0; overflow:hidden; }
+        .pbar { height:100%; background:linear-gradient(90deg,#2b6cb0,#63b3ed); border-radius:99px; transition:width .4s; }
     </style>
 </head>
 <body>
@@ -119,7 +106,7 @@
 
     <div class="main-content">
 
-        <!-- Step 1: Export -->
+        <!-- Step 1 -->
         <div class="step1-panel">
             <div class="panel-title"><i class="fas fa-file-export" style="color:#2b6cb0"></i> Select required data to export to Co-pilot</div>
             <div class="export-grid">
@@ -142,42 +129,42 @@
                     <div class="export-btn-row">
                         <a id="dl-csv-pmc"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV (Free PMC)</a>
                         <a id="dl-excel-pmc" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel (Free PMC)</a>
-                        <a id="dl-pdfs"      href="#" class="export-btn btn-zip"><i class="fas fa-file-archive"></i> Download PDFs (ZIP)</a>
+                        <button id="dl-pdfs" class="export-btn btn-zip"><i class="fas fa-file-archive"></i> Download PDFs (ZIP)</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Step 2: Upload + Chat -->
+        <!-- Step 2 -->
         <div class="step2-panel">
 
-            <!-- Compact upload bar -->
+            <!-- Upload bar -->
             <div class="upload-bar" id="upload-bar"
-                 ondragover="event.preventDefault();this.classList.add('dragging')"
-                 ondragleave="this.classList.remove('dragging')"
+                 ondragover="event.preventDefault();this.classList.add('has-file')"
+                 ondragleave="this.classList.remove('has-file')"
                  ondrop="handleDrop(event)">
                 <div class="upload-drop" id="upload-drop" onclick="document.getElementById('file-input').click()">
                     <i class="fas fa-cloud-upload-alt"></i>
                     <span id="upload-label">Upload exported file (CSV / Excel / ZIP)</span>
                 </div>
-                <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" onchange="fileSelected(this)">
+                <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" style="display:none" onchange="fileChosen(this)">
                 <div class="upload-hint-text">
-                    <b>Tip:</b> Use Abstract + Full text Excel for best AI extraction results
+                    <b>Tip:</b> Export Abstract + Full text Excel for best AI results<br>
+                    <b>Or:</b> Drag &amp; drop your ZIP of PDFs here
                 </div>
             </div>
 
-            <!-- Chat area -->
+            <!-- Chat -->
             <div class="chat-area">
-                <!-- Suggest chips (hidden until file loaded) -->
-                <div class="suggest-row hidden" id="suggest-row">
-                    <span class="suggest-chip" onclick="useChip(this)">Summarize key findings</span>
-                    <span class="suggest-chip" onclick="useChip(this)">What study types are included?</span>
-                    <span class="suggest-chip" onclick="useChip(this)">Which cancers are most studied?</span>
-                    <span class="suggest-chip" onclick="useChip(this)">What treatments are mentioned?</span>
-                    <span class="suggest-chip" onclick="useChip(this)">What AE grades are reported?</span>
-                    <span class="suggest-chip" onclick="useChip(this)">List top countries and institutions</span>
-                    <span class="suggest-chip" onclick="useChip(this)">Generate AE extraction Excel report</span>
-                    <span class="suggest-chip" onclick="useChip(this)">Compare findings across keywords</span>
+                <div class="suggest-row" id="suggest-row">
+                    <span class="suggest-chip" onclick="chip(this)">Summarize key findings</span>
+                    <span class="suggest-chip" onclick="chip(this)">What study types are included?</span>
+                    <span class="suggest-chip" onclick="chip(this)">Which cancers are most studied?</span>
+                    <span class="suggest-chip" onclick="chip(this)">What treatments are mentioned?</span>
+                    <span class="suggest-chip" onclick="chip(this)">What AE grades are reported?</span>
+                    <span class="suggest-chip" onclick="chip(this)">Top countries and institutions</span>
+                    <span class="suggest-chip" onclick="chip(this)">Generate AE extraction Excel report</span>
+                    <span class="suggest-chip" onclick="chip(this)">Compare findings across keywords</span>
                 </div>
 
                 <div class="chat-messages" id="chat-messages">
@@ -185,38 +172,33 @@
                         <div class="cavatar"><i class="fas fa-robot"></i></div>
                         <div class="cbubble">
                             <p>Hello! I am your <b>EpiLite Co-pilot</b>.</p>
-                            <p>Upload your exported file above to get started. I can analyze your research data, answer questions, summarize findings, and generate a structured AE extraction Excel report.</p>
+                            <p><b>Option A:</b> Upload your exported Excel/CSV above — I will answer questions about your articles and can generate the 51-column AE extraction report.</p>
+                            <p><b>Option B:</b> Click <i class="fas fa-paperclip"></i> below to attach a single article PDF/TXT — I will extract all 51 clinical fields directly from it.</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="chat-input-wrap">
-                    <!-- Attachment preview bar -->
-                    <div id="attach-preview" style="display:none;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;padding:.35rem .75rem;margin-bottom:.4rem;font-size:.75rem;color:#2b6cb0;align-items:center;justify-content:space-between;gap:.5rem">
+                    <div class="attach-preview" id="attach-preview">
                         <span><i class="fas fa-paperclip"></i> <span id="attach-name"></span></span>
-                        <button onclick="clearAttachment()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:.85rem;padding:0" title="Remove">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <button onclick="clearAttach()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:.85rem;padding:0"><i class="fas fa-times"></i></button>
                     </div>
-
                     <div class="chat-input-row">
-                        <!-- Attachment button -->
-                        <button onclick="document.getElementById('article-attach').click()" title="Attach article (PDF, Word, TXT)"
-                                style="background:none;border:none;color:#a0aec0;cursor:pointer;padding:.1rem .2rem;flex-shrink:0;transition:color .15s"
-                                onmouseover="this.style.color='#2b6cb0'" onmouseout="this.style.color='#a0aec0'">
-                            <i class="fas fa-paperclip" style="font-size:1rem"></i>
+                        <button class="clip-btn" title="Attach article (PDF/TXT)" onclick="document.getElementById('art-file').click()">
+                            <i class="fas fa-paperclip"></i>
                         </button>
-                        <input type="file" id="article-attach" accept=".pdf,.txt,.csv,.xlsx,.docx" style="display:none" onchange="attachFile(this)">
-
-                        <textarea id="chat-input" rows="1" placeholder="Upload dataset above or attach article via 📎 to get started..."
-                                  onkeydown="chatKey(event)" oninput="grow(this)"></textarea>
-                        <button class="chat-send" id="chat-send" onclick="sendChat()" title="Send">
+                        <input type="file" id="art-file" accept=".pdf,.txt,.csv,.xlsx" style="display:none" onchange="artChosen(this)">
+                        <textarea id="chat-input" rows="1"
+                            placeholder="Ask me anything, or attach an article via the paperclip..."
+                            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
+                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,90)+'px'"></textarea>
+                        <button class="chat-send" onclick="send()" title="Send">
                             <i class="fas fa-paper-plane" style="font-size:.7rem"></i>
                         </button>
                     </div>
                     <div class="input-hint">
-                        <i class="fas fa-paperclip"></i> Attach an article (PDF/Word/TXT) to extract & populate the 51-column Excel template &nbsp;·&nbsp;
-                        <i class="fas fa-info-circle"></i> AI responses may need verification.
+                        <i class="fas fa-paperclip"></i> Attach article to extract 51-column AE report &nbsp;&#183;&nbsp;
+                        <i class="fas fa-info-circle"></i> AI responses may need verification
                     </div>
                 </div>
             </div>
@@ -226,272 +208,263 @@
 </div><!-- /page-body -->
 
 <script>
-const QS = 'keywords=' + encodeURIComponent('{{ keywords_str }}') + '&max_results={{ max_results }}&sort_order={{ sort_order }}&search_id={{ search_id }}';
+// ── Export URLs ─────────────────────────────────────────────────────
+var KWS = '{{ keywords_str }}';
+var QS  = 'keywords=' + encodeURIComponent(KWS)
+        + '&max_results={{ max_results }}'
+        + '&sort_order={{ sort_order }}'
+        + '&search_id={{ search_id }}';
+
 document.getElementById('dl-csv-abs').href    = '/export/multi/csv?'   + QS + '&mode=abstract';
 document.getElementById('dl-excel-abs').href  = '/export/multi/excel?' + QS + '&mode=abstract';
 document.getElementById('dl-csv-full').href   = '/export/multi/csv?'   + QS;
 document.getElementById('dl-excel-full').href = '/export/multi/excel?' + QS;
 document.getElementById('dl-csv-pmc').href    = '/export/multi/csv?'   + QS + '&mode=pmc_only';
 document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&mode=pmc_only';
-document.getElementById('dl-pdfs').setAttribute('data-qs', QS);
-document.getElementById('dl-pdfs').href = '#';
-document.getElementById('dl-pdfs').addEventListener('click', function(e){
-    e.preventDefault();
-    e.stopPropagation();
-    startPdfJobAnalyze(QS);
-});
 
-var selectedFile = null;
+// PDF ZIP — async background job
+document.getElementById('dl-pdfs').onclick = function() { startPdfJob(); };
+
+// ── State ──────────────────────────────────────────────────────────
+var datasetFile  = null;   // uploaded dataset (CSV/Excel/ZIP)
+var articleFile  = null;   // attached single article
 var chatHistory  = [];
-var jobId        = null;
 var pollTimer    = null;
-var attachedArticle = null;   // separately attached article file for extraction
 
-// ── Attachment handling ───────────────────────────────────────────────
-function attachFile(input) {
-    if (!input.files[0]) return;
-    attachedArticle = input.files[0];
-    var preview = document.getElementById('attach-preview');
-    document.getElementById('attach-name').textContent = attachedArticle.name;
-    preview.style.display = 'flex';
-    // Auto-fill suggestion and ensure chat is enabled
-    document.getElementById('chat-input').value = 'Extract and populate the 51-column AE report from this attached article';
-    grow(document.getElementById('chat-input'));
+// ── Dataset upload ─────────────────────────────────────────────────
+function fileChosen(input) {
+    if (input.files && input.files[0]) {
+        datasetFile = input.files[0];
+        markUploaded(datasetFile.name);
+    }
 }
 
-function clearAttachment() {
-    attachedArticle = null;
-    document.getElementById('attach-preview').style.display = 'none';
-    document.getElementById('article-attach').value = '';
-}
-
-// ── File handling ─────────────────────────────────────────────────────
-function fileSelected(i){ if(i.files[0]){ selectedFile=i.files[0]; onFileReady(selectedFile.name); } }
-function handleDrop(e){
+function handleDrop(e) {
     e.preventDefault();
-    document.getElementById('upload-bar').classList.remove('dragging');
+    document.getElementById('upload-bar').classList.remove('has-file');
     var f = e.dataTransfer.files[0];
-    if(!f){ return; }
-    var ok = f.name.endsWith('.csv') || f.name.endsWith('.xlsx') ||
-             f.name.endsWith('.xls') || f.name.endsWith('.zip');
-    if(ok){ selectedFile=f; onFileReady(f.name); }
-    else { alert('Supported formats: CSV, Excel (.xlsx), or ZIP of PDFs.'); }
+    if (!f) return;
+    var ok = /\.(csv|xlsx|xls|zip)$/i.test(f.name);
+    if (ok) { datasetFile = f; markUploaded(f.name); }
+    else { alert('Please drop a CSV, Excel (.xlsx), or ZIP file.'); }
 }
 
-function onFileReady(name){
-    // Update upload bar to show file loaded
-    var drop = document.getElementById('upload-drop');
-    drop.classList.add('has-file');
+function markUploaded(name) {
+    document.getElementById('upload-drop').classList.add('has-file');
     document.getElementById('upload-bar').classList.add('has-file');
     document.getElementById('upload-label').innerHTML = '<i class="fas fa-check-circle"></i> ' + name;
-
-    // Update placeholder when file loaded
+    document.getElementById('suggest-row').style.display = 'flex';
     document.getElementById('chat-input').placeholder = 'Ask me about your data, or say "generate report"...';
-    document.getElementById('suggest-row').classList.remove('hidden');
-
-    // Welcome message with file context
-    appendBot('<p>File <b>' + name + '</b> loaded successfully!</p><p>You can now ask me questions about your articles, request summaries, or say <b>"generate AE extraction report"</b> to create the structured Excel with all 51 columns.</p>');
+    addMsg('bot', '<p>File <b>' + name + '</b> loaded! Ask me questions or say <b>"generate AE extraction report"</b> to create the 51-column Excel.</p>');
 }
 
-// ── Chat UI helpers ───────────────────────────────────────────────────
-function grow(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,90)+'px'; }
-function chatKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendChat(); } }
-function useChip(el){
+// ── Article attachment ─────────────────────────────────────────────
+function artChosen(input) {
+    if (input.files && input.files[0]) {
+        articleFile = input.files[0];
+        document.getElementById('attach-name').textContent = articleFile.name;
+        document.getElementById('attach-preview').classList.add('show');
+        document.getElementById('chat-input').value = 'Extract and populate the 51-column AE report from this attached article';
+        document.getElementById('chat-input').style.height = 'auto';
+        document.getElementById('chat-input').style.height = Math.min(document.getElementById('chat-input').scrollHeight, 90) + 'px';
+    }
+}
+function clearAttach() {
+    articleFile = null;
+    document.getElementById('attach-preview').classList.remove('show');
+    document.getElementById('art-file').value = '';
+}
+
+// ── Suggest chips ──────────────────────────────────────────────────
+function chip(el) {
     document.getElementById('chat-input').value = el.textContent;
-    document.getElementById('suggest-row').classList.add('hidden');
-    sendChat();
+    send();
 }
 
-function appendMsg(role, html){
-    var wrap=document.getElementById('chat-messages');
-    var div=document.createElement('div'); div.className='cmsg '+role;
-    var icon=role==='user'?'<i class="fas fa-user"></i>':'<i class="fas fa-robot"></i>';
-    div.innerHTML='<div class="cavatar">'+icon+'</div><div class="cbubble">'+html+'</div>';
-    wrap.appendChild(div); wrap.scrollTop=wrap.scrollHeight; return div;
+// ── Chat helpers ───────────────────────────────────────────────────
+function addMsg(role, html) {
+    var wrap = document.getElementById('chat-messages');
+    var div  = document.createElement('div');
+    div.className = 'cmsg ' + role;
+    var icon = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+    div.innerHTML = '<div class="cavatar">' + icon + '</div><div class="cbubble">' + html + '</div>';
+    wrap.appendChild(div);
+    wrap.scrollTop = wrap.scrollHeight;
+    return div;
 }
-function appendBot(html){ return appendMsg('bot', html); }
-function appendUser(t){ return appendMsg('user', t.replace(/</g,'&lt;').replace(/>/g,'&gt;')); }
 
-function showThinking(){
-    var wrap=document.getElementById('chat-messages');
-    var div=document.createElement('div'); div.className='cmsg bot'; div.id='thinking';
-    div.innerHTML='<div class="cavatar"><i class="fas fa-robot"></i></div><div class="cbubble"><div class="thinking-dots"><span></span><span></span><span></span></div></div>';
-    wrap.appendChild(div); wrap.scrollTop=wrap.scrollHeight;
+function showDots() {
+    var wrap = document.getElementById('chat-messages');
+    var div  = document.createElement('div');
+    div.className = 'cmsg bot'; div.id = 'dots';
+    div.innerHTML = '<div class="cavatar"><i class="fas fa-robot"></i></div><div class="cbubble"><div class="thinking-dots"><span></span><span></span><span></span></div></div>';
+    wrap.appendChild(div); wrap.scrollTop = wrap.scrollHeight;
 }
-function removeThinking(){ var el=document.getElementById('thinking'); if(el)el.remove(); }
+function hideDots() { var el = document.getElementById('dots'); if (el) el.remove(); }
 
-function fmtResponse(text){
-    text=text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
-    text=text.replace(/^[-*•]\s+(.+)$/gm,'<li>$1</li>');
-    return text.split(/\n\n+/).map(function(p){
-        p=p.trim(); if(!p) return '';
-        if(p.includes('<li>')) return '<ul>'+p+'</ul>';
-        return '<p>'+p.replace(/\n/g,'<br>')+'</p>';
+function fmt(text) {
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+    return text.split(/\n\n+/).map(function(p) {
+        p = p.trim(); if (!p) return '';
+        if (p.includes('<li>')) return '<ul>' + p + '</ul>';
+        return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
     }).join('');
 }
 
-// ── Detect if user wants to generate Excel report ─────────────────────
-function wantsReport(q){
-    var kw = ['generate','create','extract','report','excel','download','export report','ae extraction','51 column'];
-    q = q.toLowerCase();
-    return kw.some(function(k){ return q.includes(k); });
+function wantsReport(q) {
+    return /generate|create|extract|report|excel|download|ae extraction|51.col/i.test(q);
 }
 
-// ── Main send ─────────────────────────────────────────────────────────
-async function sendChat(){
-    var input=document.getElementById('chat-input');
-    var q=input.value.trim();
-    if(!q) return;
-    if(!selectedFile){ appendBot('<p style="color:#c53030">Please upload a file first.</p>'); return; }
+// ── Main send ──────────────────────────────────────────────────────
+async function send() {
+    var input = document.getElementById('chat-input');
+    var q = input.value.trim();
+    if (!q) return;
 
-    appendUser(q);
-    input.value=''; input.style.height='auto';
-    document.getElementById('chat-send').disabled=true;
-    showThinking();
+    addMsg('user', q.replace(/</g,'&lt;').replace(/>/g,'&gt;'));
+    input.value = ''; input.style.height = 'auto';
     chatHistory.push({role:'user', content:q});
+    showDots();
 
-    // If user attached an article — extract 51-column report from it
-    if(attachedArticle){
-        removeThinking();
-        var fname = attachedArticle.name;
-        appendBot('<p><i class="fas fa-magic"></i> Reading <b>'+fname+'</b> and extracting clinical data into the 51-column AE report...</p>');
-        startArticleExtraction(attachedArticle, q);
-        clearAttachment();
-        document.getElementById('chat-send').disabled=false;
+    // Case 1: single article attached — extract 51 columns from it
+    if (articleFile) {
+        hideDots();
+        var fname = articleFile.name;
+        var progMsg = addMsg('bot', '<p><i class="fas fa-magic"></i> Reading <b>' + fname + '</b> and extracting 51 clinical fields...</p>');
+        var fd = new FormData(); fd.append('file', articleFile); fd.append('question', q);
+        clearAttach();
+        try {
+            var r = await fetch('/api/extract_article', {method:'POST', body:fd});
+            var d = await r.json();
+            if (d.error) { progMsg.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">' + d.error + '</p>'; }
+            else if (d.job_id) { pollJob(d.job_id, d.total || 1, progMsg); }
+        } catch(e) { progMsg.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">Error: ' + e.message + '</p>'; }
         return;
     }
 
-    // If user wants a report from the uploaded dataset
-    if(wantsReport(q)){
-        removeThinking();
-        appendBot('<p><i class="fas fa-magic"></i> Starting AE extraction report... This will take 1-3 minutes depending on file size.</p>');
-        startExtraction(q);
-        document.getElementById('chat-send').disabled=false;
+    // Case 2: wants a report from dataset
+    if (wantsReport(q) && datasetFile) {
+        hideDots();
+        var progMsg2 = addMsg('bot', '<p><i class="fas fa-magic"></i> Starting AE extraction report from your dataset...</p>');
+        var fd2 = new FormData(); fd2.append('file', datasetFile);
+        try {
+            var r2 = await fetch('/api/extract_report', {method:'POST', body:fd2});
+            var d2 = await r2.json();
+            if (d2.error) { progMsg2.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">' + d2.error + '</p>'; }
+            else { pollJob(d2.job_id, d2.total, progMsg2); }
+        } catch(e) { progMsg2.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">Error: ' + e.message + '</p>'; }
         return;
     }
 
-    // Otherwise chat normally
-    try{
-        var fd=new FormData();
-        fd.append('file', selectedFile);
-        fd.append('history', JSON.stringify(chatHistory));
-        fd.append('question', q);
-
-        var r=await fetch('/api/copilot_file',{method:'POST',body:fd});
-        var d=await r.json();
-        removeThinking();
-
-        if(d.error){
-            appendBot('<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> '+d.error+'</p>');
-            chatHistory.pop();
-        } else {
-            appendBot(fmtResponse(d.answer));
-            chatHistory.push({role:'assistant', content:d.answer});
-        }
-    }catch(e){
-        removeThinking();
-        appendBot('<p style="color:#c53030">Network error: '+e.message+'</p>');
-        chatHistory.pop();
-    } finally {
-        document.getElementById('chat-send').disabled=false;
-        document.getElementById('chat-input').focus();
-    }
-}
-
-// ── Extraction pipeline (triggered from chat) ─────────────────────────
-async function startExtraction(userRequest){
-    var fd=new FormData(); fd.append('file', selectedFile);
-    try{
-        var r=await fetch('/api/extract_report',{method:'POST',body:fd});
-        var d=await r.json();
-        if(d.error){ appendBot('<p style="color:#c53030">Extraction error: '+d.error+'</p>'); return; }
-        jobId=d.job_id;
-        pollExtraction(d.total);
-    }catch(e){ appendBot('<p style="color:#c53030">Failed to start extraction: '+e.message+'</p>'); }
-}
-
-function pollExtraction(total){
-    var progMsg = appendBot('<p><i class="fas fa-cog fa-spin"></i> Processing article 0 / '+total+'...</p>');
-    pollTimer=setInterval(async function(){
-        try{
-            var r=await fetch('/api/extract_progress/'+jobId);
-            var d=await r.json();
-            var pct=total>0?Math.round((d.current/total)*100):0;
-            progMsg.querySelector('.cbubble').innerHTML=
-                '<p><i class="fas fa-cog fa-spin"></i> '+d.status+'</p>'+
-                '<div style="background:#e2e8f0;border-radius:99px;height:8px;margin:.35rem 0;overflow:hidden">'+
-                '<div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,#2b6cb0,#63b3ed);transition:width .4s"></div></div>'+
-                '<p style="font-size:.72rem;color:#718096">'+d.current+' / '+d.total+' articles</p>';
-            document.getElementById('chat-messages').scrollTop=999999;
-            if(d.done){
-                clearInterval(pollTimer);
-                if(d.error){
-                    progMsg.querySelector('.cbubble').innerHTML='<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> '+d.error+'</p>';
-                } else {
-                    progMsg.querySelector('.cbubble').innerHTML=
-                        '<p><i class="fas fa-check-circle" style="color:#276749"></i> <b>Report ready!</b> '+d.status+'</p>'+
-                        '<a href="/api/extract_download/'+jobId+'" class="dl-excel-btn">'+
-                        '<i class="fas fa-file-excel"></i> Download AE Extraction Excel</a>'+
-                        '<p style="font-size:.68rem;color:#718096;margin-top:.4rem">Please review AI-extracted fields — some values may need manual verification.</p>';
-                    document.getElementById('chat-messages').scrollTop=999999;
-                    chatHistory.push({role:'assistant', content:'I have completed the AE extraction report. '+d.status+' You can download the Excel file above.'});
-                }
-            }
-        }catch(e){ clearInterval(pollTimer); appendBot('<p style="color:#c53030">Progress error: '+e.message+'</p>'); }
-    },1500);
-}
-
-// ── Extract 51-column report from a single attached article ────────────
-async function startArticleExtraction(file, userMsg) {
-    var fd = new FormData();
-    fd.append('file', file);
-    fd.append('question', userMsg);
-
+    // Case 3: normal chat (with or without dataset)
     try {
-        var r = await fetch('/api/extract_article', {method:'POST', body:fd});
-        var d = await r.json();
+        var fd3 = new FormData();
+        if (datasetFile) fd3.append('file', datasetFile);
+        fd3.append('history', JSON.stringify(chatHistory));
+        fd3.append('question', q);
 
-        if (d.error) {
-            appendBot('<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> '+d.error+'</p>');
+        // If no dataset, use a fallback simple answer
+        if (!datasetFile) {
+            hideDots();
+            addMsg('bot', '<p>Please upload your exported file using the upload bar above so I can answer questions about your research data. Or attach a single article via <i class="fas fa-paperclip"></i> for direct extraction.</p>');
+            chatHistory.pop();
             return;
         }
 
-        if (d.job_id) {
-            // Background job started — poll for completion
-            jobId = d.job_id;
-            pollExtraction(d.total || 1);
-        } else if (d.answer) {
-            // Direct answer (e.g. text extraction result)
-            appendBot(fmtResponse(d.answer));
-            chatHistory.push({role:'assistant', content:d.answer});
+        var r3 = await fetch('/api/copilot_file', {method:'POST', body:fd3});
+        var d3 = await r3.json();
+        hideDots();
+        if (d3.error) {
+            addMsg('bot', '<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> ' + d3.error + '</p>');
+            chatHistory.pop();
+        } else {
+            addMsg('bot', fmt(d3.answer));
+            chatHistory.push({role:'assistant', content:d3.answer});
         }
     } catch(e) {
-        appendBot('<p style="color:#c53030">Error: '+e.message+'</p>');
+        hideDots();
+        addMsg('bot', '<p style="color:#c53030">Network error: ' + e.message + '</p>');
+        chatHistory.pop();
     }
 }
 
+// ── Poll extraction job ────────────────────────────────────────────
+function pollJob(jobId, total, msgDiv) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async function() {
+        try {
+            var r = await fetch('/api/extract_progress/' + jobId);
+            var d = await r.json();
+            var pct = total > 0 ? Math.round((d.current / total) * 100) : 0;
+            msgDiv.querySelector('.cbubble').innerHTML =
+                '<p><i class="fas fa-cog fa-spin"></i> ' + d.status + '</p>' +
+                '<div class="pbar-wrap"><div class="pbar" style="width:' + pct + '%"></div></div>' +
+                '<p style="font-size:.7rem;color:#718096">' + d.current + ' / ' + d.total + ' articles</p>';
+            document.getElementById('chat-messages').scrollTop = 99999;
 
+            if (d.done) {
+                clearInterval(pollTimer);
+                if (d.error) {
+                    msgDiv.querySelector('.cbubble').innerHTML = '<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> ' + d.error + '</p>';
+                } else {
+                    msgDiv.querySelector('.cbubble').innerHTML =
+                        '<p><i class="fas fa-check-circle" style="color:#276749"></i> <b>Done!</b> ' + d.status + '</p>' +
+                        '<a href="/api/extract_download/' + jobId + '" class="dl-excel-btn"><i class="fas fa-file-excel"></i> Download AE Extraction Excel</a>' +
+                        '<p style="font-size:.68rem;color:#718096;margin-top:.4rem">Please verify AI-extracted values before use.</p>';
+                    document.getElementById('chat-messages').scrollTop = 99999;
+                    chatHistory.push({role:'assistant', content:'AE extraction complete. ' + d.status});
+                }
+            }
+        } catch(e) { clearInterval(pollTimer); }
+    }, 1500);
+}
+
+// ── PDF ZIP job ────────────────────────────────────────────────────
+async function startPdfJob() {
     var btn = document.getElementById('dl-pdfs');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
-    btn.style.pointerEvents = 'none';
+    btn.disabled = true;
+
     try {
-        var r = await fetch('/export/pdfs?' + qs);
+        var r = await fetch('/export/pdfs?' + QS);
         var d = await r.json();
-        if(d.error){ alert('PDF error: ' + d.error); btn.innerHTML='<i class="fas fa-file-archive"></i> Download PDFs (ZIP)'; btn.style.pointerEvents=''; return; }
-        var jobId=d.job_id, total=d.total;
-        btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Preparing '+total+' PDFs...';
-        var poll = setInterval(async function(){
-            var pr = await fetch('/export/pdfs/progress/'+jobId);
+        if (d.error) {
+            alert('PDF error: ' + d.error);
+            btn.innerHTML = '<i class="fas fa-file-archive"></i> Download PDFs (ZIP)';
+            btn.disabled = false;
+            return;
+        }
+
+        var jobId = d.job_id, total = d.total;
+        btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> 0% (' + total + ' PDFs)';
+
+        var poll = setInterval(async function() {
+            var pr = await fetch('/export/pdfs/progress/' + jobId);
             var pd = await pr.json();
-            var pct = total>0?Math.round((pd.current/total)*100):0;
-            btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> '+pct+'% ('+pd.current+'/'+total+')';
-            if(pd.done){
+            var pct = total > 0 ? Math.round((pd.current / total) * 100) : 0;
+            btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> ' + pct + '% (' + pd.current + '/' + total + ')';
+
+            if (pd.done) {
                 clearInterval(poll);
-                if(pd.error){ alert('PDF error: '+pd.error); btn.innerHTML='<i class="fas fa-file-archive"></i> Download PDFs (ZIP)'; btn.style.pointerEvents=''; }
-                else{ btn.innerHTML='<i class="fas fa-check-circle"></i> Download Ready'; btn.style.pointerEvents=''; window.location.href='/export/pdfs/download/'+jobId; }
+                if (pd.error) {
+                    alert('PDF error: ' + pd.error);
+                    btn.innerHTML = '<i class="fas fa-file-archive"></i> Download PDFs (ZIP)';
+                    btn.disabled = false;
+                } else {
+                    btn.innerHTML = '<i class="fas fa-download"></i> Click to Download ZIP';
+                    btn.disabled = false;
+                    btn.onclick = function() { window.location.href = '/export/pdfs/download/' + jobId; };
+                    window.location.href = '/export/pdfs/download/' + jobId;
+                }
             }
         }, 2000);
-    } catch(e){ alert('Network error: '+e.message); btn.innerHTML='<i class="fas fa-file-archive"></i> Download PDFs (ZIP)'; btn.style.pointerEvents=''; }
+
+    } catch(e) {
+        alert('Network error: ' + e.message);
+        btn.innerHTML = '<i class="fas fa-file-archive"></i> Download PDFs (ZIP)';
+        btn.disabled = false;
+    }
 }
 </script>
 </body>
