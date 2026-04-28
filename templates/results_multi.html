@@ -291,7 +291,7 @@
 <!-- TOP ACTION TABS -->
 <div class="action-tabs">
     <a href="/" class="action-tab active"><i class="fas fa-search"></i> Search, extract and curate</a>
-    <a href="/analyze?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+    <a href="/analyze?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending" id="analyze-tab-link" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
 </div>
 
 <!-- SEARCH MODE TABS -->
@@ -1156,6 +1156,17 @@ function applyFilters(){
     renderMatchingBar(sorted, freeCounts);
     updateExports(limit, kwOrder);
     updateCounters(sorted, limit, fc);
+
+    // ── Keep Analyze tab link in sync with active filters ─────────────
+    const filterStr   = collectFilterParams();
+    const analyzeBase = '/analyze?search_id={{ search_id }}'
+        + '&keywords=' + encodeURIComponent(KEYWORDS_STR)
+        + '&max_results=' + (limit || DEFAULT_LIMIT)
+        + '&sort_order=' + kwOrder;
+    const analyzeLink = document.getElementById('analyze-tab-link');
+    if (analyzeLink) {
+        analyzeLink.href = filterStr ? analyzeBase + '&' + filterStr : analyzeBase;
+    }
 }
 
 /* ── Load More ─────────────────────────────── */

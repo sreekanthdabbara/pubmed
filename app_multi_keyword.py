@@ -5,6 +5,13 @@ Search multiple keywords and display results sorted by article count
 
 import os
 import tempfile
+
+# Load environment variables from .env file (local development)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed — env vars must be set another way (e.g. Render dashboard)
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, Response

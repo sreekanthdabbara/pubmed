@@ -210,10 +210,17 @@
 <script>
 // ── Export URLs ─────────────────────────────────────────────────────
 var KWS = '{{ keywords_str }}';
-var QS  = 'keywords=' + encodeURIComponent(KWS)
-        + '&max_results={{ max_results }}'
-        + '&sort_order={{ sort_order }}'
-        + '&search_id={{ search_id }}';
+
+// Build QS including ALL URL params so sidebar filters pass through to exports
+var QS = (function() {
+    var params = new URLSearchParams(window.location.search);
+    // Ensure core params are always present
+    if (!params.get('keywords'))    params.set('keywords',   KWS);
+    if (!params.get('search_id'))   params.set('search_id',  '{{ search_id }}');
+    if (!params.get('max_results')) params.set('max_results','{{ max_results }}');
+    if (!params.get('sort_order'))  params.set('sort_order', '{{ sort_order }}');
+    return params.toString();
+})();
 
 document.getElementById('dl-csv-abs').href    = '/export/multi/csv?'   + QS + '&mode=abstract';
 document.getElementById('dl-excel-abs').href  = '/export/multi/excel?' + QS + '&mode=abstract';
