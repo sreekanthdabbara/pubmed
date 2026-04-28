@@ -192,7 +192,7 @@
 
                 <div class="chat-input-wrap">
                     <!-- Attachment preview bar -->
-                    <div id="attach-preview" style="display:none;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;padding:.35rem .75rem;margin-bottom:.4rem;font-size:.75rem;color:#2b6cb0;display:none;align-items:center;justify-content:space-between;gap:.5rem">
+                    <div id="attach-preview" style="display:none;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;padding:.35rem .75rem;margin-bottom:.4rem;font-size:.75rem;color:#2b6cb0;align-items:center;justify-content:space-between;gap:.5rem">
                         <span><i class="fas fa-paperclip"></i> <span id="attach-name"></span></span>
                         <button onclick="clearAttachment()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:.85rem;padding:0" title="Remove">
                             <i class="fas fa-times"></i>
@@ -208,9 +208,9 @@
                         </button>
                         <input type="file" id="article-attach" accept=".pdf,.txt,.csv,.xlsx,.docx" style="display:none" onchange="attachFile(this)">
 
-                        <textarea id="chat-input" rows="1" placeholder="Upload a file above, then ask me anything..." disabled
+                        <textarea id="chat-input" rows="1" placeholder="Upload dataset above or attach article via 📎 to get started..."
                                   onkeydown="chatKey(event)" oninput="grow(this)"></textarea>
-                        <button class="chat-send" id="chat-send" onclick="sendChat()" disabled title="Send">
+                        <button class="chat-send" id="chat-send" onclick="sendChat()" title="Send">
                             <i class="fas fa-paper-plane" style="font-size:.7rem"></i>
                         </button>
                     </div>
@@ -235,7 +235,11 @@ document.getElementById('dl-csv-pmc').href    = '/export/multi/csv?'   + QS + '&
 document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&mode=pmc_only';
 document.getElementById('dl-pdfs').setAttribute('data-qs', QS);
 document.getElementById('dl-pdfs').href = '#';
-document.getElementById('dl-pdfs').onclick = function(e){ e.preventDefault(); startPdfJobAnalyze(QS); };
+document.getElementById('dl-pdfs').addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    startPdfJobAnalyze(QS);
+});
 
 var selectedFile = null;
 var chatHistory  = [];
@@ -250,11 +254,9 @@ function attachFile(input) {
     var preview = document.getElementById('attach-preview');
     document.getElementById('attach-name').textContent = attachedArticle.name;
     preview.style.display = 'flex';
-    // Suggest what to do
-    if (document.getElementById('chat-input').disabled === false) {
-        document.getElementById('chat-input').value = 'Extract and populate the 51-column AE report from this attached article';
-        grow(document.getElementById('chat-input'));
-    }
+    // Auto-fill suggestion and ensure chat is enabled
+    document.getElementById('chat-input').value = 'Extract and populate the 51-column AE report from this attached article';
+    grow(document.getElementById('chat-input'));
 }
 
 function clearAttachment() {
@@ -268,9 +270,12 @@ function fileSelected(i){ if(i.files[0]){ selectedFile=i.files[0]; onFileReady(s
 function handleDrop(e){
     e.preventDefault();
     document.getElementById('upload-bar').classList.remove('dragging');
-    var f=e.dataTransfer.files[0];
-    if(f){ selectedFile=f; onFileReady(f.name); }
-    else { alert('Please drop a CSV, Excel, or ZIP file.'); }
+    var f = e.dataTransfer.files[0];
+    if(!f){ return; }
+    var ok = f.name.endsWith('.csv') || f.name.endsWith('.xlsx') ||
+             f.name.endsWith('.xls') || f.name.endsWith('.zip');
+    if(ok){ selectedFile=f; onFileReady(f.name); }
+    else { alert('Supported formats: CSV, Excel (.xlsx), or ZIP of PDFs.'); }
 }
 
 function onFileReady(name){
@@ -280,9 +285,7 @@ function onFileReady(name){
     document.getElementById('upload-bar').classList.add('has-file');
     document.getElementById('upload-label').innerHTML = '<i class="fas fa-check-circle"></i> ' + name;
 
-    // Enable chat
-    document.getElementById('chat-input').disabled = false;
-    document.getElementById('chat-send').disabled  = false;
+    // Update placeholder when file loaded
     document.getElementById('chat-input').placeholder = 'Ask me about your data, or say "generate report"...';
     document.getElementById('suggest-row').classList.remove('hidden');
 
