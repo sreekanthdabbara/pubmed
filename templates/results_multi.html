@@ -908,7 +908,10 @@ function renderSections(sorted, limit, artMode){
 
 /* ── Render summary cards ──────────────────── */
 function renderCards(sorted, limit, fc, freeCounts){
-    const isFiltered = _filteredNcbiTotals !== null;
+    // isFiltered = true if ANY sidebar filter is active (don't wait for NCBI API)
+    const anyDateFilter  = (document.querySelector('input[name="pub_date"]:checked')?.value || '') !== '';
+    const anyCheckFilter = document.querySelectorAll('.sidebar input[type="checkbox"]:checked').length > 0;
+    const isFiltered     = anyDateFilter || anyCheckFilter || _filteredNcbiTotals !== null;
 
     document.getElementById('kw-summary').innerHTML = sorted.map((kw, i) => {
         const fetched     = kw.count;
@@ -918,8 +921,7 @@ function renderCards(sorted, limit, fc, freeCounts){
 
         let countHtml;
         if (isFiltered) {
-            // Show: how many pass the filter, and NCBI filtered total
-            // Do NOT show fetched — it's the unfiltered fetch, shown in banner already
+            // Show filtered match count, not raw fetched count
             countHtml = `
                 <div class="kw-total">
                     <span style="color:#2b6cb0">${matchFilter.toLocaleString()}</span>
