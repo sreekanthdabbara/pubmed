@@ -180,14 +180,21 @@
 
                 <div class="chat-input-wrap">
                     <div class="attach-preview" id="attach-preview">
-                        <span><i class="fas fa-paperclip"></i> <span id="attach-name"></span></span>
+                        <span id="attach-info" style="display:flex;flex-direction:column;gap:.15rem;font-size:.72rem">
+                            <span id="attach-pdf-label" style="display:none"><i class="fas fa-file-pdf" style="color:#e53e3e"></i> <span id="attach-pdf-name"></span></span>
+                            <span id="attach-tmpl-label" style="display:none"><i class="fas fa-file-excel" style="color:#276749"></i> <span id="attach-tmpl-name"></span></span>
+                        </span>
                         <button onclick="clearAttach()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:.85rem;padding:0"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="chat-input-row">
                         <button class="clip-btn" title="Attach article (PDF/TXT)" onclick="document.getElementById('art-file').click()">
-                            <i class="fas fa-paperclip"></i>
+                            <i class="fas fa-file-pdf"></i>
                         </button>
-                        <input type="file" id="art-file" accept=".pdf,.txt,.csv,.xlsx" style="display:none" onchange="artChosen(this)">
+                        <input type="file" id="art-file" accept=".pdf,.txt" style="display:none" onchange="artChosen(this,'pdf')">
+                        <button class="clip-btn" title="Attach Excel template with column headers" onclick="document.getElementById('tmpl-file').click()" style="margin-left:.1rem">
+                            <i class="fas fa-file-excel"></i>
+                        </button>
+                        <input type="file" id="tmpl-file" accept=".xlsx,.xls" style="display:none" onchange="artChosen(this,'template')">
                         <textarea id="chat-input" rows="1"
                             placeholder="Ask me anything, or attach an article via the paperclip..."
                             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
@@ -197,8 +204,8 @@
                         </button>
                     </div>
                     <div class="input-hint">
-                        <i class="fas fa-paperclip"></i> Attach article to extract 51-column AE report &nbsp;&#183;&nbsp;
-                        <i class="fas fa-info-circle"></i> AI responses may need verification
+                        <i class="fas fa-file-pdf" style="color:#e53e3e"></i> Attach PDF article &nbsp;+&nbsp;
+                        <i class="fas fa-file-excel" style="color:#276749"></i> Attach your Excel template &nbsp;&#183;&nbsp; AI fills template from PDF
                     </div>
                 </div>
             </div>
@@ -234,7 +241,8 @@ document.getElementById('dl-pdfs').onclick = function() { startPdfJob(); };
 
 // ── State ──────────────────────────────────────────────────────────
 var datasetFile  = null;   // uploaded dataset (CSV/Excel/ZIP)
-var articleFile  = null;   // attached single article
+var articleFile  = null;   // attached PDF article
+var templateFile = null;   // attached Excel template
 var chatHistory  = [];
 var pollTimer    = null;
 
@@ -265,21 +273,35 @@ function markUploaded(name) {
     addMsg('bot', '<p>File <b>' + name + '</b> loaded! Ask me questions or say <b>"generate AE extraction report"</b> to create the 51-column Excel.</p>');
 }
 
-// ── Article attachment ─────────────────────────────────────────────
-function artChosen(input) {
-    if (input.files && input.files[0]) {
-        articleFile = input.files[0];
-        document.getElementById('attach-name').textContent = articleFile.name;
-        document.getElementById('attach-preview').classList.add('show');
-        document.getElementById('chat-input').value = 'Extract and populate the 51-column AE report from this attached article';
+// ── Article + Template attachment ─────────────────────────────────
+function artChosen(input, type) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    if (type === 'pdf') {
+        articleFile = file;
+        document.getElementById('attach-pdf-name').textContent = file.name;
+        document.getElementById('attach-pdf-label').style.display = '';
+    } else {
+        templateFile = file;
+        document.getElementById('attach-tmpl-name').textContent = file.name;
+        document.getElementById('attach-tmpl-label').style.display = '';
+    }
+    document.getElementById('attach-preview').classList.add('show');
+    if (articleFile && templateFile) {
+        document.getElementById('chat-input').value = 'Extract clinical data from the PDF and fill the Excel template columns';
         document.getElementById('chat-input').style.height = 'auto';
         document.getElementById('chat-input').style.height = Math.min(document.getElementById('chat-input').scrollHeight, 90) + 'px';
+    } else if (articleFile) {
+        document.getElementById('chat-input').placeholder = 'Now attach your Excel template via the green button, then send...';
     }
 }
 function clearAttach() {
-    articleFile = null;
+    articleFile = null; templateFile = null;
     document.getElementById('attach-preview').classList.remove('show');
+    document.getElementById('attach-pdf-label').style.display = 'none';
+    document.getElementById('attach-tmpl-label').style.display = 'none';
     document.getElementById('art-file').value = '';
+    document.getElementById('tmpl-file').value = '';
 }
 
 // ── Suggest chips ──────────────────────────────────────────────────
@@ -334,15 +356,22 @@ async function send() {
     chatHistory.push({role:'user', content:q});
     showDots();
 
-    // Case 1: single article attached — extract 51 columns from it
+    // Case 1: article (PDF) attached -- extract into template or default 51 columns
     if (articleFile) {
         hideDots();
-        var fname = articleFile.name;
-        var progMsg = addMsg('bot', '<p><i class="fas fa-magic"></i> Reading <b>' + fname + '</b> and extracting 51 clinical fields...</p>');
-        var fd = new FormData(); fd.append('file', articleFile); fd.append('question', q);
+        var pdfName  = articleFile.name;
+        var tmplName = templateFile ? templateFile.name : null;
+        var msg = tmplName
+            ? '<p><i class="fas fa-magic"></i> Reading <b>' + pdfName + '</b> and filling your template <b>' + tmplName + '</b>...</p>'
+            : '<p><i class="fas fa-magic"></i> Reading <b>' + pdfName + '</b> and extracting 51 clinical fields...</p>';
+        var progMsg = addMsg('bot', msg);
+        var fd = new FormData();
+        fd.append('article', articleFile);
+        if (templateFile) fd.append('template', templateFile);
+        fd.append('question', q);
         clearAttach();
         try {
-            var r = await fetch('/api/extract_article', {method:'POST', body:fd});
+            var r = await fetch('/api/extract_article_template', {method:'POST', body:fd});
             var d = await r.json();
             if (d.error) { progMsg.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">' + d.error + '</p>'; }
             else if (d.job_id) { pollJob(d.job_id, d.total || 1, progMsg); }

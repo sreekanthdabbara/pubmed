@@ -2957,7 +2957,258 @@ def extract_article():
     return jsonify({'job_id': job_id, 'total': 1, 'filename': fname})
 
 
-@app.route('/api/test_extraction', methods=['POST'])
+@app.route('/api/extract_article_template', methods=['POST'])
+@login_required
+def extract_article_template():
+    """
+    Extract clinical data from a PDF/TXT article and populate
+    the user's own Excel template columns (or default 51 columns).
+
+    Accepts:
+      - article: PDF or TXT file (the article to extract from)
+      - template: Excel file with column headers in row 1 (optional)
+      - question: user's message
+    """
+    import uuid as _uuid
+
+    article_file  = request.files.get('article')
+    template_file = request.files.get('template')
+
+    if not article_file:
+        return jsonify({'error': 'Please attach a PDF or TXT article file'}), 400
+
+    # ── Read article content ──────────────────────────────────────────
+    fname = article_file.filename or ''
+    text  = ''
+    try:
+        if fname.lower().endswith('.pdf'):
+            if PDF_SUPPORT:
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(article_file.read())) as pdf:
+                    pages = []
+                    for page in pdf.pages[:40]:
+                        pt = page.extract_text() or ''
+                        pages.append(pt)
+                    text = '\n\n'.join(pages)
+            else:
+                return jsonify({'error': 'PDF support not available on server. Upload TXT instead.'}), 400
+        elif fname.lower().endswith('.txt'):
+            text = article_file.read().decode('utf-8', errors='ignore')
+        else:
+            return jsonify({'error': 'Please attach a PDF or TXT article'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Could not read article: {e}'}), 400
+
+    if not text.strip():
+        return jsonify({'error': 'No text could be extracted from the file'}), 400
+
+    # ── Read template columns ─────────────────────────────────────────
+    template_columns = []
+    if template_file:
+        try:
+            tmpl_name = template_file.filename or ''
+            if tmpl_name.lower().endswith(('.xlsx', '.xls')):
+                df_tmpl = pd.read_excel(io.BytesIO(template_file.read()), header=0, nrows=0)
+                template_columns = [c for c in df_tmpl.columns if c and str(c).strip() not in ('', 'nan', 'Unnamed')]
+            print(f"[extract_article] Template columns ({len(template_columns)}): {template_columns[:10]}")
+        except Exception as e:
+            print(f"[extract_article] Template read error: {e}")
+            template_columns = []
+
+    # ── Build article dict for _run_extract_job ───────────────────────
+    article = {
+        'title':            fname.replace('.pdf','').replace('.txt','').replace('_',' ')[:120],
+        'abstract':         text[:800],
+        'full_text':        text,
+        'full_text_merged': text,
+        'url':              '',
+        'authors':          '',
+        'journal':          '',
+        'publication_date': '',
+        'publication_type': '',
+        'country':          '',
+        'pmid':             '',
+        '_source':          'attached_pdf',
+        '_filename':        fname,
+        '_template_cols':   template_columns,
+    }
+
+    job_id = _uuid.uuid4().hex[:12]
+    _extract_jobs[job_id] = {
+        'status':         f'Extracting from {fname}...',
+        'done':           False,
+        'current':        0,
+        'total':          1,
+        'excel_bytes':    None,
+        'error':          None,
+        'cancelled':      False,
+        'template_cols':  template_columns,
+    }
+
+    t = threading.Thread(
+        target=_run_extract_with_template,
+        args=(job_id, article, template_columns),
+        daemon=True
+    )
+    t.start()
+
+    return jsonify({
+        'job_id':          job_id,
+        'total':           1,
+        'filename':        fname,
+        'template_cols':   len(template_columns),
+    })
+
+
+def _run_extract_with_template(job_id: str, article: dict, template_columns: list):
+    """
+    Extract clinical data from one article and write to Excel.
+    If template_columns provided, use those as column headers.
+    Otherwise use the default EXTRACT_COLUMNS.
+    """
+    job      = _extract_jobs[job_id]
+    GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
+
+    if not GROQ_KEY:
+        job['error'] = 'GROQ_API_KEY not set'
+        job['done']  = True
+        return
+
+    job['current'] = 1
+    job['status']  = f"Extracting from {article.get('_filename', 'article')}..."
+
+    text     = article.get('full_text', '') or article.get('abstract', '')
+    fname    = article.get('_filename', 'article')
+
+    # Use template columns if provided, otherwise default
+    use_cols = template_columns if template_columns else [c for c in EXTRACT_COLUMNS if c]
+
+    # Truncate content smartly
+    if len(text) > 3000:
+        content = text[:2000] + '\n...\n' + text[-1000:]
+    else:
+        content = text
+
+    # Build dynamic prompt based on template columns
+    cols_str = '\n'.join(f'  "{c}": ""' for c in use_cols)
+
+    system_msg = ('You are a clinical research data extractor. '
+                  'Extract data from the article and return ONLY valid JSON. '
+                  'No markdown, no explanation.')
+
+    user_msg = f"""Extract clinical data from this article and fill ALL the columns listed below.
+
+Article filename: {fname}
+
+Content:
+{content}
+
+Return this exact JSON with all fields filled from the article content:
+{{
+  "rows": [
+    {{
+{cols_str}
+    }}
+  ]
+}}
+
+- Fill every field you can find in the content
+- Use empty string "" only if truly not mentioned
+- Create multiple rows if multiple adverse events are reported
+- For AE grade columns: extract percentages and denominators from results tables"""
+
+    try:
+        resp = http_requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_KEY}'},
+            json={
+                'model':       'llama-3.3-70b-versatile',
+                'max_tokens':  2000,
+                'temperature': 0,
+                'messages':    [
+                    {'role': 'system', 'content': system_msg},
+                    {'role': 'user',   'content': user_msg},
+                ],
+            },
+            timeout=60,
+        )
+
+        print(f"[extract_tmpl] API status: {resp.status_code}")
+        rows = []
+
+        if resp.status_code == 200:
+            raw = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '{}')
+            print(f"[extract_tmpl] Raw (first 400): {raw[:400]}")
+            raw = re.sub(r'^```[a-z]*\n?', '', raw.strip())
+            raw = re.sub(r'\n?```$', '', raw.strip())
+            jm  = re.search(r'\{.*\}', raw, re.DOTALL)
+            if jm:
+                extracted = json.loads(jm.group())
+                rows = extracted.get('rows', [])
+                print(f"[extract_tmpl] Got {len(rows)} rows")
+        else:
+            err = resp.json().get('error', {}).get('message', resp.text[:150])
+            print(f"[extract_tmpl] API error: {err}")
+
+        if not rows:
+            # Fallback row with just the filename
+            rows = [{c: '' for c in use_cols}]
+            rows[0][use_cols[0]] = fname if use_cols else ''
+
+    except Exception as e:
+        print(f"[extract_tmpl] Exception: {e}")
+        rows = [{c: '' for c in use_cols}]
+
+    # ── Build Excel with template columns ─────────────────────────────
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'AE Extraction'
+
+        hdr_fill = PatternFill('solid', start_color='1A365D')
+        hdr_font = Font(name='Arial', bold=True, color='FFFFFF', size=9)
+        hdr_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        # Write headers
+        for ci, col in enumerate(use_cols, 1):
+            cell = ws.cell(row=1, column=ci, value=col)
+            cell.fill  = hdr_fill
+            cell.font  = hdr_font
+            cell.alignment = hdr_align
+            ws.column_dimensions[cell.column_letter].width = max(15, min(40, len(col) + 5))
+
+        ws.row_dimensions[1].height = 45
+        ws.freeze_panes = 'A2'
+
+        # Write data rows
+        for ri, row_data in enumerate(rows, start=2):
+            for ci, col in enumerate(use_cols, 1):
+                val  = row_data.get(col, '') or ''
+                cell = ws.cell(row=ri, column=ci, value=str(val) if val else '')
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+                cell.font = Font(name='Arial', size=9)
+                if ri % 2 == 0:
+                    cell.fill = PatternFill('solid', start_color='EBF4FF')
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        job['excel_bytes'] = buf.getvalue()
+        job['done']   = True
+        job['status'] = f'Complete -- {len(rows)} row(s) extracted from {fname}'
+        print(f"[extract_tmpl] Excel built OK: {len(rows)} rows, {len(use_cols)} columns")
+
+    except Exception as e:
+        job['error'] = f'Excel build failed: {e}'
+        job['done']  = True
+        import traceback; traceback.print_exc()
+
+
+
 @login_required
 def test_extraction():
     """Debug: test extraction on first article, return raw Groq response."""
