@@ -2483,41 +2483,85 @@ def _run_extract_job(job_id: str, articles: list):
             # Keep first 1500 (abstract/intro) + last 1000 (results/conclusion)
             content = content[:1500] + '\n...\n' + content[-1000:]
 
-        # Build pre-filled defaults for the JSON template
+        # Build pre-filled defaults
         year         = re.search(r'\b(19|20)\d{2}\b', pub_date).group() if re.search(r'\b(19|20)\d{2}\b', pub_date) else ''
         first_author = authors.split(',')[0].strip().split()[-1] if authors else ''
-        author_year  = f"{first_author} et al., {year}".strip(' ,') if first_author else authors[:40]
-        bibliography = f"{authors[:60]}. {title[:80]}. {journal}. {year}."
+        author_year  = (first_author + ' et al., ' + year).strip(' ,') if first_author else authors[:40]
+        bibliography = authors[:60] + '. ' + title[:80] + '. ' + journal + '. ' + year + '.'
 
-        prompt = (
-            'Extract clinical data from this oncology article. '
-            'Return ONLY a valid JSON object with a "rows" array -- no markdown, no explanation.\n\n'
-            f'Title: {title}\n'
-            f'Authors: {authors}\n'
-            f'Journal: {journal} | Date: {pub_date} | Country: {country} | PMID: {pmid}\n\n'
-            f'Content:\n{content}\n\n'
-            'Return this JSON structure (fill all fields you find, use "" for unknown):\n'
-            '{"rows":[{'
-            '"author_year":"' + author_year + '",'
-            '"country":"' + country + '",'
-            '"study_title":"' + title[:80].replace('"', "'") + '",'
-            '"published_year":"' + year + '",'
-            '"study_type":"","trial_phase":"","tumor_type":"","cancer_name":"",'
-            '"disease_definition":"","stage_seer":"","sample_size":"","mean_median_age":"",'
-            '"race_ethnicity":"","mon_combo":"","drug_class":"","treatment":"",'
-            '"dosage_strength":"","target":"","median_followup":"","duration_treatment_m":"",'
-            '"time_to_ae_onset":"","sae_type":"","prophylactics":"","ae_reporting_method":"",'
-            '"ae_reporting_criteria":"","event_organ_class":"","ae_name":"",'
-            '"grade1_pct":"","grade1_denom":"","grade2_pct":"","grade2_denom":"",'
-            '"grade12_pct":"","grade12_denom":"","grade3_pct":"","grade3_denom":"",'
-            '"grade34_pct":"","grade34_denom":"","grade3plus_pct":"","grade3plus_denom":"",'
-            '"grade4_pct":"","grade4_denom":"","grade5_pct":"","grade5_denom":"",'
-            '"all_grade_pct":"","all_grade_denom":"",'
-            '"bibliography":"' + bibliography.replace('"', "'") + '",'
-            '"url":"' + url + '"'
-            '}]}\n\n'
-            'Fill every field you can find. Create multiple rows if multiple adverse events are reported.'
-        )
+        # Use clean f-string with JSON template - no string concatenation
+        safe_title = title[:80].replace('"', "'").replace('\n', ' ')
+        safe_bib   = bibliography.replace('"', "'").replace('\n', ' ')
+        safe_url   = url.replace('"', '')
+
+        system_msg = 'You are a clinical research data extractor. Return ONLY valid JSON with a rows array. No markdown, no explanation.'
+
+        user_msg = f"""Extract all clinical fields from this article. Fill every field you can find. Return ONLY JSON.
+
+Title: {title}
+Authors: {authors}
+Journal: {journal} | Date: {pub_date} | Country: {country} | PMID: {pmid}
+URL: {url}
+
+Content:
+{content}
+
+Return this JSON (fill in the empty strings with real values from the article):
+{{
+  "rows": [
+    {{
+      "author_year": "{author_year}",
+      "country": "{country}",
+      "study_title": "{safe_title}",
+      "published_year": "{year}",
+      "study_type": "",
+      "trial_phase": "",
+      "tumor_type": "",
+      "cancer_name": "",
+      "disease_definition": "",
+      "stage_seer": "",
+      "sample_size": "",
+      "mean_median_age": "",
+      "race_ethnicity": "",
+      "mon_combo": "",
+      "drug_class": "",
+      "treatment": "",
+      "dosage_strength": "",
+      "target": "",
+      "median_followup": "",
+      "duration_treatment_m": "",
+      "time_to_ae_onset": "",
+      "sae_type": "",
+      "prophylactics": "",
+      "ae_reporting_method": "",
+      "ae_reporting_criteria": "",
+      "event_organ_class": "",
+      "ae_name": "",
+      "grade1_pct": "",
+      "grade1_denom": "",
+      "grade2_pct": "",
+      "grade2_denom": "",
+      "grade12_pct": "",
+      "grade12_denom": "",
+      "grade3_pct": "",
+      "grade3_denom": "",
+      "grade34_pct": "",
+      "grade34_denom": "",
+      "grade3plus_pct": "",
+      "grade3plus_denom": "",
+      "grade4_pct": "",
+      "grade4_denom": "",
+      "grade5_pct": "",
+      "grade5_denom": "",
+      "all_grade_pct": "",
+      "all_grade_denom": "",
+      "bibliography": "{safe_bib}",
+      "url": "{safe_url}"
+    }}
+  ]
+}}
+
+If multiple adverse events are reported, add more rows with the same article fields but different ae_name and grade fields."""
 
         try:
             # ── Call Groq with retry on rate limit ────────────────────
@@ -2534,8 +2578,8 @@ def _run_extract_job(job_id: str, articles: list):
                         'max_tokens':  2000,
                         'temperature': 0,
                         'messages':    [
-                            {'role': 'system', 'content': 'You are a clinical research data extractor. Return ONLY valid JSON. No markdown. No explanation. Just the JSON object.'},
-                            {'role': 'user',   'content': prompt},
+                            {'role': 'system', 'content': system_msg},
+                            {'role': 'user',   'content': user_msg},
                         ],
                     },
                     timeout=45,
@@ -2543,7 +2587,7 @@ def _run_extract_job(job_id: str, articles: list):
                 if resp.status_code == 429:
                     wait = 15 * (attempt + 1)
                     print(f"    Rate limit -- waiting {wait}s (attempt {attempt+1}/4)")
-                    job['status'] = f"Rate limit -- waiting {wait}s… ({i}/{len(articles)})"
+                    job['status'] = f"Rate limit -- waiting {wait}s... ({i}/{len(articles)})"
                     time.sleep(wait)
                 else:
                     break
@@ -2565,10 +2609,8 @@ def _run_extract_job(job_id: str, articles: list):
                     extracted = json.loads(text)
                     rows = extracted.get('rows', [])
                     if rows:
-                        # Filter out rows that only have the pre-filled defaults
                         good_rows = []
                         for row in rows:
-                            # Count non-empty non-default fields
                             filled = sum(1 for k, v in row.items()
                                         if v and v not in ('', 'null', 'None')
                                         and k not in ('url',))
@@ -2578,10 +2620,10 @@ def _run_extract_job(job_id: str, articles: list):
                             print(f"    Extracted {len(good_rows)} good row(s)")
                             all_rows.extend(good_rows)
                         else:
-                            print(f"    Rows found but too sparse -- using metadata fallback")
+                            print(f"    Rows too sparse -- metadata fallback")
                             all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
                     else:
-                        print(f"    No rows in response -- metadata fallback")
+                        print(f"    No rows -- metadata fallback")
                         all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
                 except json.JSONDecodeError as je:
                     print(f"    JSON parse error: {je} | text: {text[:200]}")
@@ -2594,9 +2636,19 @@ def _run_extract_job(job_id: str, articles: list):
             print(f"    Exception: {e}")
             all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
 
-        time.sleep(2.5)  # Groq free tier: 30 req/min = 2s minimum between calls
+        time.sleep(2.5)  # Groq free tier: 30 req/min
 
     # ── Build Excel ───────────────────────────────────────────────────────
+    print(f"[extract] Building Excel: {len(all_rows)} rows collected")
+    for i2, r in enumerate(all_rows[:3]):
+        print(f"  Row {i2+1} keys: {list(r.keys())[:8]}")
+        print(f"  Row {i2+1} sample: {dict(list(r.items())[:4])}")
+
+    if not all_rows:
+        job['error'] = 'No data extracted from any article. Check terminal for API errors.'
+        job['done']  = True
+        return
+
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -2606,16 +2658,14 @@ def _run_extract_job(job_id: str, articles: list):
         ws  = wb.active
         ws.title = 'AE Extraction'
 
-        # Header style
-        hdr_fill = PatternFill('solid', start_color='1A365D')
-        hdr_font = Font(name='Arial', bold=True, color='FFFFFF', size=9)
+        hdr_fill  = PatternFill('solid', start_color='1A365D')
+        hdr_font  = Font(name='Arial', bold=True, color='FFFFFF', size=9)
         hdr_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
         thin = Border(
             left=Side(style='thin', color='FFFFFF'),
             right=Side(style='thin', color='FFFFFF'),
         )
 
-        # Write headers
         col_idx = 1
         for col_name in EXTRACT_COLUMNS:
             cell = ws.cell(row=1, column=col_idx, value=col_name if col_name else '')
@@ -2628,10 +2678,8 @@ def _run_extract_job(job_id: str, articles: list):
                 cell.fill = PatternFill('solid', start_color='2B4C7E')
             col_idx += 1
 
-        # Freeze header row
         ws.freeze_panes = 'A2'
 
-        # Write data rows
         for r_idx, row_data in enumerate(all_rows, start=2):
             col_idx = 1
             for col_name, key in zip(EXTRACT_COLUMNS, EXTRACT_KEYS):
@@ -2639,20 +2687,18 @@ def _run_extract_job(job_id: str, articles: list):
                 cell = ws.cell(row=r_idx, column=col_idx, value=str(val) if val else '')
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
                 cell.font = Font(name='Arial', size=9)
-                # Alternate row shading
                 if r_idx % 2 == 0:
                     cell.fill = PatternFill('solid', start_color='EBF4FF')
                 col_idx += 1
 
-        # Column widths
         width_map = {
             1: 20, 2: 12, 3: 35, 4: 10, 5: 15, 6: 12, 7: 15, 8: 18,
             9: 25, 10: 15, 12: 10, 13: 15, 15: 18, 16: 12, 17: 18,
             18: 20, 19: 18, 20: 15, 22: 18, 24: 18, 25: 15, 26: 20,
             27: 30, 28: 45, 29: 20, 30: 22, 31: 25,
         }
-        for c in range(1, len(EXTRACT_COLUMNS) + 1):
-            ws.column_dimensions[get_column_letter(c)].width = width_map.get(c, 12)
+        for c2 in range(1, len(EXTRACT_COLUMNS) + 1):
+            ws.column_dimensions[get_column_letter(c2)].width = width_map.get(c2, 12)
 
         ws.row_dimensions[1].height = 60
 
@@ -2665,32 +2711,22 @@ def _run_extract_job(job_id: str, articles: list):
         job['status'] = f'Complete -- {len(all_rows)} rows extracted from {len(articles)} articles'
 
     except Exception as e:
-        job['error']  = f'Excel build failed: {e}'
-        job['done']   = True
+        job['error'] = f'Excel build failed: {e}'
+        job['done']  = True
         import traceback; traceback.print_exc()
 
 
 @app.route('/api/copilot_file', methods=['POST'])
 @login_required
 def copilot_file():
-    """
-    Copilot chat using uploaded file as context.
-    Accepts multipart form with:
-      - file: CSV/Excel/ZIP uploaded by user
-      - history: JSON array of {role, content} messages
-      - question: current user question
-    """
+    """Copilot chat using uploaded file as context."""
     try:
         f        = request.files.get('file')
         history  = json.loads(request.form.get('history', '[]'))
         question = request.form.get('question', '')
-
         if not f or not question:
             return jsonify({'error': 'File and question required'}), 400
-
         fname = f.filename or ''
-
-        # ── Read file content for context ────────────────────────────────
         articles = []
         try:
             if fname.endswith('.csv'):
@@ -2702,7 +2738,6 @@ def copilot_file():
                 if sheet == 'Summary' and len(xl.sheet_names) > 1:
                     sheet = xl.sheet_names[1]
                 df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
-                # Merge full text parts
                 ft_cols = [c for c in df.columns if c.startswith('Full Text (PMC)')]
                 if ft_cols:
                     df['_fulltext'] = df[ft_cols].apply(
@@ -2713,7 +2748,6 @@ def copilot_file():
         except Exception as e:
             return jsonify({'error': f'Could not read file: {e}'}), 400
 
-        # ── Build context summary (cap at 80 articles to keep tokens manageable)
         context_lines = [f"Uploaded file: {fname} -- {len(articles)} articles\n"]
         for i, art in enumerate(articles[:80], 1):
             def _g(*keys):
@@ -2729,30 +2763,21 @@ def copilot_file():
             country  = _g('Country','country')
             pub_type = _g('Publication Type','publication_type')
             fulltext = _g('_fulltext','Full Text (PMC)','full_text')
-            # Use abstract + first 500 chars of full text
-            content  = abstract
-            if fulltext:
-                content += ' ' + fulltext[:500]
+            content  = abstract + (' ' + fulltext[:500] if fulltext else '')
             context_lines.append(
                 f"{i}. {title} | {journal} | {pub_date} | {pub_type} | {country}\n"
-                f"   Authors: {authors[:80]}\n"
-                f"   {content[:300]}\n"
+                f"   Authors: {authors[:80]}\n   {content[:300]}\n"
             )
 
         article_context = '\n'.join(context_lines)
-
         system_prompt = f"""You are EpiLite Co-pilot, an expert biomedical research assistant.
-
-The user has uploaded a file containing {len(articles)} PubMed articles. Your job is to analyze and answer questions about this research data.
-
-UPLOADED ARTICLE DATA:
-{article_context}
-
+The user has uploaded a file with {len(articles)} PubMed articles.
+UPLOADED ARTICLE DATA:\n{article_context}
 Guidelines:
 - Answer based on the article data above
 - Be specific -- cite titles, journals, or authors when relevant
-- If asked about AE grades, treatments, or clinical data, extract from the abstracts/content
-- If data is not available in the provided content, say so clearly
+- If asked about AE grades, treatments, or clinical data, extract from the abstracts
+- If data is not available, say so clearly
 - Format responses clearly with bullet points where helpful"""
 
         GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
@@ -2760,335 +2785,98 @@ Guidelines:
             return jsonify({'error': 'GROQ_API_KEY not set in .env file'}), 500
 
         groq_messages = [{'role': 'system', 'content': system_prompt}]
-        # Add previous history (last 6 turns to keep tokens manageable)
         for msg in history[-6:]:
             groq_messages.append({'role': msg['role'], 'content': msg['content']})
 
         resp = http_requests.post(
             'https://api.groq.com/openai/v1/chat/completions',
-            headers={
-                'Content-Type':  'application/json',
-                'Authorization': f'Bearer {GROQ_KEY}',
-            },
-            json={
-                'model':       'llama-3.1-8b-instant',
-                'max_tokens':  1200,
-                'temperature': 0.3,
-                'messages':    groq_messages,
-            },
+            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_KEY}'},
+            json={'model': 'llama-3.1-8b-instant', 'max_tokens': 1200, 'temperature': 0.3,
+                  'messages': groq_messages},
             timeout=30,
         )
-
         if resp.status_code != 200:
             err = resp.json().get('error', {}).get('message', resp.text[:150])
             return jsonify({'error': f'AI error: {err}'}), 500
-
         answer = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '')
         return jsonify({'answer': answer, 'articles_used': len(articles)})
-
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
-
-@app.route('/api/extract_article', methods=['POST'])
-@login_required
-def extract_article():
-    """
-    Extract 51-column AE report from a single attached article (PDF/TXT/Excel/CSV).
-    Returns job_id for polling -- same flow as extract_report.
-    """
-    import uuid as _uuid
-
-    f = request.files.get('file')
-    if not f:
-        return jsonify({'error': 'No file attached'}), 400
-
-    fname = f.filename or ''
-    text  = ''
-
-    try:
-        if fname.lower().endswith('.pdf'):
-            if PDF_SUPPORT:
-                import pdfplumber
-                with pdfplumber.open(io.BytesIO(f.read())) as pdf:
-                    pages = []
-                    for page in pdf.pages[:40]:
-                        pt = page.extract_text() or ''
-                        pages.append(pt)
-                    text = '\n\n'.join(pages)
-            else:
-                return jsonify({'error': 'PDF support not available. Please upload TXT or Excel.'}), 400
-        elif fname.lower().endswith('.txt'):
-            text = f.read().decode('utf-8', errors='ignore')
-        elif fname.lower().endswith(('.xlsx', '.xls')):
-            df   = pd.read_excel(f, dtype=str).fillna('')
-            text = df.to_string(index=False)[:8000]
-        elif fname.lower().endswith('.csv'):
-            df   = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
-            text = df.to_string(index=False)[:8000]
-        else:
-            return jsonify({'error': f'Unsupported file type. Use PDF, TXT, Excel, or CSV.'}), 400
-    except Exception as e:
-        return jsonify({'error': f'Could not read file: {e}'}), 400
-
-    if not text.strip():
-        return jsonify({'error': 'No text could be extracted from the file.'}), 400
-
-    # Build article dict
-    article = {
-        'title':            fname.replace('.pdf','').replace('.txt','').replace('_',' ')[:120],
-        'abstract':         text[:1000],
-        'full_text':        text,
-        'url':              '', 'authors': '', 'journal': '',
-        'publication_date': '', 'publication_type': '',
-        'country':          '', 'pmid': '',
-        '_source':          'attached_article',
-        '_filename':        fname,
-    }
-
-    job_id = _uuid.uuid4().hex[:12]
-    _extract_jobs[job_id] = {
-        'status':      f'Extracting clinical data from {fname}...',
-        'done':        False,
-        'current':     0,
-        'total':       1,
-        'excel_bytes': None,
-        'error':       None,
-        'cancelled':   False,
-    }
-
-    t = threading.Thread(target=_run_extract_job,
-                         args=(job_id, [article]), daemon=True)
-    t.start()
-
-    return jsonify({'job_id': job_id, 'total': 1, 'filename': fname})
-
-
-@login_required
-def extract_debug():
-    """
-    Debug endpoint -- processes the FIRST article from uploaded file
-    and returns raw Claude response + column mapping so we can diagnose issues.
-    """
-    f = request.files.get('file')
-    if not f:
-        return jsonify({'error': 'No file'}), 400
-
-    fname = f.filename or ''
-    try:
-        if fname.endswith('.csv'):
-            df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
-        else:
-            df = pd.read_excel(f, dtype=str).fillna('')
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
-    if df.empty:
-        return jsonify({'error': 'Empty file'}), 400
-
-    # Show column names and first article
-    columns = list(df.columns)
-    art     = df.iloc[0].to_dict()
-
-    # Try extracting fields
-    def _get(d, *keys):
-        for k in keys:
-            v = d.get(k) or d.get(k.lower()) or d.get(k.title()) or ''
-            if v and str(v).strip() not in ('', 'nan', 'None'):
-                return str(v).strip()
-        return ''
-
-    title    = _get(art, 'title', 'Study title', 'Title')
-    abstract = _get(art, 'abstract', 'Abstract')
-    authors  = _get(art, 'authors', 'Authors')
-    country  = _get(art, 'country', 'Country')
-    url      = _get(art, 'url', 'PubMed URL', 'URL')
-
-    GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
-    if not GROQ_KEY:
-        return jsonify({
-            'columns': columns,
-            'title': title,
-            'abstract': abstract[:200],
-            'error': 'GROQ_API_KEY not set in .env file'
-        })
-
-    # Call Groq with just this one article
-    content = abstract[:2000]
-    prompt  = f"""Extract clinical data from this article. Return ONLY valid JSON, no markdown.
-
-Title: {title}
-Authors: {authors}
-Country: {country}
-URL: {url}
-Abstract: {content}
-
-Return JSON: {{"rows": [{{"author_year":"","country":"","study_title":"","published_year":"","study_type":"","trial_phase":"","cancer_name":"","sample_size":"","treatment":"","ae_name":"","url":"{url}"}}]}}"""
-
-    try:
-        resp = http_requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={
-                'Content-Type':  'application/json',
-                'Authorization': f'Bearer {GROQ_KEY}',
-            },
-            json={
-                'model':       'llama-3.1-8b-instant',
-                'max_tokens':  500,
-                'temperature': 0,
-                'messages':    [
-                    {'role': 'system', 'content': 'Return ONLY valid JSON, no explanation, no markdown.'},
-                    {'role': 'user',   'content': prompt},
-                ],
-            },
-            timeout=30,
-        )
-
-        raw_text = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '') if resp.status_code == 200 else ''
-
-        return jsonify({
-            'status':         'ok',
-            'api_status':     resp.status_code,
-            'columns_in_file': columns,
-            'title_found':    title,
-            'abstract_found': abstract[:150] + '...' if abstract else '(empty)',
-            'claude_raw':     raw_text[:500],
-            'article_keys':   list(art.keys()),
-        })
-    except Exception as e:
-        return jsonify({'error': str(e), 'columns': columns})
-
-
 @app.route('/api/extract_report', methods=['POST'])
 @login_required
 def extract_report():
-    """
-    Accept uploaded CSV/Excel/ZIP-of-PDFs, start background extraction job.
-    Returns: { job_id }
-    """
+    """Accept uploaded CSV/Excel/ZIP, start background extraction job."""
     import uuid as _uuid
     import zipfile as _zipfile
-
     f = request.files.get('file')
     if not f:
         return jsonify({'error': 'No file uploaded'}), 400
-
     fname = f.filename or ''
     articles = []
-
     try:
         if fname.endswith('.csv'):
             df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
             articles = df.to_dict(orient='records')
-
         elif fname.endswith(('.xlsx', '.xls')):
-            # ── Read the All Results sheet if present, else first data sheet ──
             xl = pd.ExcelFile(f)
-            sheet_name = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
-            # Skip Summary sheet if it's the only option
-            if sheet_name == 'Summary' and len(xl.sheet_names) > 1:
-                sheet_name = xl.sheet_names[1]
-            df = pd.read_excel(xl, sheet_name=sheet_name, dtype=str).fillna('')
-
-            # ── Merge Full Text part columns back into one field ──────────
+            sheet = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
+            if sheet == 'Summary' and len(xl.sheet_names) > 1:
+                sheet = xl.sheet_names[1]
+            df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
             ft_cols = [c for c in df.columns if c.startswith('Full Text (PMC)')]
             if ft_cols:
                 df['full_text_merged'] = df[ft_cols].apply(
-                    lambda row: ' '.join(str(v) for v in row if v and str(v) not in ('', 'nan')),
-                    axis=1
-                )
+                    lambda r: ' '.join(str(v) for v in r if v and str(v) not in ('','nan')), axis=1)
             articles = df.to_dict(orient='records')
-
         elif fname.endswith('.zip'):
-            # ── Extract text from each PDF in the ZIP ─────────────────────
             zip_bytes = f.read()
             zf = _zipfile.ZipFile(io.BytesIO(zip_bytes))
-            pdf_files = [n for n in zf.namelist()
-                         if n.lower().endswith('.pdf') and not n.startswith('__')]
-
+            pdf_files = [n for n in zf.namelist() if n.lower().endswith('.pdf')]
             if not pdf_files:
                 return jsonify({'error': 'No PDF files found in ZIP'}), 400
-
             for pdf_name in pdf_files[:100]:
                 try:
                     pdf_bytes = zf.read(pdf_name)
                     text = ''
-
                     if PDF_SUPPORT:
                         import pdfplumber
                         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                            pages_text = []
-                            for page in pdf.pages[:30]:  # first 30 pages
-                                pt = page.extract_text() or ''
-                                pages_text.append(pt)
-                            text = '\n\n'.join(pages_text)
-                    else:
-                        # Fallback: try basic text extraction without pdfplumber
-                        try:
-                            import PyPDF2
-                            reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
-                            pages_text = []
-                            for page in reader.pages[:30]:
-                                pages_text.append(page.extract_text() or '')
-                            text = '\n\n'.join(pages_text)
-                        except Exception:
-                            text = ''
-
-                    # Parse filename for PMID/title hints
-                    # Filename format: PMID_12345_Title_of_article.pdf
-                    clean_name = pdf_name.replace('.pdf', '').replace('_', ' ')
+                            text = '\n\n'.join(page.extract_text() or '' for page in pdf.pages[:30])
+                    clean_name = pdf_name.replace('.pdf','').replace('_',' ')
                     pmid = ''
                     if clean_name.startswith('PMID '):
                         parts = clean_name.split(' ', 2)
-                        pmid  = parts[1] if len(parts) > 1 else ''
-                        title_hint = parts[2] if len(parts) > 2 else clean_name
+                        pmid = parts[1] if len(parts)>1 else ''
+                        title_hint = parts[2] if len(parts)>2 else clean_name
                     else:
                         title_hint = clean_name
-
                     articles.append({
-                        'pmid':     pmid,
-                        'title':    title_hint[:120],
-                        'abstract': text[:500],    # first 500 chars as abstract proxy
-                        'full_text': text,          # full PDF text for extraction
-                        'url':      f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/' if pmid else '',
-                        '_source':  'pdf',
-                        '_filename': pdf_name,
+                        'pmid': pmid, 'title': title_hint[:120],
+                        'abstract': text[:500], 'full_text': text,
+                        'url': f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/' if pmid else '',
+                        '_source': 'pdf', '_filename': pdf_name,
                     })
                 except Exception as e:
                     print(f"[extract] PDF read error {pdf_name}: {e}")
-                    articles.append({
-                        'title':    pdf_name.replace('.pdf',''),
-                        'abstract': '',
-                        'full_text': '',
-                        '_source':  'pdf_error',
-                    })
         else:
-            return jsonify({'error': 'Please upload a CSV, Excel (.xlsx), or PDF ZIP file'}), 400
-
+            return jsonify({'error': 'Upload CSV, Excel (.xlsx), or PDF ZIP'}), 400
     except Exception as e:
         return jsonify({'error': f'Could not read file: {e}'}), 400
 
     if not articles:
         return jsonify({'error': 'No articles found in file'}), 400
-
     articles = articles[:100]
 
     job_id = _uuid.uuid4().hex[:12]
     _extract_jobs[job_id] = {
-        'status':      'Starting…',
-        'done':        False,
-        'current':     0,
-        'total':       len(articles),
-        'excel_bytes': None,
-        'error':       None,
-        'cancelled':   False,
+        'status': 'Starting...', 'done': False, 'current': 0,
+        'total': len(articles), 'excel_bytes': None, 'error': None, 'cancelled': False,
     }
-
     t = threading.Thread(target=_run_extract_job, args=(job_id, articles), daemon=True)
     t.start()
-
     return jsonify({'job_id': job_id, 'total': len(articles)})
 
 
@@ -3099,11 +2887,8 @@ def extract_progress(job_id):
     if not job:
         return jsonify({'error': 'Job not found'}), 404
     return jsonify({
-        'status':  job['status'],
-        'done':    job['done'],
-        'current': job['current'],
-        'total':   job['total'],
-        'error':   job['error'],
+        'status': job['status'], 'done': job['done'],
+        'current': job['current'], 'total': job['total'], 'error': job['error'],
     })
 
 
@@ -3122,272 +2907,110 @@ def extract_download(job_id):
     )
 
 
-@app.route('/api/copilot', methods=['POST'])
+@app.route('/api/extract_article', methods=['POST'])
 @login_required
-def copilot():
-    """
-    AI copilot endpoint -- uses article abstracts + metadata as context
-    and calls Claude to answer questions about the research.
-
-    Request JSON:
-        {
-            "search_id":   "abc123",
-            "keywords":    "lung cancer, breast cancer",
-            "max_results": 1000,
-            "history":     [{"role": "user", "content": "..."}, ...]
-        }
-    """
+def extract_article():
+    """Extract 51-column AE report from a single attached article file."""
+    import uuid as _uuid
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file attached'}), 400
+    fname = f.filename or ''
+    text  = ''
     try:
-        data       = request.get_json()
-        search_id  = data.get('search_id', '')
-        keywords_s = data.get('keywords', '')
-        history    = data.get('history', [])
+        if fname.lower().endswith('.pdf'):
+            if PDF_SUPPORT:
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(f.read())) as pdf:
+                    text = '\n\n'.join(page.extract_text() or '' for page in pdf.pages[:40])
+            else:
+                return jsonify({'error': 'PDF support not available. Use TXT or Excel.'}), 400
+        elif fname.lower().endswith('.txt'):
+            text = f.read().decode('utf-8', errors='ignore')
+        elif fname.lower().endswith(('.xlsx','.xls')):
+            df = pd.read_excel(f, dtype=str).fillna('')
+            text = df.to_string(index=False)[:8000]
+        elif fname.lower().endswith('.csv'):
+            df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+            text = df.to_string(index=False)[:8000]
+        else:
+            return jsonify({'error': 'Unsupported file type. Use PDF, TXT, Excel, or CSV.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Could not read file: {e}'}), 400
+    if not text.strip():
+        return jsonify({'error': 'No text could be extracted from the file.'}), 400
+    article = {
+        'title': fname.replace('.pdf','').replace('.txt','').replace('_',' ')[:120],
+        'abstract': text[:1000], 'full_text': text,
+        'url': '', 'authors': '', 'journal': '',
+        'publication_date': '', 'publication_type': '',
+        'country': '', 'pmid': '',
+        '_source': 'attached_article', '_filename': fname,
+    }
+    job_id = _uuid.uuid4().hex[:12]
+    _extract_jobs[job_id] = {
+        'status': f'Extracting from {fname}...', 'done': False,
+        'current': 0, 'total': 1, 'excel_bytes': None, 'error': None, 'cancelled': False,
+    }
+    t = threading.Thread(target=_run_extract_job, args=(job_id, [article]), daemon=True)
+    t.start()
+    return jsonify({'job_id': job_id, 'total': 1, 'filename': fname})
 
-        # ── Build article context from cache ─────────────────────────────
-        context_parts = []
-        total_articles = 0
 
-        if search_id and search_id in _search_cache:
-            cached = _search_cache[search_id]
-            for kw, df in cached['sorted_results'].items():
-                if df.empty:
-                    continue
-                context_parts.append(f"\n## Keyword: {kw} ({len(df)} articles)\n")
-                # Include up to 150 articles per keyword for context
-                for _, row in df.head(150).iterrows():
-                    title   = str(row.get('title', '') or '')
-                    journal = str(row.get('journal', '') or '')
-                    date    = str(row.get('publication_date', '') or '')
-                    pub_type = str(row.get('publication_type', '') or '')
-                    abstract = str(row.get('abstract', '') or '')
-                    authors  = str(row.get('authors', '') or '')
-                    country  = str(row.get('country', '') or '')
-
-                    # Truncate abstract to keep context manageable
-                    abstract_short = abstract[:400] + '…' if len(abstract) > 400 else abstract
-
-                    context_parts.append(
-                        f"- **{title}** | {journal} | {date} | {pub_type}\n"
-                        f"  Authors: {authors[:100]}\n"
-                        f"  Country: {country}\n"
-                        f"  Abstract: {abstract_short}\n"
-                    )
-                    total_articles += 1
-
-        article_context = ''.join(context_parts) if context_parts else \
-            f"Search for: {keywords_s} (articles not in cache, limited context available)"
-
-        # ── Build system prompt ───────────────────────────────────────────
-        system_prompt = f"""You are EpiLite Co-pilot, an expert biomedical research assistant specializing in epidemiology and clinical research analysis.
-
-You have been provided with {total_articles} PubMed articles from a search on: {keywords_s}
-
-Your role is to:
-- Analyze and synthesize findings from the provided articles
-- Identify patterns, trends, and research gaps
-- Compare study designs, populations, and outcomes across keywords
-- Provide clear, structured, evidence-based responses
-- Cite specific articles (by title or journal) when making claims
-- Be honest when the answer cannot be determined from the provided articles
-
-Always base your answers on the article data provided. If asked something beyond the provided data, say so clearly.
-
-ARTICLE DATA:
-{article_context}"""
-
-        # ── Call Claude API ───────────────────────────────────────────────
-        api_messages = [
-            {'role': m['role'], 'content': m['content']}
-            for m in history
-        ]
-
-        GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
-        if not GROQ_KEY:
-            return jsonify({'error': 'GROQ_API_KEY not set in .env file'}), 500
-
-        # Prepend system prompt as first user message for Groq
-        groq_messages = [{'role': 'system', 'content': system_prompt}] + api_messages
-
-        response = http_requests.post(
+@app.route('/api/test_extraction', methods=['POST'])
+@login_required
+def test_extraction():
+    """Debug: test extraction on first article, return raw Groq response."""
+    f = request.files.get('file')
+    if not f: return jsonify({'error': 'No file'}), 400
+    fname = f.filename or ''
+    try:
+        if fname.endswith('.csv'):
+            df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+        elif fname.endswith(('.xlsx','.xls')):
+            xl = pd.ExcelFile(f)
+            sheet = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
+            df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
+        else:
+            return jsonify({'error': 'Upload CSV or Excel'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    if df.empty: return jsonify({'error': 'Empty file'}), 400
+    art = df.iloc[0].to_dict()
+    def _g(*keys):
+        for k in keys:
+            v = art.get(k,'') or ''
+            if v and str(v).strip() not in ('','nan'): return str(v).strip()
+        return ''
+    title    = _g('Title','title')
+    abstract = _g('Abstract','abstract')
+    authors  = _g('Authors','authors')
+    country  = _g('Country','country')
+    url      = _g('PubMed URL','url')
+    pub_date = _g('Publication Date','publication_date')
+    journal  = _g('Journal','journal')
+    content  = abstract[:1500]
+    year     = re.search(r'\b(19|20)\d{2}\b', pub_date).group() if re.search(r'\b(19|20)\d{2}\b', pub_date) else ''
+    first_a  = authors.split(',')[0].strip().split()[-1] if authors else ''
+    author_year = (first_a + ' et al., ' + year).strip(' ,') if first_a else authors[:40]
+    GROQ_KEY = os.environ.get('GROQ_API_KEY','')
+    if not GROQ_KEY: return jsonify({'error': 'GROQ_API_KEY not set', 'columns': list(df.columns[:10])}), 500
+    try:
+        resp = http_requests.post(
             'https://api.groq.com/openai/v1/chat/completions',
-            headers={
-                'Content-Type':  'application/json',
-                'Authorization': f'Bearer {GROQ_KEY}',
-            },
-            json={
-                'model':       'llama-3.1-8b-instant',
-                'max_tokens':  1500,
-                'temperature': 0.3,
-                'messages':    groq_messages,
-            },
-            timeout=60,
+            headers={'Content-Type':'application/json','Authorization':f'Bearer {GROQ_KEY}'},
+            json={'model':'llama-3.3-70b-versatile','max_tokens':500,'temperature':0,
+                  'messages':[
+                      {'role':'system','content':'Return ONLY valid JSON. No markdown.'},
+                      {'role':'user','content':f'Title: {title}\nAbstract: {content}\nReturn: {{"rows":[{{"author_year":"{author_year}","country":"{country}","study_title":"{title[:50].replace(chr(34),chr(39))}","cancer_name":"","treatment":"","url":"{url}"}}]}}'  }]},
+            timeout=30,
         )
-
-        if response.status_code != 200:
-            error_detail = response.json().get('error', {}).get('message', response.text[:200])
-            return jsonify({'error': f'AI service error: {error_detail}'}), 500
-
-        resp_data = response.json()
-        answer = resp_data.get('choices', [{}])[0].get('message', {}).get('content', '')
-
-        return jsonify({'answer': answer, 'articles_used': total_articles})
-
+        raw = resp.json().get('choices',[{}])[0].get('message',{}).get('content','') if resp.status_code==200 else resp.text
+        return jsonify({'api_status':resp.status_code,'title':title,'abstract_length':len(abstract),'columns':list(df.columns[:10]),'groq_raw':raw[:800],'parsed_ok':'rows' in raw})
     except Exception as e:
-        import traceback; traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-
-
-@app.route('/api/ncbi_count', methods=['POST'])
-@login_required
-def ncbi_count():
-    """
-    Return the real NCBI article count for each keyword with all
-    active sidebar filters applied as Entrez query clauses.
-
-    Request JSON:
-        {
-          "keywords": ["lung cancer", "breast cancer"],
-          "filters": {
-            "date_filter": "5",         // "1"|"5"|"10"|"custom"|""
-            "date_from": 2020,          // custom range
-            "date_to":   2024,
-            "free_pmc":  true,          // text availability
-            "full_text": false,
-            "humans":    true,          // species
-            "animals":   false,
-            "female":    false,         // sex
-            "male":      false,
-            "child":     false,         // age
-            "adult":     true,
-            "aged":      false,
-            "infant":    false,
-            "type_review":     false,   // article types
-            "type_clinical":   false,
-            "type_rct":        false,
-            "type_meta":       false,
-            "type_systematic": false,
-            "type_case":       false,
-            "medline":   false
-          }
-        }
-    """
-    try:
-        data     = request.get_json()
-        keywords = data.get('keywords', [])
-        filters  = data.get('filters', {})
-
-        if not keywords:
-            return jsonify({'error': 'keywords required'}), 400
-
-        # ── Map every active filter to an Entrez clause ───────────────────
-        clauses = []
-
-        # Date
-        date_filter = str(filters.get('date_filter', '')).strip()
-        date_from   = filters.get('date_from', '')
-        date_to     = filters.get('date_to', '')
-
-        if date_filter and date_filter != 'custom':
-            year_map = {
-                '1':  '"last 1 year"[PDat]',
-                '5':  '"last 5 years"[PDat]',
-                '10': '"last 10 years"[PDat]',
-                '20': '"last 20 years"[PDat]',
-            }
-            if date_filter in year_map:
-                clauses.append(year_map[date_filter])
-        elif date_filter == 'custom' and (date_from or date_to):
-            fy = str(date_from) if date_from else '1900'
-            ty = str(date_to)   if date_to   else '2100'
-            clauses.append(f'("{fy}/01/01"[PDat]:"{ty}/12/31"[PDat])')
-
-        # Text availability
-        if filters.get('free_pmc'):
-            clauses.append('"free full text"[Filter]')
-
-        # Species
-        if filters.get('humans')  and not filters.get('animals'):
-            clauses.append('"humans"[MeSH Terms]')
-        if filters.get('animals') and not filters.get('humans'):
-            clauses.append('"animals"[MeSH Terms]')
-        # Sex
-        if filters.get('female') and not filters.get('male'):
-            clauses.append('"female"[MeSH Terms]')
-        if filters.get('male') and not filters.get('female'):
-            clauses.append('"male"[MeSH Terms]')
-        # Age
-        for key, clause in [
-            ('child',  '"child"[MeSH Terms]'),
-            ('adult',  '"adult"[MeSH Terms]'),
-            ('aged',   '"aged"[MeSH Terms]'),
-            ('infant', '"infant"[MeSH Terms]'),
-        ]:
-            if filters.get(key):
-                clauses.append(clause)
-
-        # Article types -- OR logic (keep if matches any checked type)
-        type_clauses = []
-        type_map = {
-            'type_journal':      '"Journal Article"[Publication Type]',
-            'type_review':       '"Review"[Publication Type]',
-            'type_systematic':   '"Systematic Review"[Publication Type]',
-            'type_meta':         '"Meta-Analysis"[Publication Type]',
-            'type_rct':          '"Randomized Controlled Trial"[Publication Type]',
-            'type_clinical':     '"Clinical Trial"[Publication Type]',
-            'type_case':         '"Case Reports"[Publication Type]',
-            'type_observational': '"Observational Study"[Publication Type]',
-        }
-        for key, clause in type_map.items():
-            if filters.get(key):
-                type_clauses.append(clause)
-        if type_clauses:
-            clauses.append('(' + ' OR '.join(type_clauses) + ')')
-
-        # ── Combine clauses into one AND-joined filter string ─────────────
-        filter_str = ' AND '.join(clauses) if clauses else ''
-
-        # ── Fetch count for each keyword (retmax=1 → just gets Count) ────
-        totals = {}
-        for kw in keywords:
-            query = f'({kw}) AND ({filter_str})' if filter_str else kw
-            try:
-                _, ncbi_total = scraper.search_pubmed(query, max_results=1)
-                totals[kw] = ncbi_total
-            except Exception as e:
-                print(f"  [ncbi_count] error for {kw!r}: {e}")
-                totals[kw] = 0
-
-        grand_total = sum(totals.values())
-        return jsonify({
-            'totals':      totals,
-            'grand_total': grand_total,
-            'filter_str':  filter_str,   # useful for debugging
-        })
-
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error':str(e)}), 500
 
 
 if __name__ == '__main__':
-    print("=" * 60)
-    print("🧬 PubMed Scraper - Multi-Keyword Search")
-    print("=" * 60)
-    print(f"Email configured: {NCBI_EMAIL}")
-    if NCBI_EMAIL == "your.email@example.com":
-        print("⚠️  WARNING: Please update your email in this file!")
-        print("   Line 215: NCBI_EMAIL = 'your.email@example.com'")
-    print("=" * 60)
-    print("✨ Features:")
-    print("  - Search multiple keywords at once")
-    print("  - Results sorted by article count (ascending/descending)")
-    print("  - Grouped display by keyword")
-    print("  - Export to CSV, JSON, or Excel")
-    print("=" * 60)
-    print("Starting server at: http://localhost:5000")
-    print("Press Ctrl+C to stop")
-    print("=" * 60)
-    
+    print("Starting EpiLite AI Platform...")
     app.run(debug=True, host='0.0.0.0', port=5000)
