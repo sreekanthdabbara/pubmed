@@ -1021,10 +1021,12 @@ def search_url():
 
     # ── PubMed filter code → Entrez query clause ─────────────────────────
     FILTER_MAP = {
+        # Date filters
         'datesearch.y_1':              '("last 1 year"[PDat])',
         'datesearch.y_5':              '("last 5 years"[PDat])',
         'datesearch.y_10':             '("last 10 years"[PDat])',
         'datesearch.y_20':             '("last 20 years"[PDat])',
+        # Language
         'lang.english':                '"english"[Language]',
         'lang.french':                 '"french"[Language]',
         'lang.german':                 '"german"[Language]',
@@ -1033,6 +1035,7 @@ def search_url():
         'lang.portuguese':             '"portuguese"[Language]',
         'lang.chinese':                '"chinese"[Language]',
         'lang.japanese':               '"japanese"[Language]',
+        # Species / Age / Sex (filter= format)
         'hum_ani.humans':              '"humans"[MeSH Terms]',
         'hum_ani.animals':             '"animals"[MeSH Terms]',
         'ages.child':                  '"child"[MeSH Terms]',
@@ -1041,6 +1044,7 @@ def search_url():
         'ages.aged':                   '"aged"[MeSH Terms]',
         'ffrft.Y':                     '"full text"[Filter]',
         'simsearch2.ffrft':            '"free full text"[Filter]',
+        # Article types — type.* format (older PubMed URLs)
         'type.clinicaltrial':          '"Clinical Trial"[Publication Type]',
         'type.review':                 '"Review"[Publication Type]',
         'type.systematicreview':       '"Systematic Review"[Publication Type]',
@@ -1051,6 +1055,50 @@ def search_url():
         'type.journal':                '"Journal Article"[Publication Type]',
         'sex.female':                  '"female"[MeSH Terms]',
         'sex.male':                    '"male"[MeSH Terms]',
+        # Article types — pubt.* format (current PubMed URLs)
+        'pubt.adaptiveclinicaltrial':         '"Adaptive Clinical Trial"[Publication Type]',
+        'pubt.address':                       '"Address"[Publication Type]',
+        'pubt.biography':                     '"Biography"[Publication Type]',
+        'pubt.booksanddocuments':             '"Books and Documents"[Publication Type]',
+        'pubt.casereports':                   '"Case Reports"[Publication Type]',
+        'pubt.clinicalstudy':                 '"Clinical Study"[Publication Type]',
+        'pubt.clinicaltrial':                 '"Clinical Trial"[Publication Type]',
+        'pubt.clinicaltrialprotocol':         '"Clinical Trial Protocol"[Publication Type]',
+        'pubt.clinicaltrialphase1':           '"Clinical Trial, Phase I"[Publication Type]',
+        'pubt.clinicaltrialphase2':           '"Clinical Trial, Phase II"[Publication Type]',
+        'pubt.clinicaltrialphase3':           '"Clinical Trial, Phase III"[Publication Type]',
+        'pubt.clinicaltrialphase4':           '"Clinical Trial, Phase IV"[Publication Type]',
+        'pubt.clinicaltrialphaseii':          '"Clinical Trial, Phase II"[Publication Type]',
+        'pubt.clinicaltrialphaseiii':         '"Clinical Trial, Phase III"[Publication Type]',
+        'pubt.clinicaltrialphaseiv':          '"Clinical Trial, Phase IV"[Publication Type]',
+        'pubt.clinicaltrial,veterinary':      '"Clinical Trial, Veterinary"[Publication Type]',
+        'pubt.collectedwork':                 '"Collected Work"[Publication Type]',
+        'pubt.comment':                       '"Comment"[Publication Type]',
+        'pubt.comparativestudy':              '"Comparative Study"[Publication Type]',
+        'pubt.conferenceproceedings':         '"Conference Proceedings"[Publication Type]',
+        'pubt.consensusstatement':            '"Consensus Development Conference"[Publication Type]',
+        'pubt.controlledclinicaltrial':       '"Controlled Clinical Trial"[Publication Type]',
+        'pubt.dataset':                       '"Dataset"[Publication Type]',
+        'pubt.editorial':                     '"Editorial"[Publication Type]',
+        'pubt.equivalencetrial':              '"Equivalence Trial"[Publication Type]',
+        'pubt.evaluationstudy':               '"Evaluation Study"[Publication Type]',
+        'pubt.guideline':                     '"Guideline"[Publication Type]',
+        'pubt.historicalarticle':             '"Historical Article"[Publication Type]',
+        'pubt.interview':                     '"Interview"[Publication Type]',
+        'pubt.letter':                        '"Letter"[Publication Type]',
+        'pubt.meta-analysis':                 '"Meta-Analysis"[Publication Type]',
+        'pubt.multicenterstudy':              '"Multicenter Study"[Publication Type]',
+        'pubt.news':                          '"News"[Publication Type]',
+        'pubt.observationalstudy':            '"Observational Study"[Publication Type]',
+        'pubt.practiceguideline':             '"Practice Guideline"[Publication Type]',
+        'pubt.pragmaticclinicaltrial':        '"Pragmatic Clinical Trial"[Publication Type]',
+        'pubt.preprint':                      '"Preprint"[Publication Type]',
+        'pubt.randomizedcontrolledtrial':     '"Randomized Controlled Trial"[Publication Type]',
+        'pubt.review':                        '"Review"[Publication Type]',
+        'pubt.scopingreview':                 '"Systematic Review"[Publication Type]',
+        'pubt.systematicreview':              '"Systematic Review"[Publication Type]',
+        'pubt.twinstudy':                     '"Twin Study"[Publication Type]',
+        'pubt.validationstudy':               '"Validation Study"[Publication Type]',
     }
 
     try:
@@ -1076,7 +1124,7 @@ def search_url():
         params  = parse_qs(parsed.query, keep_blank_values=False)
         term    = params.get('term', [''])[0].strip()
         filters = params.get('filter', [])
-
+        sort    = params.get('sort', ['relevance'])[0]  # e.g. 'date', 'relevance'
         if not term:
             return render_template('index_multi_with_logo.html',
                                  error="No search term found in the URL. "
@@ -1086,11 +1134,16 @@ def search_url():
         # ── Convert filters to Entrez clauses ────────────────────────────
         filter_clauses = []
         unknown_filters = []
+        seen_clauses = set()
         for f in filters:
             if f in FILTER_MAP:
-                filter_clauses.append(FILTER_MAP[f])
+                clause = FILTER_MAP[f]
+                if clause not in seen_clauses:   # deduplicate
+                    filter_clauses.append(clause)
+                    seen_clauses.add(clause)
             else:
-                unknown_filters.append(f)
+                if f not in unknown_filters:
+                    unknown_filters.append(f)
 
         if unknown_filters:
             print(f"  [search_url] unrecognised filters (ignored): {unknown_filters}")
@@ -1162,6 +1215,55 @@ def search_url():
         if len(_search_cache) > CACHE_MAX:
             del _search_cache[next(iter(_search_cache))]
 
+        # ── Map pubt.* filters to sidebar checkbox IDs ────────────────────
+        PUBT_TO_CHECKBOX = {
+            'pubt.clinicalstudy':             'f-type-clinical-study',
+            'pubt.clinicaltrial':             'f-type-clinical',
+            'pubt.clinicaltrialphaseii':      'f-type-clinical-2',
+            'pubt.clinicaltrialphaseiii':     'f-type-clinical-3',
+            'pubt.clinicaltrialphaseiv':      'f-type-clinical-4',
+            'pubt.meta-analysis':             'f-type-meta',
+            'pubt.observationalstudy':        'f-type-observational',
+            'pubt.randomizedcontrolledtrial': 'f-type-rct',
+            'pubt.review':                    'f-type-review',
+            'pubt.systematicreview':          'f-type-systematic',
+            'pubt.controlledclinicaltrial':   'f-type-clinical',
+            'pubt.comparativestudy':          'f-type-journal',
+            'pubt.multicenterstudy':          'f-type-journal',
+            'pubt.conferenceproceedings':     'f-type-journal',
+            'datesearch.y_1':                 'date_1',
+            'datesearch.y_5':                 'date_5',
+            'datesearch.y_10':                'date_10',
+            'hum_ani.humans':                 'f-humans',
+            'hum_ani.animals':                'f-animals',
+            'sex.female':                     'f-female',
+            'sex.male':                       'f-male',
+            'ages.child':                     'f-child',
+            'ages.adult':                     'f-adult',
+            'ages.aged':                      'f-aged',
+            'ages.infant':                    'f-infant',
+            'simsearch2.ffrft':               'f-free-pmc',
+        }
+        PUBT_TO_MODAL_TYPE = {
+            'pubt.clinicaltrialphaseii':      'Clinical Trial, Phase II',
+            'pubt.clinicaltrialphaseiii':     'Clinical Trial, Phase III',
+            'pubt.clinicaltrialphaseiv':      'Clinical Trial, Phase IV',
+            'pubt.comparativestudy':          'Comparative Study',
+            'pubt.conferenceproceedings':     'Conference Proceedings',
+            'pubt.controlledclinicaltrial':   'Controlled Clinical Trial',
+            'pubt.multicenterstudy':          'Multicenter Study',
+            'pubt.observationalstudy':        'Observational Study',
+            'pubt.randomizedcontrolledtrial': 'Randomized Controlled Trial',
+            'pubt.systematicreview':          'Systematic Review',
+            'pubt.meta-analysis':             'Meta-Analysis',
+            'pubt.review':                    'Review',
+            'pubt.clinicalstudy':             'Clinical Study',
+            'pubt.clinicaltrial':             'Clinical Trial',
+        }
+        active_checkboxes  = list({PUBT_TO_CHECKBOX[f]    for f in filters if f in PUBT_TO_CHECKBOX})
+        active_modal_types = list({PUBT_TO_MODAL_TYPE[f]  for f in filters if f in PUBT_TO_MODAL_TYPE})
+        active_date        = next((f.replace('datesearch.y_','') for f in filters if f.startswith('datesearch.y_')), '')
+
         return render_template('results_multi.html',
                              keywords=keywords,
                              keywords_str=keywords_str,
@@ -1169,7 +1271,10 @@ def search_url():
                              keyword_summary=keyword_summary,
                              total_articles=total_articles,
                              total_ncbi_articles=total_ncbi_articles,
-                             total_free_articles=total_free_articles)
+                             total_free_articles=total_free_articles,
+                             active_checkboxes=active_checkboxes,
+                             active_modal_types=active_modal_types,
+                             active_date=active_date)
 
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -2748,58 +2853,67 @@ def copilot_file():
         except Exception as e:
             return jsonify({'error': f'Could not read file: {e}'}), 400
 
-        context_lines = [f"Uploaded file: {fname} -- {len(articles)} articles\n"]
-        for i, art in enumerate(articles[:80], 1):
+        # ── Build compact context — cap at 20 articles, 120 chars per abstract ──
+        context_lines = [f"Dataset: {fname} ({len(articles)} total articles)\n"]
+        for i, art in enumerate(articles[:20], 1):
             def _g(*keys):
                 for k in keys:
                     v = art.get(k,'') or ''
                     if v and str(v).strip() not in ('','nan'): return str(v).strip()
                 return ''
-            title    = _g('Title','title')
-            abstract = _g('Abstract','abstract')
-            authors  = _g('Authors','authors')
-            journal  = _g('Journal','journal')
+            title    = _g('Title','title')[:100]
+            abstract = _g('Abstract','abstract')[:120]
+            journal  = _g('Journal','journal')[:50]
             pub_date = _g('Publication Date','publication_date')
             country  = _g('Country','country')
             pub_type = _g('Publication Type','publication_type')
-            fulltext = _g('_fulltext','Full Text (PMC)','full_text')
-            content  = abstract + (' ' + fulltext[:500] if fulltext else '')
             context_lines.append(
-                f"{i}. {title} | {journal} | {pub_date} | {pub_type} | {country}\n"
-                f"   Authors: {authors[:80]}\n   {content[:300]}\n"
+                f"{i}. {title} | {journal} | {pub_date} | {country} | {pub_type}\n"
+                f"   {abstract}\n"
             )
 
+        if len(articles) > 20:
+            context_lines.append(f"... and {len(articles)-20} more articles (showing first 20 for context)\n")
+
         article_context = '\n'.join(context_lines)
-        system_prompt = f"""You are EpiLite Co-pilot, an expert biomedical research assistant.
-The user has uploaded a file with {len(articles)} PubMed articles.
-UPLOADED ARTICLE DATA:\n{article_context}
-Guidelines:
-- Answer based on the article data above
-- Be specific -- cite titles, journals, or authors when relevant
-- If asked about AE grades, treatments, or clinical data, extract from the abstracts
-- If data is not available, say so clearly
-- Format responses clearly with bullet points where helpful"""
+
+        # Keep total system prompt under 2000 chars
+        system_prompt = (
+            f"You are EpiLite Co-pilot, a biomedical research assistant. "
+            f"The user uploaded {len(articles)} PubMed articles. "
+            f"Answer questions based on this data:\n\n{article_context}\n\n"
+            f"Be concise, specific, and cite article titles when relevant."
+        )
 
         GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
         if not GROQ_KEY:
             return jsonify({'error': 'GROQ_API_KEY not set in .env file'}), 500
 
+        # Only keep last 2 turns of history to save tokens
         groq_messages = [{'role': 'system', 'content': system_prompt}]
-        for msg in history[-6:]:
-            groq_messages.append({'role': msg['role'], 'content': msg['content']})
+        for msg in history[-2:]:
+            groq_messages.append({'role': msg['role'], 'content': str(msg['content'])[:300]})
+        groq_messages.append({'role': 'user', 'content': question[:500]})
 
         resp = http_requests.post(
             'https://api.groq.com/openai/v1/chat/completions',
             headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_KEY}'},
-            json={'model': 'llama-3.1-8b-instant', 'max_tokens': 1200, 'temperature': 0.3,
-                  'messages': groq_messages},
+            json={
+                'model':       'llama-3.3-70b-versatile',  # higher TPM limit than 8b-instant
+                'max_tokens':  800,
+                'temperature': 0.3,
+                'messages':    groq_messages,
+            },
             timeout=30,
         )
+        if resp.status_code == 429:
+            err = resp.json().get('error', {}).get('message', '')
+            return jsonify({'error': f'Rate limit hit. Please wait 30 seconds and try again. ({err[:80]})'}), 429
         if resp.status_code != 200:
             err = resp.json().get('error', {}).get('message', resp.text[:150])
             return jsonify({'error': f'AI error: {err}'}), 500
         answer = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '')
-        return jsonify({'answer': answer, 'articles_used': len(articles)})
+        return jsonify({'answer': answer, 'articles_used': min(len(articles), 20)})
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
