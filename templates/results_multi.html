@@ -1231,14 +1231,14 @@ function applyFilters(){
     const artMode  = document.getElementById('ctrl-art-sort').value;
     const sorted   = sortKwGroups(ALL_DATA, kwOrder);
 
-    // renderSections returns {keyword: shownCount} and {keyword: freeCount}
+    // Get counts only (renderSections also writes DOM but we override with renderPage)
     const { fc, freeCounts } = renderSections(sorted, limit, artMode);
 
-    // Build flat article list for pagination and render page 1
+    // Build flat list and render page 1 (this OVERRIDES renderSections DOM output)
     buildFlatArticleList(sorted, limit, artMode);
     renderPage(1);
 
-    // Pass filtered free counts to cards and matching bar
+    // Cards, matching bar, exports, counters
     renderCards(sorted, limit, fc, freeCounts);
     renderMatchingBar(sorted, freeCounts);
     updateExports(limit, kwOrder);
@@ -1444,12 +1444,11 @@ function jumpToPage() {
 }
 
 function changePage(p) {
-    const total = _allArticles.length;
-    const totalPages = Math.ceil(total / PAGE_SIZE);
-    if (p < 1 || p > totalPages) return;
+    if (p < 1 || p > _totalPages) return;
     renderPage(p);
-    // Scroll to top of results
-    document.getElementById('kw-sections').scrollIntoView({behavior:'smooth', block:'start'});
+    // Scroll to top of results area
+    const target = document.getElementById('kw-sections') || document.querySelector('.content');
+    if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 </script>
