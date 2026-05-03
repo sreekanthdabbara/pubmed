@@ -939,44 +939,20 @@ function renderArticle(art,uid){
     return `<div class="${cls}"><div class="article-top"><div class="article-title"><a href="${esc(art.url)}" target="_blank" rel="noopener">${esc(art.title)}</a></div><div class="article-badges">${badges}</div></div>${pmcBtns}<div class="article-meta"><span><i class="fas fa-fingerprint"></i> PMID: ${esc(art.pmid)}</span>${art.journal&&art.journal!=='N/A'?`<span><i class="fas fa-book"></i> ${trunc(art.journal,50)}</span>`:''}${art.publication_date&&art.publication_date!=='N/A'?`<span><i class="fas fa-calendar"></i> ${esc(art.publication_date)}</span>`:''}${art.publication_type&&art.publication_type!=='N/A'?`<span><i class="fas fa-file-alt"></i> ${esc(art.publication_type)}</span>`:''}${art.authors&&art.authors!=='N/A'?`<span><i class="fas fa-users"></i> ${trunc(art.authors,70)}</span>`:''}${art.country&&art.country!=='N/A'?`<span><i class="fas fa-globe"></i> ${esc(art.country)}</span>`:''}${art.pmc_id&&art.pmc_id!=='N/A'?`<span style="color:#276749"><i class="fas fa-database"></i> ${esc(art.pmc_id)}</span>`:''}</div>${hitsPanel}${absBlock}</div>`;
 }
 
-/* ── Render sections ───────────────────────── */
 function renderSections(sorted, limit, artMode){
-    let html='';
-    const fc         = {};   // {keyword: shownCount}
-    const freeCounts = {};   // {keyword: filteredFreeCount}
+    const fc         = {};
+    const freeCounts = {};
     const pmcOnly    = (artMode === 'pmc_first' || artMode === 'kw_match_pmc');
 
     sorted.forEach((kw,i)=>{
         const base     = limit ? kw.results.slice(0,limit) : kw.results;
         let articles   = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
 
-        // When Free PMC first / KW+PMC mode selected, count only free PMC for cards
         freeCounts[kw.keyword] = articles.filter(a => a.is_free_pmc).length;
-
-        // If pmc_first: show count of free PMC articles prominently
-        if (pmcOnly) {
-            fc[kw.keyword] = freeCounts[kw.keyword];
-        } else {
-            fc[kw.keyword] = articles.length;
-        }
-
-        const hasMore = kw.has_more||(kw.ncbi_total||kw.count)>kw.count;
-        const freeCount = freeCounts[kw.keyword];
-        const cb=(limit&&kw.count>limit)?`<span class="badge badge-grey">Showing ${articles.length} of ${kw.count}</span>`:`<span class="badge badge-blue">${articles.length} article${articles.length!==1?'s':''}</span>`;
-        const fb=freeCount?`<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${freeCount} Free PMC</span>`:'';
-        const mb=articles.filter(a=>(a.keyword_match_count||0)>1).length?`<span class="badge badge-orange"><i class="fas fa-tags"></i> ${articles.filter(a=>(a.keyword_match_count||0)>1).length} multi-kw</span>`:'';
-        let rows=''; let phase=null;
-        if(!articles.length) rows='<div class="no-results-msg">No articles match the current filters.</div>';
-        else articles.forEach((art,j)=>{
-            let np=artMode==='kw_match_pmc'?(art.is_free_pmc&&(art.keyword_match_count||0)>1?'pmc-multi':art.is_free_pmc?'pmc':(art.keyword_match_count||0)>1?'multi':'regular'):artMode==='kw_match'?(art.keyword_match_count||0)>1?'multi':'regular':artMode==='pmc_first'?art.is_free_pmc?'pmc':'regular':null;
-            if(np&&np!==phase&&j>0){phase=np;let lbl='';if(np==='multi')lbl='<i class="fas fa-tags"></i> Matched Multiple Keywords';else if(np==='pmc')lbl='<i class="fas fa-unlock-alt"></i> Free PMC Articles';else if(np==='regular')lbl='<i class="fas fa-lock"></i> Other Articles';if(lbl)rows+=`<div class="section-divider${np==='multi'?' orange':''}">${lbl}</div>`;}
-            else if(j===0)phase=np;
-            rows+=renderArticle(art,`${i}-${j}`);
-        });
-        const lmBar=hasMore?`<div class="load-more-bar" id="load-more-bar-${i}"><span class="load-more-info">Showing <strong id="lm-fetched-${i}">${kw.fetched||kw.count}</strong> of <strong>${(kw.ncbi_total||kw.count).toLocaleString()}</strong></span><button class="btn-load-more" id="btn-lm-${i}" onclick="loadMore(${i},'${esc(kw.keyword)}',${kw.fetched||kw.count},${kw.ncbi_total||kw.count})"><i class="fas fa-plus-circle load-icon"></i><i class="fas fa-spinner fa-spin load-spinner"></i>Load ${Math.min(500,(kw.ncbi_total||kw.count)-(kw.fetched||kw.count)).toLocaleString()} more</button></div>`:'';
-        html+=`<div class="kw-section" id="kws-${i}"><div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw.keyword)}</h2>${cb}${fb}${mb}</div><div class="article-list" id="article-list-${i}">${rows}</div>${lmBar}</div>`;
+        fc[kw.keyword] = pmcOnly ? freeCounts[kw.keyword] : articles.length;
     });
-    document.getElementById('kw-sections').innerHTML=html;
+
+    // NOTE: We do NOT write to kw-sections here — renderPage() handles that
     return { fc, freeCounts };
 }
 
@@ -1404,32 +1380,40 @@ function renderPage(pageNum) {
     const end   = start + PAGE_SIZE;
     const page  = _allArticles.slice(start, end);
     const total = _allArticles.length;
-    _totalPages = Math.ceil(total / PAGE_SIZE);
+    _totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
-    // Group by keyword for display
+    // Group page articles by keyword preserving order
     const byKw = {};
+    const kwOrder = [];
     page.forEach(({art, keyword}) => {
-        if (!byKw[keyword]) byKw[keyword] = [];
+        if (!byKw[keyword]) { byKw[keyword] = []; kwOrder.push(keyword); }
         byKw[keyword].push(art);
     });
 
     let html = '';
-    Object.entries(byKw).forEach(([kw, articles], i) => {
-        const cb = `<span class="badge badge-blue">${articles.length} article${articles.length!==1?'s':''}</span>`;
-        const freeCount = articles.filter(a=>a.is_free_pmc).length;
-        const fb = freeCount ? `<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${freeCount} Free PMC</span>` : '';
-        let rows = '';
-        articles.forEach((art, j) => { rows += renderArticle(art, `pg-${i}-${j}`); });
-        html += `<div class="kw-section"><div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw)}</h2>${cb}${fb}</div><div class="article-list">${rows}</div></div>`;
-    });
+    if (!page.length) {
+        html = '<div class="no-results-msg" style="padding:2rem;text-align:center;color:#718096"><i class="fas fa-search" style="font-size:2rem;display:block;margin-bottom:.75rem;opacity:.3"></i>No articles match the current filters.</div>';
+    } else {
+        kwOrder.forEach((kw, i) => {
+            const articles  = byKw[kw];
+            const freeCount = articles.filter(a => a.is_free_pmc).length;
+            const cb = `<span class="badge badge-blue">${articles.length} article${articles.length!==1?'s':''}</span>`;
+            const fb = freeCount ? `<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${freeCount} Free PMC</span>` : '';
+            let rows = '';
+            articles.forEach((art, j) => { rows += renderArticle(art, `pg-${pageNum}-${i}-${j}`); });
+            html += `<div class="kw-section"><div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw)}</h2>${cb}${fb}</div><div class="article-list">${rows}</div></div>`;
+        });
+    }
 
     document.getElementById('kw-sections').innerHTML = html;
 
-    // Update pagination controls
+    // Show/hide pagination
     const wrap = document.getElementById('pagination-wrap');
-    if (total <= PAGE_SIZE) { wrap.style.display = 'none'; return; }
+    if (total <= PAGE_SIZE) {
+        wrap.style.display = 'none';
+        return;
+    }
     wrap.style.display = 'flex';
-
     document.getElementById('pg-first').disabled = pageNum <= 1;
     document.getElementById('pg-prev').disabled  = pageNum <= 1;
     document.getElementById('pg-next').disabled  = pageNum >= _totalPages;
