@@ -169,12 +169,16 @@
 
         /* Keyword section */
         /* ── Pagination ── */
-        .pagination-wrap { display:flex; align-items:center; justify-content:center; gap:.35rem; padding:1rem 1.5rem; flex-shrink:0; }
-        .pg-btn { min-width:32px; height:32px; display:flex; align-items:center; justify-content:center; border:1.5px solid #e2e8f0; border-radius:7px; font-size:.78rem; font-weight:600; color:#4a5568; background:#fff; cursor:pointer; transition:all .15s; padding:0 .5rem; }
-        .pg-btn:hover { border-color:#2b6cb0; color:#2b6cb0; }
-        .pg-btn.active { background:#2b6cb0; color:#fff; border-color:#2b6cb0; }
-        .pg-btn:disabled { opacity:.35; cursor:not-allowed; }
-        .pg-ellipsis { color:#a0aec0; font-size:.78rem; padding:0 .2rem; }
+        .pagination-wrap { display:flex; align-items:center; justify-content:center; gap:.5rem; padding:1.25rem 1.5rem; flex-shrink:0; border-top:1px solid #e2e8f0; background:#fff; }
+        .pg-btn { display:flex; align-items:center; gap:.3rem; padding:.4rem .8rem; border:none; background:none; font-size:.82rem; font-weight:600; color:#2b6cb0; cursor:pointer; border-radius:6px; transition:all .15s; }
+        .pg-btn:hover:not(:disabled) { background:#ebf8ff; }
+        .pg-btn:disabled { color:#a0aec0; cursor:not-allowed; }
+        .pg-btn i { font-size:.7rem; }
+        .pg-divider { color:#e2e8f0; font-size:1.1rem; }
+        .pg-info { display:flex; align-items:center; gap:.5rem; font-size:.82rem; color:#4a5568; }
+        .pg-input { width:48px; text-align:center; border:1.5px solid #e2e8f0; border-radius:6px; padding:.3rem .4rem; font-size:.82rem; font-family:inherit; color:#2d3748; }
+        .pg-input:focus { outline:none; border-color:#2b6cb0; }
+        .pg-total { color:#4a5568; }
         .kw-section { margin-bottom: 1.75rem; }
         .kw-section-header { display: flex; align-items: center; gap: .55rem; background: #fff; border-radius: 8px 8px 0 0; padding: .7rem .95rem; border-left: 4px solid #2b6cb0; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
         .kw-section-header h2 { font-size: .92rem; font-weight: 700; color: #1a365d; flex: 1; }
@@ -500,12 +504,28 @@
 
         <!-- Pagination -->
         <div class="pagination-wrap" id="pagination-wrap" style="display:none">
-            <button class="pg-btn" id="pg-prev" onclick="changePage(_curPage-1)">
-                <i class="fas fa-chevron-left"></i> Prev
+            <button class="pg-btn" id="pg-first" onclick="changePage(1)">
+                <i class="fas fa-angle-double-left"></i> First
             </button>
-            <div id="pg-numbers" style="display:flex;gap:.35rem;"></div>
+            <span class="pg-divider">|</span>
+            <button class="pg-btn" id="pg-prev" onclick="changePage(_curPage-1)">
+                <i class="fas fa-angle-left"></i> Prev
+            </button>
+            <span class="pg-divider">|</span>
+            <div class="pg-info">
+                Page
+                <input class="pg-input" id="pg-input" type="number" min="1" value="1"
+                       onkeydown="if(event.key==='Enter') jumpToPage()"
+                       onblur="jumpToPage()">
+                of <span class="pg-total" id="pg-total">1</span>
+            </div>
+            <span class="pg-divider">|</span>
             <button class="pg-btn" id="pg-next" onclick="changePage(_curPage+1)">
-                Next <i class="fas fa-chevron-right"></i>
+                Next <i class="fas fa-angle-right"></i>
+            </button>
+            <span class="pg-divider">|</span>
+            <button class="pg-btn" id="pg-last" onclick="changePage(_totalPages)">
+                Last <i class="fas fa-angle-double-right"></i>
             </button>
         </div>
     </div><!-- /content -->
@@ -924,13 +944,21 @@ function renderSections(sorted, limit, artMode){
     let html='';
     const fc         = {};   // {keyword: shownCount}
     const freeCounts = {};   // {keyword: filteredFreeCount}
+    const pmcOnly    = (artMode === 'pmc_first' || artMode === 'kw_match_pmc');
 
     sorted.forEach((kw,i)=>{
         const base     = limit ? kw.results.slice(0,limit) : kw.results;
-        const articles = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
+        let articles   = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
 
-        fc[kw.keyword]         = articles.length;
+        // When Free PMC first / KW+PMC mode selected, count only free PMC for cards
         freeCounts[kw.keyword] = articles.filter(a => a.is_free_pmc).length;
+
+        // If pmc_first: show count of free PMC articles prominently
+        if (pmcOnly) {
+            fc[kw.keyword] = freeCounts[kw.keyword];
+        } else {
+            fc[kw.keyword] = articles.length;
+        }
 
         const hasMore = kw.has_more||(kw.ncbi_total||kw.count)>kw.count;
         const freeCount = freeCounts[kw.keyword];
@@ -954,31 +982,37 @@ function renderSections(sorted, limit, artMode){
 
 /* ── Render summary cards ──────────────────── */
 function renderCards(sorted, limit, fc, freeCounts){
-    // isFiltered = true if ANY sidebar filter is active (don't wait for NCBI API)
     const anyDateFilter  = (document.querySelector('input[name="pub_date"]:checked')?.value || '') !== '';
     const anyCheckFilter = document.querySelectorAll('.sidebar input[type="checkbox"]:checked').length > 0;
     const isFiltered     = anyDateFilter || anyCheckFilter || _filteredNcbiTotals !== null;
+    const artMode        = document.getElementById('ctrl-art-sort')?.value || '';
+    const pmcMode        = (artMode === 'pmc_first' || artMode === 'kw_match_pmc');
 
     document.getElementById('kw-summary').innerHTML = sorted.map((kw, i) => {
         const fetched     = kw.count;
         const matchFilter = fc[kw.keyword] ?? fetched;
         const ncbiTotal   = _filteredNcbiTotals?.[kw.keyword] ?? kw.ncbi_total ?? fetched;
         const freeNum     = freeCounts?.[kw.keyword] ?? kw.free_count;
-        // matchFilter already reflects artMode sort since fc comes from renderSections(artMode)
 
         let countHtml;
-        if (isFiltered) {
-            // Show filtered match count, not raw fetched count
+        if (pmcMode) {
+            // Free PMC mode: show free PMC count prominently
+            countHtml = `
+                <div class="kw-total">
+                    <span style="color:#276749">${freeNum.toLocaleString()}</span>
+                    <span style="font-size:.72rem;color:#718096;font-weight:400"> / ${ncbiTotal.toLocaleString()}</span>
+                </div>
+                <div class="kw-shown" style="color:#276749">
+                    <i class="fas fa-unlock-alt"></i> free PMC / in NCBI
+                </div>`;
+        } else if (isFiltered) {
             countHtml = `
                 <div class="kw-total">
                     <span style="color:#2b6cb0">${matchFilter.toLocaleString()}</span>
                     <span style="font-size:.72rem;color:#718096;font-weight:400"> / ${ncbiTotal.toLocaleString()}</span>
                 </div>
-                <div class="kw-shown">
-                    match filter / in NCBI
-                </div>`;
+                <div class="kw-shown">match filter / in NCBI</div>`;
         } else {
-            // No filter: show fetched / NCBI total
             countHtml = `
                 <div class="kw-total">
                     ${fetched.toLocaleString()}
@@ -1350,6 +1384,7 @@ document.getElementById('article-type-modal').addEventListener('click', function
 // ── Pagination ─────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20;
 var _curPage    = 1;
+var _totalPages = 1;
 var _allArticles = [];   // flat list of all filtered articles across all keywords
 
 function buildFlatArticleList(sorted, limit, artMode) {
@@ -1369,7 +1404,7 @@ function renderPage(pageNum) {
     const end   = start + PAGE_SIZE;
     const page  = _allArticles.slice(start, end);
     const total = _allArticles.length;
-    const totalPages = Math.ceil(total / PAGE_SIZE);
+    _totalPages = Math.ceil(total / PAGE_SIZE);
 
     // Group by keyword for display
     const byKw = {};
@@ -1395,28 +1430,17 @@ function renderPage(pageNum) {
     if (total <= PAGE_SIZE) { wrap.style.display = 'none'; return; }
     wrap.style.display = 'flex';
 
-    document.getElementById('pg-prev').disabled = pageNum <= 1;
-    document.getElementById('pg-next').disabled = pageNum >= totalPages;
+    document.getElementById('pg-first').disabled = pageNum <= 1;
+    document.getElementById('pg-prev').disabled  = pageNum <= 1;
+    document.getElementById('pg-next').disabled  = pageNum >= _totalPages;
+    document.getElementById('pg-last').disabled  = pageNum >= _totalPages;
+    document.getElementById('pg-input').value    = pageNum;
+    document.getElementById('pg-total').textContent = _totalPages;
+}
 
-    // Page number buttons — show up to 10 pages
-    const nums = document.getElementById('pg-numbers');
-    nums.innerHTML = '';
-    let startP = Math.max(1, pageNum - 4);
-    let endP   = Math.min(totalPages, startP + 9);
-    if (endP - startP < 9) startP = Math.max(1, endP - 9);
-
-    if (startP > 1) {
-        nums.insertAdjacentHTML('beforeend', '<button class="pg-btn" onclick="changePage(1)">1</button>');
-        if (startP > 2) nums.insertAdjacentHTML('beforeend', '<span class="pg-ellipsis">…</span>');
-    }
-    for (let p = startP; p <= endP; p++) {
-        nums.insertAdjacentHTML('beforeend',
-            `<button class="pg-btn${p===pageNum?' active':''}" onclick="changePage(${p})">${p}</button>`);
-    }
-    if (endP < totalPages) {
-        if (endP < totalPages - 1) nums.insertAdjacentHTML('beforeend', '<span class="pg-ellipsis">…</span>');
-        nums.insertAdjacentHTML('beforeend', `<button class="pg-btn" onclick="changePage(${totalPages})">${totalPages}</button>`);
-    }
+function jumpToPage() {
+    const val = parseInt(document.getElementById('pg-input').value) || 1;
+    changePage(Math.max(1, Math.min(val, _totalPages)));
 }
 
 function changePage(p) {
