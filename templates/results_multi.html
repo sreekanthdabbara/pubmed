@@ -107,6 +107,11 @@
         .filter-item { display: flex; align-items: center; gap: .4rem; margin-bottom: .32rem; cursor: pointer; font-size: .78rem; color: #4a5568; line-height: 1.3; }
         .filter-item:hover { color: #2b6cb0; }
         .filter-item input[type="radio"], .filter-item input[type="checkbox"] { accent-color: #2b6cb0; width: 12px; height: 12px; cursor: pointer; flex-shrink: 0; }
+        .see-all-link { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; color:#2b6cb0; text-decoration:none; margin-top:.25rem; font-weight:600; border-bottom:1px dashed #bee3f8; }
+        .see-all-link:hover { color:#1a365d; }
+        .modal-type-label { display:flex; align-items:center; gap:.5rem; font-size:.78rem; color:#2d3748; padding:.3rem .5rem; border-radius:5px; cursor:pointer; }
+        .modal-type-label:hover { background:#f7fafc; }
+        .modal-type-label input { accent-color:#2b6cb0; width:14px; height:14px; flex-shrink:0; cursor:pointer; }
         .date-range-wrap { display: none; gap: .3rem; margin-top: .35rem; flex-direction: column; }
         .date-range-wrap.visible { display: flex; }
         .date-range-wrap input { width: 100%; border: 1.5px solid #cbd5e0; border-radius: 6px; padding: .28rem .45rem; font-size: .74rem; color: #2d3748; }
@@ -346,14 +351,37 @@
         <!-- Article Type -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-tag" style="color:#2b6cb0"></i> Article Type</div>
-            <label class="filter-item"><input type="checkbox" id="f-type-journal"      onchange="scheduleNcbiCount();applyFilters()"> Journal Article</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-review"       onchange="scheduleNcbiCount();applyFilters()"> Review</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-systematic"   onchange="scheduleNcbiCount();applyFilters()"> Systematic Review</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-meta"         onchange="scheduleNcbiCount();applyFilters()"> Meta-Analysis</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-rct"          onchange="scheduleNcbiCount();applyFilters()"> Randomized Controlled Trial</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-clinical"     onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-case"         onchange="scheduleNcbiCount();applyFilters()"> Case Reports</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-observational" onchange="scheduleNcbiCount();applyFilters()"> Observational Study</label>
+            <!-- Initial visible types -->
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-study"  onchange="scheduleNcbiCount();applyFilters()"> Clinical Study</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical"        onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-2"      onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase II</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-3"      onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase III</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-4"      onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase IV</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-meta"            onchange="scheduleNcbiCount();applyFilters()"> Meta-Analysis</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-observational"   onchange="scheduleNcbiCount();applyFilters()"> Observational Study</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-rct"             onchange="scheduleNcbiCount();applyFilters()"> Randomized Controlled Trial</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-review"          onchange="scheduleNcbiCount();applyFilters()"> Review</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-systematic"      onchange="scheduleNcbiCount();applyFilters()"> Systematic Review</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-journal"         onchange="scheduleNcbiCount();applyFilters()"> Journal Article</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-case"            onchange="scheduleNcbiCount();applyFilters()"> Case Reports</label>
+            <a href="#" class="see-all-link" onclick="openArticleTypeModal();return false;">
+                <i class="fas fa-list"></i> See all article type filters
+            </a>
+        </div>
+
+        <!-- Article Type Modal -->
+        <div id="article-type-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+            <div style="background:#fff;border-radius:14px;width:860px;max-width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+                <div style="padding:1.1rem 1.5rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+                    <div style="font-size:.8rem;font-weight:800;color:#2d3748;text-transform:uppercase;letter-spacing:.08em">Article Type</div>
+                    <button onclick="closeArticleTypeModal()" style="background:none;border:none;font-size:1.1rem;color:#a0aec0;cursor:pointer;">&times;</button>
+                </div>
+                <div id="modal-type-list" style="padding:1rem 1.5rem;overflow-y:auto;flex:1;display:grid;grid-template-columns:1fr 1fr;gap:.3rem .5rem;"></div>
+                <div style="padding:.9rem 1.5rem;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:.75rem;">
+                    <button onclick="closeArticleTypeModal()" style="padding:.5rem 1.4rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;font-size:.83rem;font-weight:600;cursor:pointer;color:#4a5568;">Cancel</button>
+                    <button onclick="applyModalTypes()" style="padding:.5rem 1.4rem;border:none;border-radius:8px;background:#2b6cb0;color:#fff;font-size:.83rem;font-weight:600;cursor:pointer;">Apply</button>
+                </div>
+            </div>
         </div>
 
         <!-- Species -->
@@ -777,6 +805,7 @@ function articlePassesSidebarFilters(art) {
         const pt = (art.publication_type||'').toLowerCase();
         const matchesType =
             (getChecked('f-type-journal')       && (pt.includes('journal article') || !pt)) ||
+            (_modalSelectedTypes.size > 0 && [..._modalSelectedTypes].some(function(mt){ return pt.includes(mt.toLowerCase()); })) ||
             (getChecked('f-type-review')        && pt.includes('review'))         ||
             (getChecked('f-type-systematic')    && pt.includes('systematic'))     ||
             (getChecked('f-type-meta')          && pt.includes('meta-analysis'))  ||
@@ -1200,6 +1229,101 @@ function toggleAbs(id,btn){
 
 /* ── Initial render ────────────────────────── */
 applyFilters();
+
+// ── All article types ──────────────────────────────────────────────────────
+const ALL_ARTICLE_TYPES = ['Adaptive Clinical Trial', 'Address', 'Biography', 'Books and Documents', 'Case Reports', 'Clinical Study', 'Clinical Trial', 'Clinical Trial Protocol', 'Clinical Trial, Phase I', 'Clinical Trial, Phase II', 'Clinical Trial, Phase III', 'Clinical Trial, Phase IV', 'Clinical Trial, Veterinary', 'Collected Work', 'Comment', 'Comparative Study', 'Conference Proceedings', 'Consensus Statement', 'Controlled Clinical Trial', 'Corrected and Republished Article', 'Dataset', 'Duplicate Publication', 'Editorial', 'Electronic Supplementary Materials', 'English Abstract', 'Equivalence Trial', 'Evaluation Study', 'Evidence Synthesis', 'Expression of Concern', 'Festschrift', 'Guideline', 'Historical Article', 'Interview', 'Introductory Journal Article', 'Lecture', 'Letter', 'Meta-Analysis', 'Multicenter Study', 'Network Meta-Analysis', 'News', 'Observational Study', 'Observational Study, Veterinary', 'Patient Education Handout', 'Personal Narrative', 'Practice Guideline', 'Pragmatic Clinical Trial', 'Preprint', 'Published Erratum', 'Randomized Controlled Trial', 'Randomized Controlled Trial, Veterinary', 'Research Support, American Recovery and Reinvestment Act', 'Research Support, N.I.H., Extramural', 'Research Support, N.I.H., Intramural', "Research Support, Non-U.S. Gov't", "Research Support, U.S. Gov't, Non-P.H.S.", "Research Support, U.S. Gov't, P.H.S.", "Research Support, U.S. Gov't", 'Retracted Publication', 'Retraction Notice', 'Review', 'Scoping Review', 'Systematic Review', 'Twin Study', 'Validation Study', 'Video-Audio Media', 'Webcast'];
+
+// Track extra selected types from modal
+var _modalSelectedTypes = new Set();
+
+function openArticleTypeModal() {
+    var modal = document.getElementById('article-type-modal');
+    var list  = document.getElementById('modal-type-list');
+    modal.style.display = 'flex';
+
+    // Build checkboxes
+    list.innerHTML = '';
+    ALL_ARTICLE_TYPES.forEach(function(t) {
+        var id  = 'modal-type-' + t.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+        // Check if already selected in sidebar or modal set
+        var checked = _modalSelectedTypes.has(t) || isSidebarTypeChecked(t);
+        var label = document.createElement('label');
+        label.className = 'modal-type-label';
+        label.innerHTML = '<input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '> ' + t;
+        list.appendChild(label);
+    });
+}
+
+function isSidebarTypeChecked(typeName) {
+    // Map type names to sidebar checkbox IDs
+    var map = {
+        'Clinical Study':              'f-type-clinical-study',
+        'Clinical Trial':              'f-type-clinical',
+        'Clinical Trial, Phase II':    'f-type-clinical-2',
+        'Clinical Trial, Phase III':   'f-type-clinical-3',
+        'Clinical Trial, Phase IV':    'f-type-clinical-4',
+        'Meta-Analysis':               'f-type-meta',
+        'Observational Study':         'f-type-observational',
+        'Randomized Controlled Trial': 'f-type-rct',
+        'Review':                      'f-type-review',
+        'Systematic Review':           'f-type-systematic',
+        'Journal Article':             'f-type-journal',
+        'Case Reports':                'f-type-case',
+    };
+    var id = map[typeName];
+    return id ? (document.getElementById(id)?.checked || false) : false;
+}
+
+function closeArticleTypeModal() {
+    document.getElementById('article-type-modal').style.display = 'none';
+}
+
+function applyModalTypes() {
+    // Collect all checked types from modal
+    _modalSelectedTypes.clear();
+    ALL_ARTICLE_TYPES.forEach(function(t) {
+        var id  = 'modal-type-' + t.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+        var el  = document.getElementById(id);
+        if (el && el.checked) {
+            _modalSelectedTypes.add(t);
+            // Also sync back to sidebar checkboxes where they exist
+            syncToSidebar(t, true);
+        } else {
+            syncToSidebar(t, false);
+        }
+    });
+    closeArticleTypeModal();
+    scheduleNcbiCount();
+    applyFilters();
+}
+
+function syncToSidebar(typeName, checked) {
+    var map = {
+        'Clinical Study':              'f-type-clinical-study',
+        'Clinical Trial':              'f-type-clinical',
+        'Clinical Trial, Phase II':    'f-type-clinical-2',
+        'Clinical Trial, Phase III':   'f-type-clinical-3',
+        'Clinical Trial, Phase IV':    'f-type-clinical-4',
+        'Meta-Analysis':               'f-type-meta',
+        'Observational Study':         'f-type-observational',
+        'Randomized Controlled Trial': 'f-type-rct',
+        'Review':                      'f-type-review',
+        'Systematic Review':           'f-type-systematic',
+        'Journal Article':             'f-type-journal',
+        'Case Reports':                'f-type-case',
+    };
+    var id = map[typeName];
+    if (id) {
+        var el = document.getElementById(id);
+        if (el) el.checked = checked;
+    }
+}
+
+// Close modal on backdrop click
+document.getElementById('article-type-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeArticleTypeModal();
+});
+
 </script>
 </body>
 </html>
