@@ -11,7 +11,7 @@
         .topbar { background:linear-gradient(135deg,#1a365d,#2b6cb0); color:#fff; padding:.6rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
         .topbar-brand { font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:.5rem; }
         .topbar-meta { font-size:.75rem; opacity:.85; }
-        .action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; }
+        .action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; justify-content:center; }
         .action-tab { display:flex; align-items:center; gap:.4rem; padding:.4rem 1rem; border-radius:20px; font-size:.8rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
         .action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
         .page-body { display:flex; flex:1; min-height:0; }
@@ -20,7 +20,6 @@
         .step-pill.active { background:#63b3ed; box-shadow:0 0 0 3px rgba(99,179,237,.35); }
         .step-connector { width:2px; height:200px; background:#2b4c7e; margin:.25rem 0; }
         .main-content { flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
-        /* Step 1 */
         .step1-panel { background:#dbeafe; padding:1rem 1.5rem; border-bottom:2px solid #bfdbfe; flex-shrink:0; }
         .panel-title { font-size:.85rem; font-weight:700; color:#1e3a5f; margin-bottom:.75rem; display:flex; align-items:center; gap:.45rem; }
         .export-grid { display:flex; gap:.75rem; flex-wrap:wrap; }
@@ -32,7 +31,6 @@
         .btn-csv   { background:#e6fffa; color:#234e52; border-color:#81e6d9; }
         .btn-excel { background:#f0fff4; color:#22543d; border-color:#9ae6b4; }
         .btn-zip   { background:#ebf8ff; color:#2c5282; border-color:#90cdf4; }
-        /* Step 2 */
         .step2-panel { flex:1; display:flex; flex-direction:column; min-height:0; background:#fff; }
         .upload-bar { padding:.7rem 1.5rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:.85rem; flex-shrink:0; background:#f7fbff; }
         .upload-bar.has-file { background:#f0fff4; border-color:#9ae6b4; }
@@ -41,7 +39,6 @@
         .upload-drop.has-file { border-color:#9ae6b4; background:#f0fff4; color:#276749; }
         .upload-hint-text { font-size:.7rem; color:#718096; line-height:1.4; }
         .upload-hint-text b { color:#2b6cb0; }
-        /* Chat */
         .chat-area { flex:1; display:flex; flex-direction:column; min-height:0; }
         .suggest-row { display:flex; flex-wrap:wrap; gap:.32rem; padding:.5rem 1.5rem .2rem; flex-shrink:0; }
         .suggest-chip { font-size:.69rem; background:#ebf8ff; color:#2b6cb0; border:1px solid #bee3f8; border-radius:14px; padding:.22rem .62rem; cursor:pointer; white-space:nowrap; }
@@ -66,7 +63,6 @@
         @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
         .dl-excel-btn { display:inline-flex; align-items:center; gap:.4rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:7px; padding:.45rem 1rem; font-size:.78rem; font-weight:700; cursor:pointer; text-decoration:none; margin-top:.4rem; }
         .dl-excel-btn:hover { opacity:.88; }
-        /* Input area */
         .chat-input-wrap { padding:.6rem 1.2rem .7rem; border-top:1px solid #e2e8f0; flex-shrink:0; }
         .attach-preview { display:none; background:#ebf8ff; border:1px solid #bee3f8; border-radius:8px; padding:.3rem .75rem; margin-bottom:.35rem; font-size:.73rem; color:#2b6cb0; align-items:center; justify-content:space-between; gap:.5rem; }
         .attach-preview.show { display:flex; }
@@ -149,23 +145,12 @@
                 </div>
                 <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" style="display:none" onchange="fileChosen(this)">
                 <div class="upload-hint-text">
-                    <b>Tip:</b> Export Abstract + Full text Excel for best AI results<br>
-                    <b>Or:</b> Drag &amp; drop your ZIP of PDFs here
+                    <b>Tip:</b> Export your preferred download type and upload for best AI results
                 </div>
             </div>
 
             <!-- Chat -->
             <div class="chat-area">
-                <div class="suggest-row" id="suggest-row">
-                    <span class="suggest-chip" onclick="chip(this)">Summarize key findings</span>
-                    <span class="suggest-chip" onclick="chip(this)">What study types are included?</span>
-                    <span class="suggest-chip" onclick="chip(this)">Which cancers are most studied?</span>
-                    <span class="suggest-chip" onclick="chip(this)">What treatments are mentioned?</span>
-                    <span class="suggest-chip" onclick="chip(this)">What AE grades are reported?</span>
-                    <span class="suggest-chip" onclick="chip(this)">Top countries and institutions</span>
-                    <span class="suggest-chip" onclick="chip(this)">Generate AE extraction Excel report</span>
-                    <span class="suggest-chip" onclick="chip(this)">Compare findings across keywords</span>
-                </div>
 
                 <div class="chat-messages" id="chat-messages">
                     <div class="cmsg bot">
@@ -215,13 +200,10 @@
 </div><!-- /page-body -->
 
 <script>
-// ── Export URLs ─────────────────────────────────────────────────────
 var KWS = '{{ keywords_str }}';
 
-// Build QS including ALL URL params so sidebar filters pass through to exports
 var QS = (function() {
     var params = new URLSearchParams(window.location.search);
-    // Ensure core params are always present
     if (!params.get('keywords'))    params.set('keywords',   KWS);
     if (!params.get('search_id'))   params.set('search_id',  '{{ search_id }}');
     if (!params.get('max_results')) params.set('max_results','{{ max_results }}');
@@ -236,17 +218,14 @@ document.getElementById('dl-excel-full').href = '/export/multi/excel?' + QS;
 document.getElementById('dl-csv-pmc').href    = '/export/multi/csv?'   + QS + '&mode=pmc_only';
 document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&mode=pmc_only';
 
-// PDF ZIP — async background job
 document.getElementById('dl-pdfs').onclick = function() { startPdfJob(); };
 
-// ── State ──────────────────────────────────────────────────────────
-var datasetFile  = null;   // uploaded dataset (CSV/Excel/ZIP)
-var articleFile  = null;   // attached PDF article
-var templateFile = null;   // attached Excel template
+var datasetFile  = null;
+var articleFile  = null;
+var templateFile = null;
 var chatHistory  = [];
 var pollTimer    = null;
 
-// ── Dataset upload ─────────────────────────────────────────────────
 function fileChosen(input) {
     if (input.files && input.files[0]) {
         datasetFile = input.files[0];
@@ -268,12 +247,10 @@ function markUploaded(name) {
     document.getElementById('upload-drop').classList.add('has-file');
     document.getElementById('upload-bar').classList.add('has-file');
     document.getElementById('upload-label').innerHTML = '<i class="fas fa-check-circle"></i> ' + name;
-    document.getElementById('suggest-row').style.display = 'flex';
     document.getElementById('chat-input').placeholder = 'Ask me about your data, or say "generate report"...';
     addMsg('bot', '<p>File <b>' + name + '</b> loaded! Ask me questions or say <b>"generate AE extraction report"</b> to create the 51-column Excel.</p>');
 }
 
-// ── Article + Template attachment ─────────────────────────────────
 function artChosen(input, type) {
     if (!input.files || !input.files[0]) return;
     var file = input.files[0];
@@ -295,6 +272,7 @@ function artChosen(input, type) {
         document.getElementById('chat-input').placeholder = 'Now attach your Excel template via the green button, then send...';
     }
 }
+
 function clearAttach() {
     articleFile = null; templateFile = null;
     document.getElementById('attach-preview').classList.remove('show');
@@ -304,13 +282,11 @@ function clearAttach() {
     document.getElementById('tmpl-file').value = '';
 }
 
-// ── Suggest chips ──────────────────────────────────────────────────
 function chip(el) {
     document.getElementById('chat-input').value = el.textContent;
     send();
 }
 
-// ── Chat helpers ───────────────────────────────────────────────────
 function addMsg(role, html) {
     var wrap = document.getElementById('chat-messages');
     var div  = document.createElement('div');
@@ -345,7 +321,6 @@ function wantsReport(q) {
     return /generate|create|extract|report|excel|download|ae extraction|51.col/i.test(q);
 }
 
-// ── Main send ──────────────────────────────────────────────────────
 async function send() {
     var input = document.getElementById('chat-input');
     var q = input.value.trim();
@@ -356,7 +331,6 @@ async function send() {
     chatHistory.push({role:'user', content:q});
     showDots();
 
-    // Case 1: article (PDF) attached -- extract into template or default 51 columns
     if (articleFile) {
         hideDots();
         var pdfName  = articleFile.name;
@@ -379,7 +353,6 @@ async function send() {
         return;
     }
 
-    // Case 2: wants a report from dataset
     if (wantsReport(q) && datasetFile) {
         hideDots();
         var progMsg2 = addMsg('bot', '<p><i class="fas fa-magic"></i> Starting AE extraction report from your dataset...</p>');
@@ -393,14 +366,12 @@ async function send() {
         return;
     }
 
-    // Case 3: normal chat (with or without dataset)
     try {
         var fd3 = new FormData();
         if (datasetFile) fd3.append('file', datasetFile);
         fd3.append('history', JSON.stringify(chatHistory));
         fd3.append('question', q);
 
-        // If no dataset, use a fallback simple answer
         if (!datasetFile) {
             hideDots();
             addMsg('bot', '<p>Please upload your exported file using the upload bar above so I can answer questions about your research data. Or attach a single article via <i class="fas fa-paperclip"></i> for direct extraction.</p>');
@@ -425,7 +396,6 @@ async function send() {
     }
 }
 
-// ── Poll extraction job ────────────────────────────────────────────
 function pollJob(jobId, total, msgDiv) {
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(async function() {
@@ -456,7 +426,6 @@ function pollJob(jobId, total, msgDiv) {
     }, 1500);
 }
 
-// ── PDF ZIP job ────────────────────────────────────────────────────
 async function startPdfJob() {
     var btn = document.getElementById('dl-pdfs');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
