@@ -168,6 +168,13 @@
         .kw-free-badge { display: inline-flex; align-items: center; gap: .2rem; background: #f0fff4; color: #276749; border-radius: 8px; padding: .1rem .4rem; font-size: .64rem; font-weight: 600; margin-top: .25rem; }
 
         /* Keyword section */
+        /* ── Pagination ── */
+        .pagination-wrap { display:flex; align-items:center; justify-content:center; gap:.35rem; padding:1rem 1.5rem; flex-shrink:0; }
+        .pg-btn { min-width:32px; height:32px; display:flex; align-items:center; justify-content:center; border:1.5px solid #e2e8f0; border-radius:7px; font-size:.78rem; font-weight:600; color:#4a5568; background:#fff; cursor:pointer; transition:all .15s; padding:0 .5rem; }
+        .pg-btn:hover { border-color:#2b6cb0; color:#2b6cb0; }
+        .pg-btn.active { background:#2b6cb0; color:#fff; border-color:#2b6cb0; }
+        .pg-btn:disabled { opacity:.35; cursor:not-allowed; }
+        .pg-ellipsis { color:#a0aec0; font-size:.78rem; padding:0 .2rem; }
         .kw-section { margin-bottom: 1.75rem; }
         .kw-section-header { display: flex; align-items: center; gap: .55rem; background: #fff; border-radius: 8px 8px 0 0; padding: .7rem .95rem; border-left: 4px solid #2b6cb0; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
         .kw-section-header h2 { font-size: .92rem; font-weight: 700; color: #1a365d; flex: 1; }
@@ -483,7 +490,6 @@
                 <strong id="stat-shown">{{ [total_articles, 1000]|min }}</strong> articles shown
                 &nbsp;·&nbsp; <span style="color:#276749"><i class="fas fa-unlock-alt"></i> <span id="stat-free-pmc">{{ total_free_articles | default(0) }}</span> Free PMC</span>
             </p>
-            <a href="/" class="btn-new"><i class="fas fa-search"></i> New Search</a>
         </div>
 
         <!-- Keyword summary cards -->
@@ -491,6 +497,17 @@
 
         <!-- Article sections -->
         <div id="kw-sections"></div>
+
+        <!-- Pagination -->
+        <div class="pagination-wrap" id="pagination-wrap" style="display:none">
+            <button class="pg-btn" id="pg-prev" onclick="changePage(_curPage-1)">
+                <i class="fas fa-chevron-left"></i> Prev
+            </button>
+            <div id="pg-numbers" style="display:flex;gap:.35rem;"></div>
+            <button class="pg-btn" id="pg-next" onclick="changePage(_curPage+1)">
+                Next <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
     </div><!-- /content -->
 
     <!-- ══ RIGHT EXPORT PANEL ══ -->
@@ -947,6 +964,7 @@ function renderCards(sorted, limit, fc, freeCounts){
         const matchFilter = fc[kw.keyword] ?? fetched;
         const ncbiTotal   = _filteredNcbiTotals?.[kw.keyword] ?? kw.ncbi_total ?? fetched;
         const freeNum     = freeCounts?.[kw.keyword] ?? kw.free_count;
+        // matchFilter already reflects artMode sort since fc comes from renderSections(artMode)
 
         let countHtml;
         if (isFiltered) {
@@ -1182,6 +1200,10 @@ function applyFilters(){
     // renderSections returns {keyword: shownCount} and {keyword: freeCount}
     const { fc, freeCounts } = renderSections(sorted, limit, artMode);
 
+    // Build flat article list for pagination and render page 1
+    buildFlatArticleList(sorted, limit, artMode);
+    renderPage(1);
+
     // Pass filtered free counts to cards and matching bar
     renderCards(sorted, limit, fc, freeCounts);
     renderMatchingBar(sorted, freeCounts);
@@ -1323,6 +1345,88 @@ function syncToSidebar(typeName, checked) {
 document.getElementById('article-type-modal').addEventListener('click', function(e) {
     if (e.target === this) closeArticleTypeModal();
 });
+
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+const PAGE_SIZE = 20;
+var _curPage    = 1;
+var _allArticles = [];   // flat list of all filtered articles across all keywords
+
+function buildFlatArticleList(sorted, limit, artMode) {
+    _allArticles = [];
+    sorted.forEach(kw => {
+        const base     = limit ? kw.results.slice(0, limit) : kw.results;
+        const filtered = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
+        filtered.forEach(art => {
+            _allArticles.push({ art, keyword: kw.keyword });
+        });
+    });
+}
+
+function renderPage(pageNum) {
+    _curPage = pageNum;
+    const start = (pageNum - 1) * PAGE_SIZE;
+    const end   = start + PAGE_SIZE;
+    const page  = _allArticles.slice(start, end);
+    const total = _allArticles.length;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+
+    // Group by keyword for display
+    const byKw = {};
+    page.forEach(({art, keyword}) => {
+        if (!byKw[keyword]) byKw[keyword] = [];
+        byKw[keyword].push(art);
+    });
+
+    let html = '';
+    Object.entries(byKw).forEach(([kw, articles], i) => {
+        const cb = `<span class="badge badge-blue">${articles.length} article${articles.length!==1?'s':''}</span>`;
+        const freeCount = articles.filter(a=>a.is_free_pmc).length;
+        const fb = freeCount ? `<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${freeCount} Free PMC</span>` : '';
+        let rows = '';
+        articles.forEach((art, j) => { rows += renderArticle(art, `pg-${i}-${j}`); });
+        html += `<div class="kw-section"><div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw)}</h2>${cb}${fb}</div><div class="article-list">${rows}</div></div>`;
+    });
+
+    document.getElementById('kw-sections').innerHTML = html;
+
+    // Update pagination controls
+    const wrap = document.getElementById('pagination-wrap');
+    if (total <= PAGE_SIZE) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+
+    document.getElementById('pg-prev').disabled = pageNum <= 1;
+    document.getElementById('pg-next').disabled = pageNum >= totalPages;
+
+    // Page number buttons — show up to 10 pages
+    const nums = document.getElementById('pg-numbers');
+    nums.innerHTML = '';
+    let startP = Math.max(1, pageNum - 4);
+    let endP   = Math.min(totalPages, startP + 9);
+    if (endP - startP < 9) startP = Math.max(1, endP - 9);
+
+    if (startP > 1) {
+        nums.insertAdjacentHTML('beforeend', '<button class="pg-btn" onclick="changePage(1)">1</button>');
+        if (startP > 2) nums.insertAdjacentHTML('beforeend', '<span class="pg-ellipsis">…</span>');
+    }
+    for (let p = startP; p <= endP; p++) {
+        nums.insertAdjacentHTML('beforeend',
+            `<button class="pg-btn${p===pageNum?' active':''}" onclick="changePage(${p})">${p}</button>`);
+    }
+    if (endP < totalPages) {
+        if (endP < totalPages - 1) nums.insertAdjacentHTML('beforeend', '<span class="pg-ellipsis">…</span>');
+        nums.insertAdjacentHTML('beforeend', `<button class="pg-btn" onclick="changePage(${totalPages})">${totalPages}</button>`);
+    }
+}
+
+function changePage(p) {
+    const total = _allArticles.length;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    renderPage(p);
+    // Scroll to top of results
+    document.getElementById('kw-sections').scrollIntoView({behavior:'smooth', block:'start'});
+}
 
 </script>
 </body>
