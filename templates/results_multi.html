@@ -13,7 +13,7 @@
         }
 
         /* ══ NAVBAR ══════════════════════════════════════════════════════ */
-        .navbar {
+        .navbar {23
             background: #1a365d; padding: 0 1.5rem; height: 52px;
             display: flex; align-items: center; justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 300; flex-shrink: 0;
@@ -840,21 +840,30 @@ function articlePassesSidebarFilters(art) {
     if (getChecked('f-abstract') && (!art.abstract||art.abstract==='N/A')) return false;
 
     // ── Article type — OR logic: keep if matches ANY checked type ─────
-    const typeIds = ['f-type-journal','f-type-review','f-type-systematic',
-        'f-type-meta','f-type-rct','f-type-clinical','f-type-case','f-type-observational'];
-    const anyTypeChecked = typeIds.some(id => getChecked(id));
+    const typeCheckMap = {
+        'f-type-journal':         ['journal article'],
+        'f-type-review':          ['review'],
+        'f-type-systematic':      ['systematic review', 'systematic'],
+        'f-type-meta':            ['meta-analysis'],
+        'f-type-rct':             ['randomized controlled trial', 'randomized'],
+        'f-type-clinical':        ['clinical trial'],
+        'f-type-clinical-study':  ['clinical study'],
+        'f-type-clinical-2':      ['clinical trial, phase ii', 'phase ii'],
+        'f-type-clinical-3':      ['clinical trial, phase iii', 'phase iii'],
+        'f-type-clinical-4':      ['clinical trial, phase iv', 'phase iv'],
+        'f-type-case':            ['case report'],
+        'f-type-observational':   ['observational study', 'observational'],
+    };
+    const anyTypeChecked = Object.keys(typeCheckMap).some(id => getChecked(id))
+                        || _modalSelectedTypes.size > 0;
     if (anyTypeChecked) {
         const pt = (art.publication_type||'').toLowerCase();
         const matchesType =
-            (getChecked('f-type-journal')       && (pt.includes('journal article') || !pt)) ||
-            (_modalSelectedTypes.size > 0 && [..._modalSelectedTypes].some(function(mt){ return pt.includes(mt.toLowerCase()); })) ||
-            (getChecked('f-type-review')        && pt.includes('review'))         ||
-            (getChecked('f-type-systematic')    && pt.includes('systematic'))     ||
-            (getChecked('f-type-meta')          && pt.includes('meta-analysis'))  ||
-            (getChecked('f-type-rct')           && pt.includes('randomized'))     ||
-            (getChecked('f-type-clinical')      && pt.includes('clinical trial')) ||
-            (getChecked('f-type-case')          && pt.includes('case report'))    ||
-            (getChecked('f-type-observational') && pt.includes('observational'));
+            Object.entries(typeCheckMap).some(([id, terms]) =>
+                getChecked(id) && terms.some(t => pt.includes(t))
+            ) ||
+            (_modalSelectedTypes.size > 0 &&
+             [..._modalSelectedTypes].some(mt => pt.includes(mt.toLowerCase())));
         if (!matchesType) return false;
     }
 
@@ -1452,17 +1461,15 @@ function changePage(p) {
 
 /* ── Initial render — all functions now defined ── */
 
-// Pre-check sidebar filters from URL search
-// These are shown checked for display only - Entrez already applied them
+// Pre-check sidebar filters from URL search — work as normal checkboxes
 if (_URL_CHECKBOXES.length || _URL_MODAL_TYPES.length || _URL_DATE) {
     _URL_CHECKBOXES.forEach(function(id) {
         const el = document.getElementById(id);
-        // Add visual-only class so articlePassesSidebarFilters ignores them
-        if (el) { el.checked = true; el.dataset.urlFilter = '1'; }
+        if (el) el.checked = true;
     });
     if (_URL_DATE) {
         const radio = document.querySelector('input[name="pub_date"][value="' + _URL_DATE + '"]');
-        if (radio) { radio.checked = true; radio.dataset.urlFilter = '1'; toggleCustomDate(); }
+        if (radio) { radio.checked = true; toggleCustomDate(); }
     }
     _URL_MODAL_TYPES.forEach(function(t) { _modalSelectedTypes.add(t); });
 }
