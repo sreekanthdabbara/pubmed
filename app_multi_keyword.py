@@ -1099,6 +1099,21 @@ def search_url():
         'pubt.systematicreview':              '"Systematic Review"[Publication Type]',
         'pubt.twinstudy':                     '"Twin Study"[Publication Type]',
         'pubt.validationstudy':               '"Validation Study"[Publication Type]',
+        # Has abstract / full text
+        'simsearch1.fha':                     '"has abstract"[Filter]',
+        'simsearch2.ffrft':                   '"free full text"[Filter]',
+        'ffrft.Y':                            '"full text"[Filter]',
+        # Language
+        'pubt.englishabstract':               '"English Abstract"[Publication Type]',
+        # Species / Age / Sex
+        'hum_ani.humans':                     '"humans"[MeSH Terms]',
+        'hum_ani.animals':                    '"animals"[MeSH Terms]',
+        'sex.female':                         '"female"[MeSH Terms]',
+        'sex.male':                           '"male"[MeSH Terms]',
+        'ages.child':                         '"child"[MeSH Terms]',
+        'ages.adult':                         '"adult"[MeSH Terms]',
+        'ages.aged':                          '"aged"[MeSH Terms]',
+        'ages.infant':                        '"infant"[MeSH Terms]',
     }
 
     try:
@@ -1124,7 +1139,7 @@ def search_url():
         params  = parse_qs(parsed.query, keep_blank_values=False)
         term    = params.get('term', [''])[0].strip()
         filters = params.get('filter', [])
-        sort    = params.get('sort', ['relevance'])[0]  # e.g. 'date', 'relevance'
+        sort    = params.get('sort', ['relevance'])[0]
         if not term:
             return render_template('index_multi_with_logo.html',
                                  error="No search term found in the URL. "
@@ -1138,6 +1153,33 @@ def search_url():
         seen_clauses     = set()
 
         for f in filters:
+            # ── Special case: years.YYYY-YYYY date range ──────────────────
+            if f.startswith('years.'):
+                try:
+                    year_part = f.replace('years.', '')
+                    y_from, y_to = year_part.split('-')
+                    clause = f'"{y_from}/01/01"[PDat] : "{y_to}/12/31"[PDat]'
+                    if clause not in seen_clauses:
+                        seen_clauses.add(clause)
+                        other_clauses.append(clause)
+                except Exception:
+                    unknown_filters.append(f)
+                continue
+
+            # ── Special case: datesearch.y_N relative date ────────────────
+            if f.startswith('datesearch.y_'):
+                try:
+                    years_back = int(f.replace('datesearch.y_', ''))
+                    from datetime import date
+                    y_from = date.today().year - years_back
+                    clause = f'"{y_from}/01/01"[PDat] : "3000"[PDat]'
+                    if clause not in seen_clauses:
+                        seen_clauses.add(clause)
+                        other_clauses.append(clause)
+                except Exception:
+                    unknown_filters.append(f)
+                continue
+
             if f in FILTER_MAP:
                 clause = FILTER_MAP[f]
                 if clause in seen_clauses:
