@@ -2535,11 +2535,10 @@ def _run_extract_job(job_id: str, articles: list):
     job['total'] = len(articles)
     all_rows = []
 
-    GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
-
+    # Azure OpenAI configured via environment variables
     # ── Check API key upfront ─────────────────────────────────────────────
-    if not GROQ_KEY:
-        job['error'] = 'GROQ_API_KEY not set. Please add it to your .env file and restart.'
+    if not os.environ.get('AZURE_OPENAI_KEY', ''):
+        job['error'] = 'AZURE_OPENAI_KEY not set. Please add it to Render environment variables.'
         job['done']  = True
         return
 
@@ -2682,13 +2681,12 @@ If multiple adverse events are reported, add more rows with the same article fie
             resp = None
             for attempt in range(4):
                 resp = http_requests.post(
-                    'https://api.groq.com/openai/v1/chat/completions',
+                    f"{os.environ.get('AZURE_OPENAI_ENDPOINT','').rstrip('/')}/openai/deployments/{os.environ.get('AZURE_OPENAI_DEPLOYMENT','gpt-4o-mini')}/chat/completions?api-version=2024-02-01",
                     headers={
                         'Content-Type':  'application/json',
-                        'Authorization': f'Bearer {GROQ_KEY}',
+                        'api-key':       os.environ.get('AZURE_OPENAI_KEY',''),
                     },
                     json={
-                        'model':       'llama-3.3-70b-versatile',
                         'max_tokens':  2000,
                         'temperature': 0,
                         'messages':    [
@@ -2698,10 +2696,10 @@ If multiple adverse events are reported, add more rows with the same article fie
                     },
                     timeout=45,
                 )
-                if resp.status_code == 429:
-                    wait = 15 * (attempt + 1)
-                    print(f"    Rate limit -- waiting {wait}s (attempt {attempt+1}/4)")
-                    job['status'] = f"Rate limit -- waiting {wait}s... ({i}/{len(articles)})"
+                if resp.status_code in (429, 503):
+                    wait = 10 * (attempt + 1)
+                    print(f"    Rate limit/unavailable -- waiting {wait}s (attempt {attempt+1}/4)")
+                    job['status'] = f"Retrying... ({i}/{len(articles)})"
                     time.sleep(wait)
                 else:
                     break
@@ -2743,14 +2741,14 @@ If multiple adverse events are reported, add more rows with the same article fie
                     print(f"    JSON parse error: {je} | text: {text[:200]}")
                     all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
             else:
-                err = resp.json().get('error', {}).get('message', resp.text[:200])
-                print(f"    API error {resp.status_code}: {err}")
+                err = resp.json().get('error', {}).get('message', resp.text[:200]) if resp else 'No response'
+                print(f"    API error {resp.status_code if resp else '?'}: {err}")
                 all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
         except Exception as e:
             print(f"    Exception: {e}")
             all_rows.append(_make_fallback(title, authors, pub_date, country, journal, url, pmid))
 
-        time.sleep(2.5)  # Groq free tier: 30 req/min
+        time.sleep(1.5)  # Azure rate limiting buffer
 
     # ── Build Excel ───────────────────────────────────────────────────────
     print(f"[extract] Building Excel: {len(all_rows)} rows collected")
@@ -2894,34 +2892,14 @@ def copilot_file():
             f"Be concise, specific, and cite article titles when relevant."
         )
 
-        GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
-        if not GROQ_KEY:
-            return jsonify({'error': 'GROQ_API_KEY not set in .env file'}), 500
+        messages = [{'role': 'system', 'content': system_prompt}]
+        for msg in history[-4:]:
+            messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
+        messages.append({'role': 'user', 'content': question[:1000]})
 
-        # Only keep last 2 turns of history to save tokens
-        groq_messages = [{'role': 'system', 'content': system_prompt}]
-        for msg in history[-2:]:
-            groq_messages.append({'role': msg['role'], 'content': str(msg['content'])[:300]})
-        groq_messages.append({'role': 'user', 'content': question[:500]})
-
-        resp = http_requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_KEY}'},
-            json={
-                'model':       'llama-3.3-70b-versatile',  # higher TPM limit than 8b-instant
-                'max_tokens':  800,
-                'temperature': 0.3,
-                'messages':    groq_messages,
-            },
-            timeout=30,
-        )
-        if resp.status_code == 429:
-            err = resp.json().get('error', {}).get('message', '')
-            return jsonify({'error': f'Rate limit hit. Please wait 30 seconds and try again. ({err[:80]})'}), 429
-        if resp.status_code != 200:
-            err = resp.json().get('error', {}).get('message', resp.text[:150])
-            return jsonify({'error': f'AI error: {err}'}), 500
-        answer = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '')
+        answer, err = call_azure_openai(messages, max_tokens=1200, temperature=0.3)
+        if err:
+            return jsonify({'error': err}), 500
         return jsonify({'answer': answer, 'articles_used': min(len(articles), 20)})
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -3190,10 +3168,8 @@ def _run_extract_with_template(job_id: str, article: dict, template_columns: lis
     Otherwise use the default EXTRACT_COLUMNS.
     """
     job      = _extract_jobs[job_id]
-    GROQ_KEY = os.environ.get('GROQ_API_KEY', '')
-
-    if not GROQ_KEY:
-        job['error'] = 'GROQ_API_KEY not set'
+    if not os.environ.get('AZURE_OPENAI_KEY', ''):
+        job['error'] = 'AZURE_OPENAI_KEY not set in Render environment'
         job['done']  = True
         return
 
@@ -3241,26 +3217,15 @@ Return this exact JSON with all fields filled from the article content:
 - For AE grade columns: extract percentages and denominators from results tables"""
 
     try:
-        resp = http_requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_KEY}'},
-            json={
-                'model':       'llama-3.3-70b-versatile',
-                'max_tokens':  2000,
-                'temperature': 0,
-                'messages':    [
-                    {'role': 'system', 'content': system_msg},
-                    {'role': 'user',   'content': user_msg},
-                ],
-            },
-            timeout=60,
-        )
-
-        print(f"[extract_tmpl] API status: {resp.status_code}")
+        messages = [
+            {'role': 'system', 'content': system_msg},
+            {'role': 'user',   'content': user_msg},
+        ]
+        raw, api_err = call_azure_openai(messages, max_tokens=2000, temperature=0)
+        print(f"[extract_tmpl] Azure response: {(raw or '')[:400]}")
         rows = []
 
-        if resp.status_code == 200:
-            raw = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '{}')
+        if raw is not None:
             print(f"[extract_tmpl] Raw (first 400): {raw[:400]}")
             raw = re.sub(r'^```[a-z]*\n?', '', raw.strip())
             raw = re.sub(r'\n?```$', '', raw.strip())
@@ -3270,8 +3235,7 @@ Return this exact JSON with all fields filled from the article content:
                 rows = extracted.get('rows', [])
                 print(f"[extract_tmpl] Got {len(rows)} rows")
         else:
-            err = resp.json().get('error', {}).get('message', resp.text[:150])
-            print(f"[extract_tmpl] API error: {err}")
+            print(f"[extract_tmpl] API error: {api_err}")
 
         if not rows:
             # Fallback row with just the filename
@@ -3367,20 +3331,22 @@ def test_extraction():
     year     = re.search(r'\b(19|20)\d{2}\b', pub_date).group() if re.search(r'\b(19|20)\d{2}\b', pub_date) else ''
     first_a  = authors.split(',')[0].strip().split()[-1] if authors else ''
     author_year = (first_a + ' et al., ' + year).strip(' ,') if first_a else authors[:40]
-    GROQ_KEY = os.environ.get('GROQ_API_KEY','')
-    if not GROQ_KEY: return jsonify({'error': 'GROQ_API_KEY not set', 'columns': list(df.columns[:10])}), 500
+    if not os.environ.get('AZURE_OPENAI_KEY',''): return jsonify({'error': 'AZURE_OPENAI_KEY not set', 'columns': list(df.columns[:10])}), 500
     try:
+        AZURE_ENDPOINT   = os.environ.get('AZURE_OPENAI_ENDPOINT','').rstrip('/')
+        AZURE_DEPLOYMENT = os.environ.get('AZURE_OPENAI_DEPLOYMENT','gpt-4o-mini')
+        AZURE_KEY        = os.environ.get('AZURE_OPENAI_KEY','')
         resp = http_requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Content-Type':'application/json','Authorization':f'Bearer {GROQ_KEY}'},
-            json={'model':'llama-3.3-70b-versatile','max_tokens':500,'temperature':0,
+            f"{AZURE_ENDPOINT}/openai/deployments/{AZURE_DEPLOYMENT}/chat/completions?api-version=2024-02-01",
+            headers={'Content-Type':'application/json','api-key':AZURE_KEY},
+            json={'max_tokens':500,'temperature':0,
                   'messages':[
                       {'role':'system','content':'Return ONLY valid JSON. No markdown.'},
                       {'role':'user','content':f'Title: {title}\nAbstract: {content}\nReturn: {{"rows":[{{"author_year":"{author_year}","country":"{country}","study_title":"{title[:50].replace(chr(34),chr(39))}","cancer_name":"","treatment":"","url":"{url}"}}]}}'  }]},
             timeout=30,
         )
         raw = resp.json().get('choices',[{}])[0].get('message',{}).get('content','') if resp.status_code==200 else resp.text
-        return jsonify({'api_status':resp.status_code,'title':title,'abstract_length':len(abstract),'columns':list(df.columns[:10]),'groq_raw':raw[:800],'parsed_ok':'rows' in raw})
+        return jsonify({'api_status':resp.status_code,'title':title,'abstract_length':len(abstract),'columns':list(df.columns[:10]),'azure_raw':raw[:800],'parsed_ok':'rows' in raw})
     except Exception as e:
         return jsonify({'error':str(e)}), 500
 
