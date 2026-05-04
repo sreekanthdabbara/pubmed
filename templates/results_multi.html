@@ -1453,14 +1453,16 @@ function changePage(p) {
 /* ── Initial render — all functions now defined ── */
 
 // Pre-check sidebar filters from URL search
+// These are shown checked for display only - Entrez already applied them
 if (_URL_CHECKBOXES.length || _URL_MODAL_TYPES.length || _URL_DATE) {
     _URL_CHECKBOXES.forEach(function(id) {
         const el = document.getElementById(id);
-        if (el) el.checked = true;
+        // Add visual-only class so articlePassesSidebarFilters ignores them
+        if (el) { el.checked = true; el.dataset.urlFilter = '1'; }
     });
     if (_URL_DATE) {
         const radio = document.querySelector('input[name="pub_date"][value="' + _URL_DATE + '"]');
-        if (radio) { radio.checked = true; toggleCustomDate(); }
+        if (radio) { radio.checked = true; radio.dataset.urlFilter = '1'; toggleCustomDate(); }
     }
     _URL_MODAL_TYPES.forEach(function(t) { _modalSelectedTypes.add(t); });
 }

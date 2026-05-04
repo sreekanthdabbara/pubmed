@@ -1132,15 +1132,21 @@ def search_url():
                                  recent_searches=recent_searches[:10])
 
         # ── Convert filters to Entrez clauses ────────────────────────────
-        filter_clauses = []
-        unknown_filters = []
-        seen_clauses = set()
+        pub_type_clauses = []   # joined with OR  (any type matches)
+        other_clauses    = []   # joined with AND (each is a separate constraint)
+        unknown_filters  = []
+        seen_clauses     = set()
+
         for f in filters:
             if f in FILTER_MAP:
                 clause = FILTER_MAP[f]
-                if clause not in seen_clauses:   # deduplicate
-                    filter_clauses.append(clause)
-                    seen_clauses.add(clause)
+                if clause in seen_clauses:
+                    continue
+                seen_clauses.add(clause)
+                if '[Publication Type]' in clause:
+                    pub_type_clauses.append(clause)
+                else:
+                    other_clauses.append(clause)
             else:
                 if f not in unknown_filters:
                     unknown_filters.append(f)
@@ -1149,14 +1155,17 @@ def search_url():
             print(f"  [search_url] unrecognised filters (ignored): {unknown_filters}")
 
         # Build the final Entrez query
-        if filter_clauses:
-            entrez_query = f"({term}) AND " + " AND ".join(filter_clauses)
-        else:
-            entrez_query = term
+        # Publication types use OR (article can be any of the selected types)
+        # Other filters (date, species, sex, age) use AND
+        parts = [f"({term})"]
+        if pub_type_clauses:
+            parts.append("(" + " OR ".join(pub_type_clauses) + ")")
+        parts.extend(other_clauses)
+        entrez_query = " AND ".join(parts)
 
-        # Use the term as the display label, filters as annotation
+        # Use clean term as display label (not the full Entrez query with all clauses)
         filter_summary = "; ".join(filters) if filters else "none"
-        display_label  = entrez_query   # shown in results page keyword card
+        display_label  = term   # show just the search term, not the full entrez query
 
         print(f"\n[search_url] Entrez query: {entrez_query}")
         print(f"[search_url] Filters applied: {filter_summary}")
