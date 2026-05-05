@@ -631,10 +631,15 @@ const DEFAULT_LIMIT = 1000;
 const _URL_CHECKBOXES    = {{ active_checkboxes  | default([]) | tojson }};
 const _URL_MODAL_TYPES   = {{ active_modal_types | default([]) | tojson }};
 const _URL_DATE          = {{ active_date        | default('') | tojson }};
-// If true: initial load shows ALL fetched results (Entrez already filtered)
-// After user interacts with checkboxes, normal client-side filtering kicks in
 const _URL_FILTERS_APPLIED = {{ url_filters_applied | default(false) | tojson }};
-var _initialLoadDone = false;  // flips to true after first render
+var _initialLoadDone = false;
+
+// For URL searches: default Articles to "KW matches first" so card shows total count
+// not just free PMC count (which confuses users into thinking fewer articles shown)
+if (_URL_FILTERS_APPLIED) {
+    const artSort = document.getElementById('ctrl-art-sort');
+    if (artSort) artSort.value = 'kw_match';
+}
 
 /* ── Utilities ─────────────────────────────── */
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1187,15 +1192,9 @@ async function startPdfJob(qs) {
 function updateCounters(sorted, limit, fc){
     const fmt = n => n.toLocaleString();
 
-    // ── Count shown & free PMC from filtered+limited articles ─────────
-    let shown   = 0;
-    let freePmc = 0;
-    sorted.forEach(kw => {
-        const base     = limit ? kw.results.slice(0, limit) : kw.results;
-        const filtered = base.filter(articlePassesSidebarFilters);
-        shown   += filtered.length;
-        freePmc += filtered.filter(a => a.is_free_pmc).length;
-    });
+    // Use _allArticles as single source of truth for shown/free counts
+    const shown   = _allArticles.length;
+    const freePmc = _allArticles.filter(({art}) => art.is_free_pmc).length;
 
     // ── Summary strip ─────────────────────────────────────────────────
     const sbShown = document.getElementById('sb-shown');
@@ -1244,14 +1243,14 @@ function applyFilters(){
     const artMode  = document.getElementById('ctrl-art-sort').value;
     const sorted   = sortKwGroups(ALL_DATA, kwOrder);
 
-    // Get counts only (renderSections also writes DOM but we override with renderPage)
-    const { fc, freeCounts } = renderSections(sorted, limit, artMode);
+    // Get counts only from renderSections (no DOM write needed anymore)
+    const { fc: fcSections, freeCounts: fcFree } = renderSections(sorted, limit, artMode);
 
-    // Build flat list and render page 1 (this OVERRIDES renderSections DOM output)
-    buildFlatArticleList(sorted, limit, artMode);
+    // Build flat list — this is the single source of truth for counts + display
+    const { fc, freeCounts } = buildFlatArticleList(sorted, limit, artMode);
     renderPage(1);
 
-    // Cards, matching bar, exports, counters
+    // Cards, matching bar, exports, counters — all use unified fc/freeCounts
     renderCards(sorted, limit, fc, freeCounts);
     renderMatchingBar(sorted, freeCounts);
     updateExports(limit, kwOrder);
@@ -1397,16 +1396,34 @@ document.getElementById('article-type-modal').addEventListener('click', function
 
 // ── Pagination ─────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20;
-var _curPage    = 1;
-var _totalPages = 1;
-var _allArticles = [];   // flat list of all filtered articles across all keywords
+var _curPage     = 1;
+var _totalPages  = 1;
+var _allArticles = [];
 
 function buildFlatArticleList(sorted, limit, artMode) {
-    // Collect all rendered article cards from the DOM and tag them with data-page
     _allArticles = [];
-    document.querySelectorAll('#kw-sections .article-card').forEach(el => {
-        _allArticles.push(el);
+    const fc         = {};
+    const freeCounts = {};
+    const pmcOnly    = (artMode === 'pmc_first' || artMode === 'kw_match_pmc');
+
+    sorted.forEach(kw => {
+        const base     = limit ? kw.results.slice(0, limit) : kw.results;
+        let articles   = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
+
+        // If pmc_first mode, only show free PMC articles
+        if (artMode === 'pmc_first') {
+            articles = articles.filter(a => a.is_free_pmc);
+        }
+
+        freeCounts[kw.keyword] = articles.filter(a => a.is_free_pmc).length;
+        fc[kw.keyword]         = pmcOnly ? freeCounts[kw.keyword] : articles.length;
+
+        articles.forEach(art => {
+            _allArticles.push({ art, keyword: kw.keyword });
+        });
     });
+
+    return { fc, freeCounts };
 }
 
 function renderPage(pageNum) {
@@ -1415,33 +1432,36 @@ function renderPage(pageNum) {
     _totalPages = Math.ceil(total / PAGE_SIZE) || 1;
     const start = (pageNum - 1) * PAGE_SIZE;
     const end   = start + PAGE_SIZE;
+    const page  = _allArticles.slice(start, end);
 
-    // Show only cards for this page
-    _allArticles.forEach((el, idx) => {
-        el.style.display = (idx >= start && idx < end) ? '' : 'none';
+    // Group page articles by keyword
+    const byKw = {};
+    const kwOrder = [];
+    page.forEach(({art, keyword}) => {
+        if (!byKw[keyword]) { byKw[keyword] = []; kwOrder.push(keyword); }
+        byKw[keyword].push(art);
     });
 
-    // Also show/hide section dividers that are between hidden cards
-    document.querySelectorAll('#kw-sections .section-divider').forEach(div => {
-        // Show divider if the next visible card after it is visible
-        let next = div.nextElementSibling;
-        while (next && next.classList.contains('section-divider')) next = next.nextElementSibling;
-        div.style.display = (next && next.style.display !== 'none') ? '' : 'none';
-    });
+    let html = '';
+    if (!page.length) {
+        html = '<div class="no-results-msg" style="padding:2rem;text-align:center;color:#718096">' +
+               '<i class="fas fa-search" style="font-size:2rem;display:block;margin-bottom:.75rem;opacity:.3"></i>' +
+               'No articles match the current filters.</div>';
+    } else {
+        kwOrder.forEach((kw, i) => {
+            const articles  = byKw[kw];
+            const freeCount = articles.filter(a => a.is_free_pmc).length;
+            const totalKw   = _allArticles.filter(a => a.keyword === kw).length;
+            const cb = `<span class="badge badge-blue">${articles.length} of ${totalKw} article${totalKw!==1?'s':''}</span>`;
+            const fb = freeCount ? `<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${freeCount} Free PMC</span>` : '';
+            let rows = '';
+            articles.forEach((art, j) => { rows += renderArticle(art, `pg-${pageNum}-${i}-${j}`); });
+            html += `<div class="kw-section"><div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw)}</h2>${cb}${fb}</div><div class="article-list">${rows}</div></div>`;
+        });
+    }
+    document.getElementById('kw-sections').innerHTML = html;
 
-    // Show/hide section headers: hide kw-section if all its cards are hidden
-    document.querySelectorAll('#kw-sections .kw-section').forEach(section => {
-        const cards = section.querySelectorAll('.article-card');
-        const anyVisible = [...cards].some(c => c.style.display !== 'none');
-        section.style.display = anyVisible ? '' : 'none';
-    });
-
-    // Show/hide load-more bars (hide when paginating)
-    document.querySelectorAll('#kw-sections .load-more-bar').forEach(bar => {
-        bar.style.display = 'none';
-    });
-
-    // Update pagination controls
+    // Pagination controls
     const wrap = document.getElementById('pagination-wrap');
     if (total <= PAGE_SIZE) { wrap.style.display = 'none'; return; }
     wrap.style.display = 'flex';
