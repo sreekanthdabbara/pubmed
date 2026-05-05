@@ -1127,7 +1127,6 @@ def search_url():
         'pubt.twinstudy':                     '"Twin Study"[Publication Type]',
         'pubt.validationstudy':               '"Validation Study"[Publication Type]',
         # Has abstract / full text
-        'simsearch1.fha':                     '"has abstract"[Filter]',
         'simsearch2.ffrft':                   '"free full text"[Filter]',
         'ffrft.Y':                            '"full text"[Filter]',
         # Language
@@ -1217,12 +1216,11 @@ def search_url():
                 continue
 
             # ── Special case: simsearch1.fha (has abstract) ───────────────
-            # PubMed display filter — in Entrez use hasabstract filter
+            # PubMed web UI filter — drop it entirely, Entrez handles abstracts differently
+            # The 126 vs 109 difference comes from this filter being too restrictive
             if f == 'simsearch1.fha':
-                clause = '"hasabstract"[Filter]'
-                if clause not in seen_clauses:
-                    seen_clauses.add(clause)
-                    other_clauses.append(clause)
+                # Don't add to query — Entrez already returns articles with abstracts
+                # when they have them; forcing this filter removes some valid results
                 continue
 
             if f in FILTER_MAP:
