@@ -475,9 +475,8 @@
             <div class="sb-group">
                 <label for="ctrl-art-sort">Articles:</label>
                 <select id="ctrl-art-sort">
-                    <option value="kw_match_pmc">KW matches + Free PMC</option>
                     <option value="kw_match">KW matches first</option>
-                    <option value="pmc_first">Free PMC first</option>
+                    <option value="pmc_first">Free PMC only</option>
                     <option value="relevance">PubMed relevance</option>
                 </select>
             </div>
@@ -925,8 +924,7 @@ function clearAllFilters(){
 function sortKwGroups(data,order){ return [...data].sort((a,b)=>order==='ascending'?a.count-b.count:b.count-a.count); }
 function sortArticles(arts,mode){
     const c=[...arts];
-    if(mode==='kw_match_pmc') c.sort((a,b)=>{const p=(b.is_free_pmc?1:0)-(a.is_free_pmc?1:0);if(p)return p;const m=(b.keyword_match_count||0)-(a.keyword_match_count||0);if(m)return m;return(b.keyword_total_hits||0)-(a.keyword_total_hits||0);});
-    else if(mode==='kw_match') c.sort((a,b)=>{const m=(b.keyword_match_count||0)-(a.keyword_match_count||0);if(m)return m;return(b.keyword_total_hits||0)-(a.keyword_total_hits||0);});
+    if(mode==='kw_match') c.sort((a,b)=>{const m=(b.keyword_match_count||0)-(a.keyword_match_count||0);if(m)return m;return(b.keyword_total_hits||0)-(a.keyword_total_hits||0);});
     else if(mode==='pmc_first') c.sort((a,b)=>(b.is_free_pmc?1:0)-(a.is_free_pmc?1:0));
     return c;
 }
@@ -966,35 +964,17 @@ function renderArticle(art,uid){
 }
 
 function renderSections(sorted, limit, artMode){
-    let html='';
+    // Count-only — renderPage() handles the DOM rendering
     const fc         = {};
     const freeCounts = {};
-    const pmcOnly    = (artMode === 'pmc_first' || artMode === 'kw_match_pmc');
-
+    const pmcOnly    = (artMode === 'pmc_first');
     sorted.forEach((kw,i)=>{
-        const base     = limit ? kw.results.slice(0,limit) : kw.results;
-        let articles   = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
-
+        const base   = limit ? kw.results.slice(0,limit) : kw.results;
+        let articles = sortArticles(base.filter(articlePassesSidebarFilters), artMode);
+        if (pmcOnly) articles = articles.filter(a => a.is_free_pmc);
         freeCounts[kw.keyword] = articles.filter(a => a.is_free_pmc).length;
-        fc[kw.keyword] = pmcOnly ? freeCounts[kw.keyword] : articles.length;
-
-        const hasMore = kw.has_more||(kw.ncbi_total||kw.count)>kw.count;
-        const freeCount = freeCounts[kw.keyword];
-        const cb=(limit&&kw.count>limit)?`<span class="badge badge-grey">Showing ${articles.length} of ${kw.count}</span>`:`<span class="badge badge-blue">${articles.length} article${articles.length!==1?'s':''}</span>`;
-        const fb=freeCount?`<span class="badge badge-green"><i class="fas fa-unlock-alt"></i> ${freeCount} Free PMC</span>`:'';
-        const mb=articles.filter(a=>(a.keyword_match_count||0)>1).length?`<span class="badge badge-orange"><i class="fas fa-tags"></i> ${articles.filter(a=>(a.keyword_match_count||0)>1).length} multi-kw</span>`:'';
-        let rows=''; let phase=null;
-        if(!articles.length) rows='<div class="no-results-msg">No articles match the current filters.</div>';
-        else articles.forEach((art,j)=>{
-            let np=artMode==='kw_match_pmc'?(art.is_free_pmc&&(art.keyword_match_count||0)>1?'pmc-multi':art.is_free_pmc?'pmc':(art.keyword_match_count||0)>1?'multi':'regular'):artMode==='kw_match'?(art.keyword_match_count||0)>1?'multi':'regular':artMode==='pmc_first'?art.is_free_pmc?'pmc':'regular':null;
-            if(np&&np!==phase&&j>0){phase=np;let lbl='';if(np==='multi')lbl='<i class="fas fa-tags"></i> Matched Multiple Keywords';else if(np==='pmc')lbl='<i class="fas fa-unlock-alt"></i> Free PMC Articles';else if(np==='regular')lbl='<i class="fas fa-lock"></i> Other Articles';if(lbl)rows+=`<div class="section-divider${np==='multi'?' orange':''}">${lbl}</div>`;}
-            else if(j===0)phase=np;
-            rows+=renderArticle(art,`${i}-${j}`);
-        });
-        const lmBar=hasMore?`<div class="load-more-bar" id="load-more-bar-${i}"><span class="load-more-info">Showing <strong id="lm-fetched-${i}">${kw.fetched||kw.count}</strong> of <strong>${(kw.ncbi_total||kw.count).toLocaleString()}</strong></span><button class="btn-load-more" id="btn-lm-${i}" onclick="loadMore(${i},'${esc(kw.keyword)}',${kw.fetched||kw.count},${kw.ncbi_total||kw.count})"><i class="fas fa-plus-circle load-icon"></i><i class="fas fa-spinner fa-spin load-spinner"></i>Load ${Math.min(500,(kw.ncbi_total||kw.count)-(kw.fetched||kw.count)).toLocaleString()} more</button></div>`:'';
-        html+=`<div class="kw-section" id="kws-${i}"><div class="kw-section-header"><h2><i class="fas fa-tag"></i> ${esc(kw.keyword)}</h2>${cb}${fb}${mb}</div><div class="article-list" id="article-list-${i}">${rows}</div>${lmBar}</div>`;
+        fc[kw.keyword]         = pmcOnly ? freeCounts[kw.keyword] : articles.length;
     });
-    document.getElementById('kw-sections').innerHTML=html;
     return { fc, freeCounts };
 }
 
@@ -1004,7 +984,7 @@ function renderCards(sorted, limit, fc, freeCounts){
     const anyCheckFilter = document.querySelectorAll('.sidebar input[type="checkbox"]:checked').length > 0;
     const isFiltered     = anyDateFilter || anyCheckFilter || _filteredNcbiTotals !== null;
     const artMode        = document.getElementById('ctrl-art-sort')?.value || '';
-    const pmcMode        = (artMode === 'pmc_first' || artMode === 'kw_match_pmc');
+    const pmcMode        = (artMode === 'pmc_first');
 
     document.getElementById('kw-summary').innerHTML = sorted.map((kw, i) => {
         const fetched     = kw.count;
@@ -1404,7 +1384,7 @@ function buildFlatArticleList(sorted, limit, artMode) {
     _allArticles = [];
     const fc         = {};
     const freeCounts = {};
-    const pmcOnly    = (artMode === 'pmc_first' || artMode === 'kw_match_pmc');
+    const pmcOnly    = (artMode === 'pmc_first');
 
     sorted.forEach(kw => {
         const base     = limit ? kw.results.slice(0, limit) : kw.results;
