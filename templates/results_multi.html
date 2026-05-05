@@ -13,7 +13,7 @@
         }
 
         /* ══ NAVBAR ══════════════════════════════════════════════════════ */
-        .navbar {23
+        .navbar {
             background: #1a365d; padding: 0 1.5rem; height: 52px;
             display: flex; align-items: center; justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 300; flex-shrink: 0;
@@ -627,10 +627,14 @@ const TOTAL_NCBI   = {{ total_ncbi_articles | default(total_articles) }};
 const SEARCH_ID    = {{ search_id | tojson }};
 const DEFAULT_LIMIT = 1000;
 
-// Store URL filter data for pre-checking after declarations
-const _URL_CHECKBOXES  = {{ active_checkboxes  | default([]) | tojson }};
-const _URL_MODAL_TYPES = {{ active_modal_types | default([]) | tojson }};
-const _URL_DATE        = {{ active_date        | default('') | tojson }};
+// URL search filter flags
+const _URL_CHECKBOXES    = {{ active_checkboxes  | default([]) | tojson }};
+const _URL_MODAL_TYPES   = {{ active_modal_types | default([]) | tojson }};
+const _URL_DATE          = {{ active_date        | default('') | tojson }};
+// If true: initial load shows ALL fetched results (Entrez already filtered)
+// After user interacts with checkboxes, normal client-side filtering kicks in
+const _URL_FILTERS_APPLIED = {{ url_filters_applied | default(false) | tojson }};
+var _initialLoadDone = false;  // flips to true after first render
 
 /* ── Utilities ─────────────────────────────── */
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -820,6 +824,9 @@ function extractYear(dateStr) {
 }
 
 function articlePassesSidebarFilters(art) {
+    // On initial URL search load: Entrez already applied filters server-side
+    // Show all fetched results. After user interacts, apply client-side filters normally.
+    if (_URL_FILTERS_APPLIED && !_initialLoadDone) return true;
     // ── Publication date ──────────────────────────────────────────────
     const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value||'';
     if (dateVal && dateVal!=='custom') {
@@ -1474,7 +1481,10 @@ if (_URL_CHECKBOXES.length || _URL_MODAL_TYPES.length || _URL_DATE) {
     _URL_MODAL_TYPES.forEach(function(t) { _modalSelectedTypes.add(t); });
 }
 
-applyFilters();
+applyFilters();  // initial render — skips client-side filtering if _URL_FILTERS_APPLIED
+
+// Mark initial load done — subsequent applyFilters() calls will filter normally
+_initialLoadDone = true;
 
 </script>
 </body>

@@ -1367,6 +1367,8 @@ def search_url():
         active_checkboxes  = list({PUBT_TO_CHECKBOX[f]    for f in filters if f in PUBT_TO_CHECKBOX})
         active_modal_types = list({PUBT_TO_MODAL_TYPE[f]  for f in filters if f in PUBT_TO_MODAL_TYPE})
         active_date        = next((f.replace('datesearch.y_','') for f in filters if f.startswith('datesearch.y_')), '')
+        # Tell the frontend that filters came from URL — skip initial client-side filtering
+        url_filters_applied = True
 
         return render_template('results_multi.html',
                              keywords=display_keywords,
@@ -1378,7 +1380,8 @@ def search_url():
                              total_free_articles=total_free_articles,
                              active_checkboxes=active_checkboxes,
                              active_modal_types=active_modal_types,
-                             active_date=active_date)
+                             active_date=active_date,
+                             url_filters_applied=True)
 
     except Exception as e:
         import traceback; traceback.print_exc()
