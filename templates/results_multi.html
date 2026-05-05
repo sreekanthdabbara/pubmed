@@ -632,18 +632,18 @@ const _URL_MODAL_TYPES   = {{ active_modal_types | default([]) | tojson }};
 const _URL_DATE          = {{ active_date        | default('') | tojson }};
 const _URL_FILTERS_APPLIED = {{ url_filters_applied | default(false) | tojson }};
 // Track which checkboxes were pre-set from URL (to detect user changes)
-var _urlPreChecked = new Set();
+var _urlPreChecked    = new Set();  // sidebar checkbox IDs pre-set from URL
+var _urlModalTypes    = new Set();  // modal type names pre-set from URL
 var _userChangedFilters = false;
 
 function hasUserChangedFilters() {
-    if (!_URL_FILTERS_APPLIED) return true; // normal keyword search — always filter
+    if (!_URL_FILTERS_APPLIED) return true;
 
-    // Check if date changed from default (Any time)
+    // Check if date changed from URL state
     const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value || '';
-    if (dateVal !== '' && !_URL_DATE) return true;  // user added date filter
-    if (dateVal !== _URL_DATE && _URL_DATE) return true; // user changed date
+    if (dateVal !== (_URL_DATE || '')) return true;
 
-    // Check if any checkbox state differs from URL pre-set state
+    // Check if any sidebar checkbox differs from URL pre-set state
     const allCheckboxIds = [
         'f-type-journal','f-type-review','f-type-systematic','f-type-meta',
         'f-type-rct','f-type-clinical','f-type-clinical-study','f-type-clinical-2',
@@ -655,15 +655,16 @@ function hasUserChangedFilters() {
     for (const id of allCheckboxIds) {
         const el = document.getElementById(id);
         if (!el) continue;
-        const wasPreChecked = _urlPreChecked.has(id);
-        const isNowChecked  = el.checked;
-        if (wasPreChecked !== isNowChecked) return true; // user changed this box
+        if (_urlPreChecked.has(id) !== el.checked) return true;
     }
 
-    // Check modal types changed
-    if (_modalSelectedTypes.size !== _urlPreChecked.size) return true;
+    // Check if modal types differ from URL pre-set modal types
+    if (_modalSelectedTypes.size !== _urlModalTypes.size) return true;
+    for (const t of _modalSelectedTypes) {
+        if (!_urlModalTypes.has(t)) return true;
+    }
 
-    return false; // everything matches URL state — no user change
+    return false;
 }
 
 /* ── Utilities ─────────────────────────────── */
@@ -1510,7 +1511,10 @@ if (_URL_CHECKBOXES.length || _URL_MODAL_TYPES.length || _URL_DATE) {
         const radio = document.querySelector('input[name="pub_date"][value="' + _URL_DATE + '"]');
         if (radio) { radio.checked = true; toggleCustomDate(); }
     }
-    _URL_MODAL_TYPES.forEach(function(t) { _modalSelectedTypes.add(t); });
+    _URL_MODAL_TYPES.forEach(function(t) {
+        _modalSelectedTypes.add(t);
+        _urlModalTypes.add(t);  // track original URL modal types
+    });
 }
 
 applyFilters();  // initial render — skips client-side filtering until user changes a filter
