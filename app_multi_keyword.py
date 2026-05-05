@@ -22,6 +22,33 @@ import io
 import time
 import re
 import requests as http_requests
+
+# ── Azure OpenAI helper ───────────────────────────────────────────────────────
+def call_azure_openai(messages, max_tokens=1000, temperature=0.3):
+    """Call Azure OpenAI API. Returns (text, error_string)."""
+    AZURE_KEY        = os.environ.get('AZURE_OPENAI_KEY', '')
+    AZURE_ENDPOINT   = os.environ.get('AZURE_OPENAI_ENDPOINT', '').rstrip('/')
+    AZURE_DEPLOYMENT = os.environ.get('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o-mini')
+
+    if not AZURE_KEY or not AZURE_ENDPOINT:
+        return None, 'Azure OpenAI not configured. Set AZURE_OPENAI_KEY and AZURE_OPENAI_ENDPOINT in Render environment.'
+
+    url = f"{AZURE_ENDPOINT}/openai/deployments/{AZURE_DEPLOYMENT}/chat/completions?api-version=2024-02-01"
+    try:
+        resp = http_requests.post(
+            url,
+            headers={'Content-Type': 'application/json', 'api-key': AZURE_KEY},
+            json={'messages': messages, 'max_tokens': max_tokens, 'temperature': temperature},
+            timeout=60,
+        )
+        if resp.status_code == 200:
+            text = resp.json()['choices'][0]['message']['content']
+            return text, None
+        else:
+            err = resp.json().get('error', {}).get('message', resp.text[:200])
+            return None, f'Azure OpenAI error {resp.status_code}: {err}'
+    except Exception as e:
+        return None, f'Azure OpenAI exception: {e}'
 from typing import List, Dict, Tuple
 from datetime import datetime
 from collections import OrderedDict
