@@ -1365,7 +1365,7 @@ def search_url():
         active_date        = next((f.replace('datesearch.y_','') for f in filters if f.startswith('datesearch.y_')), '')
 
         return render_template('results_multi.html',
-                             keywords=keywords,
+                             keywords=display_keywords,
                              keywords_str=keywords_str,
                              search_id=search_id,
                              keyword_summary=keyword_summary,
@@ -1380,6 +1380,7 @@ def search_url():
         import traceback; traceback.print_exc()
         return render_template('index_multi_with_logo.html',
                              error=f"An error occurred: {str(e)}",
+                             active_tab='url_search',
                              recent_searches=recent_searches[:10])
 
 
