@@ -1185,7 +1185,7 @@ def search_url():
                 try:
                     year_part = f.replace('years.', '')
                     y_from, y_to = year_part.split('-')
-                    clause = f'"{y_from}/01/01"[PDat] : "{y_to}/12/31"[PDat]'
+                    clause = f'("{y_from}/01/01"[PDat] : "{y_to}/12/31"[PDat])'
                     if clause not in seen_clauses:
                         seen_clauses.add(clause)
                         other_clauses.append(clause)
@@ -1199,12 +1199,30 @@ def search_url():
                     years_back = int(f.replace('datesearch.y_', ''))
                     from datetime import date
                     y_from = date.today().year - years_back
-                    clause = f'"{y_from}/01/01"[PDat] : "3000"[PDat]'
+                    clause = f'("{y_from}/01/01"[PDat] : "3000"[PDat])'
                     if clause not in seen_clauses:
                         seen_clauses.add(clause)
                         other_clauses.append(clause)
                 except Exception:
                     unknown_filters.append(f)
+                continue
+
+            # ── Special case: englishabstract — add as AND, not OR ────────
+            # "English Abstract" pub type is too broad to OR with clinical types
+            if f == 'pubt.englishabstract':
+                clause = '"english"[Language]'
+                if clause not in seen_clauses:
+                    seen_clauses.add(clause)
+                    other_clauses.append(clause)
+                continue
+
+            # ── Special case: simsearch1.fha (has abstract) ───────────────
+            # PubMed display filter — in Entrez use hasabstract filter
+            if f == 'simsearch1.fha':
+                clause = '"hasabstract"[Filter]'
+                if clause not in seen_clauses:
+                    seen_clauses.add(clause)
+                    other_clauses.append(clause)
                 continue
 
             if f in FILTER_MAP:
