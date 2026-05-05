@@ -1058,6 +1058,10 @@ function renderCards(sorted, limit, fc, freeCounts){
 function collectFilterParams() {
     const params = new URLSearchParams();
 
+    // For URL searches: only collect filter params if user actually changed something
+    // Otherwise the download should use the same Entrez-filtered data (no extra params)
+    const userChanged = !_URL_FILTERS_APPLIED || hasUserChangedFilters();
+
     // Date
     const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value || '';
     if (dateVal) params.set('f_date', dateVal);
@@ -1068,29 +1072,31 @@ function collectFilterParams() {
         if (to)   params.set('f_date_to',   to);
     }
 
-    // Checkboxes
-    const checkMap = {
-        'f-free-pmc':              'f_free_pmc',
-        'f-type-journal':          'f_type_journal',
-        'f-type-review':           'f_type_review',
-        'f-type-systematic':       'f_type_systematic',
-        'f-type-meta':             'f_type_meta',
-        'f-type-rct':              'f_type_rct',
-        'f-type-clinical':         'f_type_clinical',
-        'f-type-case':             'f_type_case',
-        'f-type-observational':    'f_type_observational',
-        'f-humans':   'f_humans',
-        'f-animals':  'f_animals',
-        'f-female':   'f_female',
-        'f-male':     'f_male',
-        'f-child':    'f_child',
-        'f-adult':    'f_adult',
-        'f-aged':     'f_aged',
-        'f-infant':   'f_infant',
-    };
-    Object.entries(checkMap).forEach(([id, param]) => {
-        if (document.getElementById(id)?.checked) params.set(param, '1');
-    });
+    // Checkboxes — only include if user changed from URL state
+    if (userChanged) {
+        const checkMap = {
+            'f-free-pmc':           'f_free_pmc',
+            'f-type-journal':       'f_type_journal',
+            'f-type-review':        'f_type_review',
+            'f-type-systematic':    'f_type_systematic',
+            'f-type-meta':          'f_type_meta',
+            'f-type-rct':           'f_type_rct',
+            'f-type-clinical':      'f_type_clinical',
+            'f-type-case':          'f_type_case',
+            'f-type-observational': 'f_type_observational',
+            'f-humans':   'f_humans',
+            'f-animals':  'f_animals',
+            'f-female':   'f_female',
+            'f-male':     'f_male',
+            'f-child':    'f_child',
+            'f-adult':    'f_adult',
+            'f-aged':     'f_aged',
+            'f-infant':   'f_infant',
+        };
+        Object.entries(checkMap).forEach(([id, param]) => {
+            if (document.getElementById(id)?.checked) params.set(param, '1');
+        });
+    }
 
     return params.toString();
 }
