@@ -625,6 +625,8 @@ const TOTAL_ALL    = {{ total_articles }};
 const TOTAL_NCBI   = {{ total_ncbi_articles | default(total_articles) }};
 const SEARCH_ID    = {{ search_id | tojson }};
 const DEFAULT_LIMIT = 1000;
+// For URL searches: store original entrez query to re-run with date filters
+const _ENTREZ_QUERY = {{ entrez_query | default('') | tojson }};
 
 // URL search filter flags
 const _URL_CHECKBOXES    = {{ active_checkboxes  | default([]) | tojson }};
@@ -638,6 +640,15 @@ var _userChangedFilters = false;
 
 function hasUserChangedFilters() {
     if (!_URL_FILTERS_APPLIED) return true;
+
+    // If URL pre-check tracking has been cleared (e.g. after Clear All),
+    // treat as no user change — show all fetched articles
+    if (_urlPreChecked.size === 0 && _urlModalTypes.size === 0 && !_URL_DATE) {
+        // Check if any checkbox is now checked (user added new filter)
+        const anyChecked = document.querySelectorAll('.sidebar input[type="checkbox"]:checked').length > 0;
+        const dateVal    = document.querySelector('input[name="pub_date"]:checked')?.value || '';
+        return anyChecked || dateVal !== '';
+    }
 
     // Check if date changed from URL state
     const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value || '';
@@ -922,10 +933,31 @@ function articlePassesSidebarFilters(art) {
     return true;
 }
 
+function rerunUrlSearchWithDate(years) {
+    const now  = new Date().getFullYear();
+    const from = now - parseInt(years);
+    const dateClause = `("${from}/01/01"[PDat] : "3000/12/31"[PDat])`;
+    const newQuery   = _ENTREZ_QUERY + ' AND ' + dateClause;
+    const form = document.createElement('form');
+    form.method = 'POST'; form.action = '/search_url';
+    [['pubmed_url', 'https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(newQuery)],
+     ['max_results', document.getElementById('ctrl-limit')?.value || '1000']
+    ].forEach(([k,v]) => {
+        const i = document.createElement('input');
+        i.type='hidden'; i.name=k; i.value=v; form.appendChild(i);
+    });
+    document.body.appendChild(form); form.submit();
+}
+
 function toggleCustomDate(){
-    _userChangedFilters = true;
-    document.getElementById('custom-date-wrap').classList.toggle('visible',
-        document.querySelector('input[name="pub_date"]:checked')?.value==='custom');
+    const val = document.querySelector('input[name="pub_date"]:checked')?.value || '';
+    document.getElementById('custom-date-wrap').classList.toggle('visible', val === 'custom');
+
+    // For URL searches with date selection: re-run search server-side for accuracy
+    if (_URL_FILTERS_APPLIED && _ENTREZ_QUERY && val && val !== 'custom') {
+        rerunUrlSearchWithDate(val);
+        return;
+    }
     scheduleNcbiCount();
     applyFilters();
 }
@@ -941,6 +973,13 @@ function clearAllFilters(){
         else if(c.type==='radio') c.checked=false;
     });
     document.getElementById('custom-date-wrap').classList.remove('visible');
+
+    // Reset URL filter tracking so hasUserChangedFilters() returns false
+    // This means "show all fetched articles" again
+    _urlPreChecked.clear();
+    _urlModalTypes.clear();
+    _modalSelectedTypes.clear();
+
     _filteredNcbiGrandTotal = null;
     _filteredNcbiTotals = null;
     setNcbiTotal(TOTAL_NCBI, false, null);

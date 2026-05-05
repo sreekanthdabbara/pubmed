@@ -1135,8 +1135,6 @@ def search_url():
         # Has abstract / full text
         'simsearch2.ffrft':                   '"free full text"[Filter]',
         'ffrft.Y':                            '"full text"[Filter]',
-        # Language
-        'pubt.englishabstract':               '"English Abstract"[Publication Type]',
         # Species / Age / Sex
         'hum_ani.humans':                     '"humans"[MeSH Terms]',
         'hum_ani.animals':                    '"animals"[MeSH Terms]',
@@ -1212,13 +1210,15 @@ def search_url():
                     unknown_filters.append(f)
                 continue
 
-            # ── Special case: englishabstract — add as AND, not OR ────────
-            # "English Abstract" pub type is too broad to OR with clinical types
+            # ── Special case: englishabstract — add to OR pub type group ──
+            # PubMed's englishabstract means articles with English abstract
+            # Adding as AND "english"[Language] is too restrictive (643 vs 884)
+            # Treat as pub type in OR group to match PubMed behavior
             if f == 'pubt.englishabstract':
-                clause = '"english"[Language]'
+                clause = '"English Abstract"[Publication Type]'
                 if clause not in seen_clauses:
                     seen_clauses.add(clause)
-                    other_clauses.append(clause)
+                    pub_type_clauses.append(clause)
                 continue
 
             # ── Special case: simsearch1.fha (has abstract) ───────────────
@@ -1387,6 +1387,7 @@ def search_url():
                              active_checkboxes=active_checkboxes,
                              active_modal_types=active_modal_types,
                              active_date=active_date,
+                             entrez_query=entrez_query,
                              url_filters_applied=True)
 
     except Exception as e:
