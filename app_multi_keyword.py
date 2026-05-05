@@ -23,22 +23,28 @@ import time
 import re
 import requests as http_requests
 
-# ── Azure OpenAI helper ───────────────────────────────────────────────────────
+# ── OpenAI API helper ────────────────────────────────────────────────────────
 def call_azure_openai(messages, max_tokens=1000, temperature=0.3):
-    """Call Azure OpenAI API. Returns (text, error_string)."""
-    AZURE_KEY        = os.environ.get('AZURE_OPENAI_KEY', '')
-    AZURE_ENDPOINT   = os.environ.get('AZURE_OPENAI_ENDPOINT', '').rstrip('/')
-    AZURE_DEPLOYMENT = os.environ.get('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o-mini')
+    """Call OpenAI API (gpt-4o-mini). Returns (text, error_string)."""
+    OPENAI_KEY   = os.environ.get('epilite-openai', '') or os.environ.get('OPENAI_API_KEY', '')
+    OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 
-    if not AZURE_KEY or not AZURE_ENDPOINT:
-        return None, 'Azure OpenAI not configured. Set AZURE_OPENAI_KEY and AZURE_OPENAI_ENDPOINT in Render environment.'
+    if not OPENAI_KEY:
+        return None, 'OPENAI_API_KEY not set in Render environment variables.'
 
-    url = f"{AZURE_ENDPOINT}/openai/deployments/{AZURE_DEPLOYMENT}/chat/completions?api-version=2024-02-01"
     try:
         resp = http_requests.post(
-            url,
-            headers={'Content-Type': 'application/json', 'api-key': AZURE_KEY},
-            json={'messages': messages, 'max_tokens': max_tokens, 'temperature': temperature},
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Content-Type':  'application/json',
+                'Authorization': f'Bearer {OPENAI_KEY}',
+            },
+            json={
+                'model':       OPENAI_MODEL,
+                'messages':    messages,
+                'max_tokens':  max_tokens,
+                'temperature': temperature,
+            },
             timeout=60,
         )
         if resp.status_code == 200:
@@ -46,9 +52,9 @@ def call_azure_openai(messages, max_tokens=1000, temperature=0.3):
             return text, None
         else:
             err = resp.json().get('error', {}).get('message', resp.text[:200])
-            return None, f'Azure OpenAI error {resp.status_code}: {err}'
+            return None, f'OpenAI error {resp.status_code}: {err}'
     except Exception as e:
-        return None, f'Azure OpenAI exception: {e}'
+        return None, f'OpenAI exception: {e}'
 from typing import List, Dict, Tuple
 from datetime import datetime
 from collections import OrderedDict
