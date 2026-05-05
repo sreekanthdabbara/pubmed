@@ -340,41 +340,41 @@
         <!-- Publication Date -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-calendar-alt" style="color:#2b6cb0"></i> Publication Date</div>
-            <label class="filter-item"><input type="radio" name="pub_date" value="" checked onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Any time</label>
-            <label class="filter-item"><input type="radio" name="pub_date" value="1" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> 1 year</label>
-            <label class="filter-item"><input type="radio" name="pub_date" value="5" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> 5 years</label>
-            <label class="filter-item"><input type="radio" name="pub_date" value="10" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> 10 years</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="" checked onchange="scheduleNcbiCount();applyFilters()"> Any time</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="1" onchange="scheduleNcbiCount();applyFilters()"> 1 year</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="5" onchange="scheduleNcbiCount();applyFilters()"> 5 years</label>
+            <label class="filter-item"><input type="radio" name="pub_date" value="10" onchange="scheduleNcbiCount();applyFilters()"> 10 years</label>
             <label class="filter-item"><input type="radio" name="pub_date" value="custom" onchange="toggleCustomDate()"> Custom Range</label>
             <div class="date-range-wrap" id="custom-date-wrap">
-                <input type="number" id="date-from" placeholder="From year" min="1900" max="2030" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()">
-                <input type="number" id="date-to"   placeholder="To year"   min="1900" max="2030" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()">
+                <input type="number" id="date-from" placeholder="From year" min="1900" max="2030" onchange="scheduleNcbiCount();applyFilters()">
+                <input type="number" id="date-to"   placeholder="To year"   min="1900" max="2030" onchange="scheduleNcbiCount();applyFilters()">
             </div>
         </div>
 
         <!-- Text Availability -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-file-alt" style="color:#2b6cb0"></i> Text Availability</div>
-            <label class="filter-item"><input type="checkbox" id="f-abstract"  onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Abstract</label>
-            <label class="filter-item"><input type="checkbox" id="f-free-pmc"  onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Free full text</label>
-            <label class="filter-item"><input type="checkbox" id="f-full-text" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Full text</label>
+            <label class="filter-item"><input type="checkbox" id="f-abstract"  onchange="scheduleNcbiCount();applyFilters()"> Abstract</label>
+            <label class="filter-item"><input type="checkbox" id="f-free-pmc"  onchange="scheduleNcbiCount();applyFilters()"> Free full text</label>
+            <label class="filter-item"><input type="checkbox" id="f-full-text" onchange="scheduleNcbiCount();applyFilters()"> Full text</label>
         </div>
 
         <!-- Article Type -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-tag" style="color:#2b6cb0"></i> Article Type</div>
             <!-- Initial visible types -->
-            <label class="filter-item"><input type="checkbox" id="f-type-clinical-study"  onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Clinical Study</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-clinical"        onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Clinical Trial</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-clinical-2"      onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase II</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-clinical-3"      onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase III</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-clinical-4"      onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase IV</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-meta"            onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Meta-Analysis</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-observational"   onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Observational Study</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-rct"             onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Randomized Controlled Trial</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-review"          onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Review</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-systematic"      onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Systematic Review</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-journal"         onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Journal Article</label>
-            <label class="filter-item"><input type="checkbox" id="f-type-case"            onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Case Reports</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-study"  onchange="scheduleNcbiCount();applyFilters()"> Clinical Study</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical"        onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-2"      onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase II</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-3"      onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase III</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-clinical-4"      onchange="scheduleNcbiCount();applyFilters()"> Clinical Trial, Phase IV</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-meta"            onchange="scheduleNcbiCount();applyFilters()"> Meta-Analysis</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-observational"   onchange="scheduleNcbiCount();applyFilters()"> Observational Study</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-rct"             onchange="scheduleNcbiCount();applyFilters()"> Randomized Controlled Trial</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-review"          onchange="scheduleNcbiCount();applyFilters()"> Review</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-systematic"      onchange="scheduleNcbiCount();applyFilters()"> Systematic Review</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-journal"         onchange="scheduleNcbiCount();applyFilters()"> Journal Article</label>
+            <label class="filter-item"><input type="checkbox" id="f-type-case"            onchange="scheduleNcbiCount();applyFilters()"> Case Reports</label>
             <a href="#" class="see-all-link" onclick="openArticleTypeModal();return false;">
                 <i class="fas fa-list"></i> See all article type filters
             </a>
@@ -398,24 +398,24 @@
         <!-- Species -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-dna" style="color:#2b6cb0"></i> Species</div>
-            <label class="filter-item"><input type="checkbox" id="f-humans"  onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Humans</label>
-            <label class="filter-item"><input type="checkbox" id="f-animals" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Other Animals</label>
+            <label class="filter-item"><input type="checkbox" id="f-humans"  onchange="scheduleNcbiCount();applyFilters()"> Humans</label>
+            <label class="filter-item"><input type="checkbox" id="f-animals" onchange="scheduleNcbiCount();applyFilters()"> Other Animals</label>
         </div>
 
         <!-- Sex -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-venus-mars" style="color:#2b6cb0"></i> Sex</div>
-            <label class="filter-item"><input type="checkbox" id="f-female" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Female</label>
-            <label class="filter-item"><input type="checkbox" id="f-male"   onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Male</label>
+            <label class="filter-item"><input type="checkbox" id="f-female" onchange="scheduleNcbiCount();applyFilters()"> Female</label>
+            <label class="filter-item"><input type="checkbox" id="f-male"   onchange="scheduleNcbiCount();applyFilters()"> Male</label>
         </div>
 
         <!-- Age -->
         <div class="filter-group">
             <div class="filter-group-title"><i class="fas fa-user-clock" style="color:#2b6cb0"></i> Age</div>
-            <label class="filter-item"><input type="checkbox" id="f-child"  onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Child: birth–18 years</label>
-            <label class="filter-item"><input type="checkbox" id="f-adult"  onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Adult: 19+ years</label>
-            <label class="filter-item"><input type="checkbox" id="f-aged"   onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Aged: 65+ years</label>
-            <label class="filter-item"><input type="checkbox" id="f-infant" onchange="_userChangedFilters=true;scheduleNcbiCount();applyFilters()"> Infant: birth–23 mo</label>
+            <label class="filter-item"><input type="checkbox" id="f-child"  onchange="scheduleNcbiCount();applyFilters()"> Child: birth–18 years</label>
+            <label class="filter-item"><input type="checkbox" id="f-adult"  onchange="scheduleNcbiCount();applyFilters()"> Adult: 19+ years</label>
+            <label class="filter-item"><input type="checkbox" id="f-aged"   onchange="scheduleNcbiCount();applyFilters()"> Aged: 65+ years</label>
+            <label class="filter-item"><input type="checkbox" id="f-infant" onchange="scheduleNcbiCount();applyFilters()"> Infant: birth–23 mo</label>
         </div>
     </aside>
 
@@ -631,9 +631,40 @@ const _URL_CHECKBOXES    = {{ active_checkboxes  | default([]) | tojson }};
 const _URL_MODAL_TYPES   = {{ active_modal_types | default([]) | tojson }};
 const _URL_DATE          = {{ active_date        | default('') | tojson }};
 const _URL_FILTERS_APPLIED = {{ url_filters_applied | default(false) | tojson }};
-// Only apply sidebar filtering after user manually changes a checkbox/radio
-// Dropdown changes alone should NOT trigger sidebar filtering for URL searches
+// Track which checkboxes were pre-set from URL (to detect user changes)
+var _urlPreChecked = new Set();
 var _userChangedFilters = false;
+
+function hasUserChangedFilters() {
+    if (!_URL_FILTERS_APPLIED) return true; // normal keyword search — always filter
+
+    // Check if date changed from default (Any time)
+    const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value || '';
+    if (dateVal !== '' && !_URL_DATE) return true;  // user added date filter
+    if (dateVal !== _URL_DATE && _URL_DATE) return true; // user changed date
+
+    // Check if any checkbox state differs from URL pre-set state
+    const allCheckboxIds = [
+        'f-type-journal','f-type-review','f-type-systematic','f-type-meta',
+        'f-type-rct','f-type-clinical','f-type-clinical-study','f-type-clinical-2',
+        'f-type-clinical-3','f-type-clinical-4','f-type-case','f-type-observational',
+        'f-abstract','f-free-pmc','f-full-text',
+        'f-humans','f-animals','f-female','f-male',
+        'f-child','f-adult','f-aged','f-infant'
+    ];
+    for (const id of allCheckboxIds) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const wasPreChecked = _urlPreChecked.has(id);
+        const isNowChecked  = el.checked;
+        if (wasPreChecked !== isNowChecked) return true; // user changed this box
+    }
+
+    // Check modal types changed
+    if (_modalSelectedTypes.size !== _urlPreChecked.size) return true;
+
+    return false; // everything matches URL state — no user change
+}
 
 /* ── Utilities ─────────────────────────────── */
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -823,9 +854,8 @@ function extractYear(dateStr) {
 }
 
 function articlePassesSidebarFilters(art) {
-    // For URL searches: skip client-side filtering until user manually changes a filter
-    // Entrez already applied the filters server-side
-    if (_URL_FILTERS_APPLIED && !_userChangedFilters) return true;
+    // For URL searches: skip client-side filtering if user hasn't changed anything from URL state
+    if (_URL_FILTERS_APPLIED && !hasUserChangedFilters()) return true;
     // ── Publication date ──────────────────────────────────────────────
     const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value||'';
     if (dateVal && dateVal!=='custom') {
@@ -904,7 +934,6 @@ function toggleAgeFilters(){
     t.textContent=vis?'See all age filters':'Hide age filters';
 }
 function clearAllFilters(){
-    _userChangedFilters = false;  // reset — show all again
     document.querySelectorAll('.sidebar input').forEach(c=>{
         if(c.type==='checkbox') c.checked=false;
         if(c.type==='radio' && c.value==='') c.checked=true;
@@ -1469,7 +1498,7 @@ function changePage(p) {
 if (_URL_CHECKBOXES.length || _URL_MODAL_TYPES.length || _URL_DATE) {
     _URL_CHECKBOXES.forEach(function(id) {
         const el = document.getElementById(id);
-        if (el) el.checked = true;
+        if (el) { el.checked = true; _urlPreChecked.add(id); }
     });
     if (_URL_DATE) {
         const radio = document.querySelector('input[name="pub_date"][value="' + _URL_DATE + '"]');
