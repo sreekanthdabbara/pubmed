@@ -1252,8 +1252,14 @@ def search_url():
         filter_summary = "; ".join(filters) if filters else "none"
         display_label  = term   # show just the search term, not the full entrez query
 
-        print(f"\n[search_url] Entrez query: {entrez_query}")
-        print(f"[search_url] Filters applied: {filter_summary}")
+        print(f"\n[search_url] ===== DEBUG =====")
+        print(f"[search_url] Term: {term}")
+        print(f"[search_url] Filters: {filters}")
+        print(f"[search_url] Entrez query: {entrez_query}")
+        print(f"[search_url] Pub types ({len(pub_type_clauses)}): {pub_type_clauses}")
+        print(f"[search_url] Other clauses ({len(other_clauses)}): {other_clauses}")
+        print(f"[search_url] Unknown filters: {unknown_filters}")
+        print(f"[search_url] ====================")
 
         # ── Run same pipeline as /search ─────────────────────────────────
         # IMPORTANT: use entrez_query (with all filters) for the actual search
