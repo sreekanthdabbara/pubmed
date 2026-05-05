@@ -1258,12 +1258,15 @@ def search_url():
         print(f"[search_url] Filters applied: {filter_summary}")
 
         # ── Run same pipeline as /search ─────────────────────────────────
-        keywords = [display_label]   # single "keyword" = the full entrez query
+        # IMPORTANT: use entrez_query (with all filters) for the actual search
+        # but display_label (clean term) for the keyword card display
+        search_keywords  = [entrez_query]   # full query with filters → sent to PubMed API
+        display_keywords = [display_label]  # clean term → shown in UI cards
 
         all_results, ncbi_totals = scraper.search_multiple_keywords(
-            keywords, max_results_per_keyword=max_results
+            search_keywords, max_results_per_keyword=max_results
         )
-        all_results   = scraper.compute_keyword_scores(all_results, keywords)
+        all_results    = scraper.compute_keyword_scores(all_results, search_keywords)
         sorted_results = scraper.sort_results_by_count(all_results, ascending=True)
 
         keyword_summary = []
@@ -1276,8 +1279,9 @@ def search_url():
             free_count = sum(1 for r in records if r.get('is_free_pmc'))
             ncbi_total = ncbi_totals.get(keyword, count)
 
+            # Use display_label for the card title (not the full Entrez query)
             keyword_summary.append({
-                'keyword':    keyword,
+                'keyword':    display_label,
                 'count':      count,
                 'ncbi_total': ncbi_total,
                 'fetched':    count,
@@ -1297,14 +1301,14 @@ def search_url():
 
         total_free_articles = sum(s['free_count'] for s in keyword_summary)
         total_ncbi_articles = sum(s['ncbi_total'] for s in keyword_summary)
-        keywords_str        = ','.join(keywords)
+        keywords_str        = display_label   # show clean term in UI, not full Entrez query
 
         search_id = hashlib.md5(
-            (keywords_str + str(max_results)).encode()
+            (entrez_query + str(max_results)).encode()
         ).hexdigest()[:12]
         _search_cache[search_id] = {
             'sorted_results': {kw: df for kw, df in sorted_results.items()},
-            'keywords':       keywords,
+            'keywords':       display_keywords,
             'sort_order':     'ascending',
             'max_results':    max_results,
         }
