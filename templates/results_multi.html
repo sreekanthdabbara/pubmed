@@ -866,8 +866,39 @@ function extractYear(dateStr) {
 }
 
 function articlePassesSidebarFilters(art) {
-    // For URL searches: skip client-side filtering if user hasn't changed anything from URL state
-    if (_URL_FILTERS_APPLIED && !hasUserChangedFilters()) return true;
+    // For URL searches: apply ONLY article type filters from pre-checked boxes
+    // Date/text/species/sex/age filters skip until user changes them
+    // (pub types are now filtered client-side since Entrez API can't match PubMed web counts)
+    if (_URL_FILTERS_APPLIED && !hasUserChangedFilters()) {
+        // Still apply pre-checked article type filters
+        const typeCheckMap = {
+            'f-type-journal':         ['journal article'],
+            'f-type-review':          ['review'],
+            'f-type-systematic':      ['systematic review', 'systematic'],
+            'f-type-meta':            ['meta-analysis'],
+            'f-type-rct':             ['randomized controlled trial', 'randomized'],
+            'f-type-clinical':        ['clinical trial'],
+            'f-type-clinical-study':  ['clinical study'],
+            'f-type-clinical-2':      ['clinical trial, phase ii', 'phase ii'],
+            'f-type-clinical-3':      ['clinical trial, phase iii', 'phase iii'],
+            'f-type-clinical-4':      ['clinical trial, phase iv', 'phase iv'],
+            'f-type-case':            ['case report'],
+            'f-type-observational':   ['observational study', 'observational'],
+        };
+        const anyTypeChecked = Object.keys(typeCheckMap).some(id => getChecked(id))
+                            || _modalSelectedTypes.size > 0;
+        if (anyTypeChecked) {
+            const pt = (art.publication_type||'').toLowerCase();
+            const matchesType =
+                Object.entries(typeCheckMap).some(([id, terms]) =>
+                    getChecked(id) && terms.some(t => pt.includes(t))
+                ) ||
+                (_modalSelectedTypes.size > 0 &&
+                 [..._modalSelectedTypes].some(mt => pt.includes(mt.toLowerCase())));
+            if (!matchesType) return false;
+        }
+        return true;
+    }
     // ── Publication date ──────────────────────────────────────────────
     const dateVal = document.querySelector('input[name="pub_date"]:checked')?.value||'';
     if (dateVal && dateVal!=='custom') {

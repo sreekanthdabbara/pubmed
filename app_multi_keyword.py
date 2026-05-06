@@ -1257,12 +1257,25 @@ def search_url():
         filter_summary = "; ".join(filters) if filters else "none"
         display_label  = term   # show just the search term, not the full entrez query
 
+        # ── Build Entrez query ────────────────────────────────────────────
+        # NOTE: pubt.* pub type filters are NOT sent to Entrez API
+        # because Entrez and PubMed web use different indexes (695 vs 884 mismatch)
+        # Instead: fetch all articles matching the term+date+other filters,
+        # then apply pub type filtering client-side via pre-checked checkboxes
+        # This gives users more data AND lets them toggle types instantly
+
+        non_type_clauses = [c for c in other_clauses if '[Publication Type]' not in c
+                           and '[Filter]' not in c or 'hasabstract' in c or 'full text' in c.lower()]
+
+        parts = [f"({term})"]
+        parts.extend(non_type_clauses)
+        entrez_query = " AND ".join(parts)
+
         print(f"\n[search_url] ===== QUERY DEBUG =====")
-        print(f"[search_url] Entrez query sent to PubMed:")
+        print(f"[search_url] Term only query (pub types applied client-side):")
         print(f"[search_url] {entrez_query}")
-        print(f"[search_url] Pub type clauses ({len(pub_type_clauses)}): {pub_type_clauses}")
-        print(f"[search_url] Other clauses ({len(other_clauses)}): {other_clauses}")
-        print(f"[search_url] Unknown filters: {unknown_filters}")
+        print(f"[search_url] Pub types for client-side filter: {[c for c in pub_type_clauses]}")
+        print(f"[search_url] Other server-side clauses: {non_type_clauses}")
         print(f"[search_url] =========================")
 
         # ── Run same pipeline as /search ─────────────────────────────────
