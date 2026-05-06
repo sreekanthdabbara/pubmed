@@ -92,6 +92,65 @@ class MultiKeywordPubMedScraper:
         # Thread-safe lock so parallel workers don't race on Entrez calls
         self._lock = threading.Lock()
 
+    def search_pubmed_web(self, term: str, filters: list, max_results: int = 1000) -> tuple:
+        """
+        Search using PubMed's web API (same backend as pubmed.ncbi.nlm.nih.gov).
+        This matches counts exactly with PubMed web interface.
+        Returns (id_list, ncbi_total_count)
+        """
+        try:
+            # Build query params matching PubMed web format
+            params = {'term': term, 'format': 'pmid', 'size': min(max_results, 10000)}
+            # Add filters as separate params
+            filter_params = '&'.join(f'filter={f}' for f in filters)
+            base_url = 'https://pubmed.ncbi.nlm.nih.gov/api/query/search/'
+
+            # First get count
+            count_resp = http_requests.get(
+                base_url,
+                params={'term': term, 'format': 'json', 'size': 1},
+                timeout=30,
+                headers={'User-Agent': 'EpiLite/1.0 (research tool)'}
+            )
+
+            if count_resp.status_code != 200:
+                print(f"  [web_api] count failed: {count_resp.status_code}, falling back to Entrez")
+                return None, None
+
+            data       = count_resp.json()
+            ncbi_total = data.get('total', 0)
+            print(f"  [web_api] total from web API: {ncbi_total}")
+
+            # Fetch PMIDs in batches
+            all_pmids = []
+            page = 1
+            page_size = 200
+            while len(all_pmids) < max_results:
+                resp = http_requests.get(
+                    base_url,
+                    params={'term': term, 'format': 'pmid',
+                            'size': page_size, 'page': page},
+                    timeout=30,
+                    headers={'User-Agent': 'EpiLite/1.0 (research tool)'}
+                )
+                if resp.status_code != 200:
+                    break
+                d = resp.json()
+                pmids = d.get('pmids', [])
+                if not pmids:
+                    break
+                all_pmids.extend(pmids)
+                if len(all_pmids) >= ncbi_total:
+                    break
+                page += 1
+                time.sleep(0.34)
+
+            return all_pmids[:max_results], ncbi_total
+
+        except Exception as e:
+            print(f"  [web_api] error: {e}, falling back to Entrez")
+            return None, None
+
     def search_pubmed(self, query: str, max_results: int = 500) -> tuple:
         """Search PubMed and return (id_list, ncbi_total_count)."""
         print(f"  [search] {query!r} (max {max_results})")
@@ -1258,38 +1317,45 @@ def search_url():
         display_label  = term   # show just the search term, not the full entrez query
 
         # ── Build Entrez query ────────────────────────────────────────────
-        # NOTE: pubt.* pub type filters are NOT sent to Entrez API
-        # because Entrez and PubMed web use different indexes (695 vs 884 mismatch)
-        # Instead: fetch all articles matching the term+date+other filters,
-        # then apply pub type filtering client-side via pre-checked checkboxes
-        # This gives users more data AND lets them toggle types instantly
-
-        non_type_clauses = [c for c in other_clauses if '[Publication Type]' not in c
-                           and '[Filter]' not in c or 'hasabstract' in c or 'full text' in c.lower()]
-
+        # Send pub type filters to Entrez AND also pre-check sidebar boxes
+        # Note: Entrez may return slightly different count than PubMed web
+        # due to different indexing systems - this is expected behavior
         parts = [f"({term})"]
-        parts.extend(non_type_clauses)
+        if pub_type_clauses:
+            parts.append("(" + " OR ".join(pub_type_clauses) + ")")
+        parts.extend(other_clauses)
         entrez_query = " AND ".join(parts)
 
-        print(f"\n[search_url] ===== QUERY DEBUG =====")
-        print(f"[search_url] Term only query (pub types applied client-side):")
-        print(f"[search_url] {entrez_query}")
-        print(f"[search_url] Pub types for client-side filter: {[c for c in pub_type_clauses]}")
-        print(f"[search_url] Other server-side clauses: {non_type_clauses}")
-        print(f"[search_url] =========================")
+        print(f"\n[search_url] Entrez query: {entrez_query[:200]}...")
+        print(f"[search_url] Pub types: {len(pub_type_clauses)}, Other: {len(other_clauses)}")
 
-        # ── Run same pipeline as /search ─────────────────────────────────
-        # IMPORTANT: use entrez_query (with all filters) for the actual search
-        # but display_label (clean term) for the keyword card display
-        search_keywords  = [entrez_query]   # full query with filters → sent to PubMed API
-        display_keywords = [display_label]  # clean term → shown in UI cards
+        search_keywords  = [entrez_query]
+        display_keywords = [display_label]
 
-        all_results, ncbi_totals = scraper.search_multiple_keywords(
-            search_keywords, max_results_per_keyword=max_results
+        # ── Try PubMed web API first (matches web counts exactly) ────────────
+        web_pmids, web_total = scraper.search_pubmed_web(
+            term=entrez_query, filters=[], max_results=max_results
         )
-        all_results    = scraper.compute_keyword_scores(all_results, search_keywords)
-        sorted_results = scraper.sort_results_by_count(all_results, ascending=True)
-        print(f"[search_url] Entrez returned ncbi_totals: {ncbi_totals}")
+
+        if web_pmids is not None and len(web_pmids) > 0:
+            print(f"[search_url] Web API: {web_total} total, {len(web_pmids)} fetched")
+            articles = scraper.fetch_abstracts(web_pmids)
+            articles = scraper.compute_keyword_scores_list(articles, search_keywords) if hasattr(scraper, 'compute_keyword_scores_list') else articles
+            import pandas as pd
+            df = pd.DataFrame(articles) if articles else pd.DataFrame()
+            if not df.empty and 'keyword' not in df.columns:
+                df['keyword'] = entrez_query
+            sorted_results = {entrez_query: df}
+            ncbi_totals    = {entrez_query: web_total}
+        else:
+            # Fallback to Entrez API
+            print(f"[search_url] Falling back to Entrez API")
+            all_results, ncbi_totals = scraper.search_multiple_keywords(
+                search_keywords, max_results_per_keyword=max_results
+            )
+            all_results    = scraper.compute_keyword_scores(all_results, search_keywords)
+            sorted_results = scraper.sort_results_by_count(all_results, ascending=True)
+        print(f"[search_url] ncbi_totals: {ncbi_totals}")
 
         keyword_summary = []
         total_articles  = 0

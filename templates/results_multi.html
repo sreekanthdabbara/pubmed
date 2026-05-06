@@ -867,34 +867,39 @@ function extractYear(dateStr) {
 
 function articlePassesSidebarFilters(art) {
     // For URL searches: apply ONLY article type filters from pre-checked boxes
-    // Date/text/species/sex/age filters skip until user changes them
-    // (pub types are now filtered client-side since Entrez API can't match PubMed web counts)
+    // (Entrez already filtered by pub type server-side, but client-side helps
+    // refine when user changes selections)
     if (_URL_FILTERS_APPLIED && !hasUserChangedFilters()) {
-        // Still apply pre-checked article type filters
+        // pub_type field is semicolon-separated e.g. "Review; English Abstract"
+        // split and check each part
+        const ptParts = (art.publication_type||'').toLowerCase()
+                            .split(';').map(s => s.trim()).filter(Boolean);
+
         const typeCheckMap = {
             'f-type-journal':         ['journal article'],
             'f-type-review':          ['review'],
-            'f-type-systematic':      ['systematic review', 'systematic'],
+            'f-type-systematic':      ['systematic review'],
             'f-type-meta':            ['meta-analysis'],
-            'f-type-rct':             ['randomized controlled trial', 'randomized'],
+            'f-type-rct':             ['randomized controlled trial'],
             'f-type-clinical':        ['clinical trial'],
             'f-type-clinical-study':  ['clinical study'],
-            'f-type-clinical-2':      ['clinical trial, phase ii', 'phase ii'],
-            'f-type-clinical-3':      ['clinical trial, phase iii', 'phase iii'],
-            'f-type-clinical-4':      ['clinical trial, phase iv', 'phase iv'],
-            'f-type-case':            ['case report'],
-            'f-type-observational':   ['observational study', 'observational'],
+            'f-type-clinical-2':      ['clinical trial, phase ii'],
+            'f-type-clinical-3':      ['clinical trial, phase iii'],
+            'f-type-clinical-4':      ['clinical trial, phase iv'],
+            'f-type-case':            ['case reports', 'case report'],
+            'f-type-observational':   ['observational study'],
         };
         const anyTypeChecked = Object.keys(typeCheckMap).some(id => getChecked(id))
                             || _modalSelectedTypes.size > 0;
         if (anyTypeChecked) {
-            const pt = (art.publication_type||'').toLowerCase();
             const matchesType =
                 Object.entries(typeCheckMap).some(([id, terms]) =>
-                    getChecked(id) && terms.some(t => pt.includes(t))
+                    getChecked(id) && ptParts.some(pt => terms.some(t => pt === t || pt.includes(t)))
                 ) ||
                 (_modalSelectedTypes.size > 0 &&
-                 [..._modalSelectedTypes].some(mt => pt.includes(mt.toLowerCase())));
+                 [..._modalSelectedTypes].some(mt =>
+                     ptParts.some(pt => pt.includes(mt.toLowerCase()))
+                 ));
             if (!matchesType) return false;
         }
         return true;
