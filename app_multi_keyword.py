@@ -93,63 +93,79 @@ class MultiKeywordPubMedScraper:
         self._lock = threading.Lock()
 
     def search_pubmed_web(self, term: str, filters: list, max_results: int = 1000) -> tuple:
-        """
-        Search using PubMed's web API (same backend as pubmed.ncbi.nlm.nih.gov).
-        This matches counts exactly with PubMed web interface.
-        Returns (id_list, ncbi_total_count)
-        """
-        try:
-            # Build query params matching PubMed web format
-            params = {'term': term, 'format': 'pmid', 'size': min(max_results, 10000)}
-            # Add filters as separate params
-            filter_params = '&'.join(f'filter={f}' for f in filters)
-            base_url = 'https://pubmed.ncbi.nlm.nih.gov/api/query/search/'
+    """
+    Search using PubMed Web API (matches PubMed UI exactly)
+    Returns (pmid_list, total_count)
+    """
+    try:
+        base_url = 'https://pubmed.ncbi.nlm.nih.gov/api/query/search/'
+        headers = {'User-Agent': 'EpiLite/1.0 (research tool)'}
 
-            # First get count
-            count_resp = http_requests.get(
+        # Helper to build params with filters
+        def build_params(page_size, page=1, fmt='json'):
+            params = {
+                'term': term,
+                'format': fmt,
+                'size': page_size,
+                'page': page
+            }
+            # IMPORTANT: add filters properly
+            for f in filters:
+                params.setdefault('filter', []).append(f)
+            return params
+
+        # ---- Get total count ----
+        count_resp = http_requests.get(
+            base_url,
+            params=build_params(1),
+            timeout=30,
+            headers=headers
+        )
+
+        if count_resp.status_code != 200:
+            print(f"[web_api] count failed: {count_resp.status_code}")
+            return None, None
+
+        data = count_resp.json()
+        total = data.get('total', 0)
+
+        print(f"[web_api] total from PubMed UI: {total}")
+
+        # ---- Fetch PMIDs ----
+        all_pmids = []
+        page = 1
+        page_size = 200
+
+        while len(all_pmids) < min(total, max_results):
+            resp = http_requests.get(
                 base_url,
-                params={'term': term, 'format': 'json', 'size': 1},
+                params=build_params(page_size, page, fmt='pmid'),
                 timeout=30,
-                headers={'User-Agent': 'EpiLite/1.0 (research tool)'}
+                headers=headers
             )
 
-            if count_resp.status_code != 200:
-                print(f"  [web_api] count failed: {count_resp.status_code}, falling back to Entrez")
-                return None, None
+            if resp.status_code != 200:
+                break
 
-            data       = count_resp.json()
-            ncbi_total = data.get('total', 0)
-            print(f"  [web_api] total from web API: {ncbi_total}")
+            d = resp.json()
+            pmids = d.get('pmids', [])
 
-            # Fetch PMIDs in batches
-            all_pmids = []
-            page = 1
-            page_size = 200
-            while len(all_pmids) < max_results:
-                resp = http_requests.get(
-                    base_url,
-                    params={'term': term, 'format': 'pmid',
-                            'size': page_size, 'page': page},
-                    timeout=30,
-                    headers={'User-Agent': 'EpiLite/1.0 (research tool)'}
-                )
-                if resp.status_code != 200:
-                    break
-                d = resp.json()
-                pmids = d.get('pmids', [])
-                if not pmids:
-                    break
-                all_pmids.extend(pmids)
-                if len(all_pmids) >= ncbi_total:
-                    break
-                page += 1
-                time.sleep(0.34)
+            if not pmids:
+                break
 
-            return all_pmids[:max_results], ncbi_total
+            all_pmids.extend(pmids)
 
-        except Exception as e:
-            print(f"  [web_api] error: {e}, falling back to Entrez")
-            return None, None
+            if len(all_pmids) >= total:
+                break
+
+            page += 1
+            time.sleep(0.34)
+
+        return all_pmids[:max_results], total
+
+    except Exception as e:
+        print(f"[web_api] error: {e}")
+        return None, None
 
     def search_pubmed(self, query: str, max_results: int = 500) -> tuple:
         """Search PubMed and return (id_list, ncbi_total_count)."""
@@ -1334,7 +1350,9 @@ def search_url():
 
         # ── Try PubMed web API first (matches web counts exactly) ────────────
         web_pmids, web_total = scraper.search_pubmed_web(
-            term=entrez_query, filters=[], max_results=max_results
+            term=term,
+            filters=filters,
+            max_results=max_results
         )
 
         if web_pmids is not None and len(web_pmids) > 0:
