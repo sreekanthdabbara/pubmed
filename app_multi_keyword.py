@@ -1210,15 +1210,11 @@ def search_url():
                     unknown_filters.append(f)
                 continue
 
-            # ── Special case: englishabstract — add to OR pub type group ──
-            # PubMed's englishabstract means articles with English abstract
-            # Adding as AND "english"[Language] is too restrictive (643 vs 884)
-            # Treat as pub type in OR group to match PubMed behavior
+            # ── Special case: englishabstract — skip entirely ─────────────
+            # Adding as OR pub type gives 911 (too many)
+            # Adding as AND language gives 643 (too few)
+            # PubMed uses it as a display filter — safest to ignore it
             if f == 'pubt.englishabstract':
-                clause = '"English Abstract"[Publication Type]'
-                if clause not in seen_clauses:
-                    seen_clauses.add(clause)
-                    pub_type_clauses.append(clause)
                 continue
 
             # ── Special case: simsearch1.fha (has abstract) ───────────────
