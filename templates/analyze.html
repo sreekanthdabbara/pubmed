@@ -63,12 +63,12 @@
         @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
         .dl-excel-btn { display:inline-flex; align-items:center; gap:.4rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:7px; padding:.45rem 1rem; font-size:.78rem; font-weight:700; cursor:pointer; text-decoration:none; margin-top:.4rem; }
         .dl-excel-btn:hover { opacity:.88; }
-        .chat-input-wrap { padding:.6rem 1.2rem .7rem; border-top:1px solid #e2e8f0; flex-shrink:0; }
+        .chat-input-wrap { padding:.75rem 1.2rem .85rem; border-top:1px solid #e2e8f0; flex-shrink:0; }
         .attach-preview { display:none; background:#ebf8ff; border:1px solid #bee3f8; border-radius:8px; padding:.3rem .75rem; margin-bottom:.35rem; font-size:.73rem; color:#2b6cb0; align-items:center; justify-content:space-between; gap:.5rem; }
         .attach-preview.show { display:flex; }
-        .chat-input-row { display:flex; align-items:flex-end; gap:.45rem; background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:.4rem .5rem .4rem .85rem; }
+        .chat-input-row { display:flex; align-items:flex-end; gap:.45rem; background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .5rem .55rem .85rem; }
         .chat-input-row:focus-within { border-color:#2b6cb0; background:#fff; }
-        #chat-input { flex:1; border:none; background:transparent; font-size:.85rem; font-family:inherit; resize:none; max-height:90px; outline:none; color:#2d3748; line-height:1.5; }
+        #chat-input { flex:1; border:none; background:transparent; font-size:.85rem; font-family:inherit; resize:none; min-height:52px; max-height:160px; outline:none; color:#2d3748; line-height:1.5; }
         #chat-input::placeholder { color:#a0aec0; }
         .clip-btn { background:none; border:none; color:#a0aec0; cursor:pointer; padding:.1rem .2rem; flex-shrink:0; font-size:1rem; }
         .clip-btn:hover { color:#2b6cb0; }
@@ -157,8 +157,13 @@
                         <div class="cavatar"><i class="fas fa-robot"></i></div>
                         <div class="cbubble">
                             <p>Hello! I am your <b>EpiLite Co-pilot</b>.</p>
-                            <p><b>Option A:</b> Upload your exported Excel/CSV above — I will answer questions about your articles and can generate the 51-column AE extraction report.</p>
-                            <p><b>Option B:</b> Click <i class="fas fa-paperclip"></i> below to attach a single article PDF/TXT — I will extract all 51 clinical fields directly from it.</p>
+                            <p>Upload your <b>CSV / Excel / PDF</b> files above, then ask me anything about your data — or tell me how you'd like it analysed.</p>
+                            <p style="margin-top:.5rem;font-size:.82rem;color:#4a5568">
+                                <i class="fas fa-lightbulb" style="color:#d69e2e"></i>&nbsp;
+                                Try: <i>"Summarise treatment patterns by country"</i> &nbsp;·&nbsp;
+                                <i>"Generate AE extraction report"</i> &nbsp;·&nbsp;
+                                <i>"Compare study designs across articles"</i>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -180,10 +185,10 @@
                             <i class="fas fa-file-excel"></i>
                         </button>
                         <input type="file" id="tmpl-file" accept=".xlsx,.xls" style="display:none" onchange="artChosen(this,'template')">
-                        <textarea id="chat-input" rows="1"
-                            placeholder="Ask me anything, or attach an article via the paperclip..."
+                        <textarea id="chat-input" rows="2"
+                            placeholder="Ask me anything about your data, e.g. summarise by country, generate AE report..."
                             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
-                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,90)+'px'"></textarea>
+                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,160)+'px'"></textarea>
                         <button class="chat-send" onclick="send()" title="Send">
                             <i class="fas fa-paper-plane" style="font-size:.7rem"></i>
                         </button>
