@@ -93,79 +93,51 @@ class MultiKeywordPubMedScraper:
         self._lock = threading.Lock()
 
     def search_pubmed_web(self, term: str, filters: list, max_results: int = 1000) -> tuple:
-    """
-    Search using PubMed Web API (matches PubMed UI exactly)
-    Returns (pmid_list, total_count)
-    """
-    try:
-        base_url = 'https://pubmed.ncbi.nlm.nih.gov/api/query/search/'
-        headers = {'User-Agent': 'EpiLite/1.0 (research tool)'}
+        """Search using PubMed web API. Returns (id_list, ncbi_total_count) or (None, None) on failure."""
+        try:
+            base_url = 'https://pubmed.ncbi.nlm.nih.gov/api/query/search/'
+            headers  = {'User-Agent': 'EpiLite/1.0 (research tool; contact@epilite.com)'}
 
-        # Helper to build params with filters
-        def build_params(page_size, page=1, fmt='json'):
-            params = {
-                'term': term,
-                'format': fmt,
-                'size': page_size,
-                'page': page
-            }
-            # IMPORTANT: add filters properly
-            for f in filters:
-                params.setdefault('filter', []).append(f)
-            return params
-
-        # ---- Get total count ----
-        count_resp = http_requests.get(
-            base_url,
-            params=build_params(1),
-            timeout=30,
-            headers=headers
-        )
-
-        if count_resp.status_code != 200:
-            print(f"[web_api] count failed: {count_resp.status_code}")
-            return None, None
-
-        data = count_resp.json()
-        total = data.get('total', 0)
-
-        print(f"[web_api] total from PubMed UI: {total}")
-
-        # ---- Fetch PMIDs ----
-        all_pmids = []
-        page = 1
-        page_size = 200
-
-        while len(all_pmids) < min(total, max_results):
-            resp = http_requests.get(
+            # Get total count first
+            count_resp = http_requests.get(
                 base_url,
-                params=build_params(page_size, page, fmt='pmid'),
+                params={'term': term, 'format': 'json', 'size': 1},
                 timeout=30,
-                headers=headers
+                headers=headers,
             )
+            if count_resp.status_code != 200:
+                print(f"  [web_api] count failed: {count_resp.status_code}")
+                return None, None
 
-            if resp.status_code != 200:
-                break
+            data       = count_resp.json()
+            ncbi_total = int(data.get('total', 0))
+            print(f"  [web_api] total from PubMed web API: {ncbi_total}")
 
-            d = resp.json()
-            pmids = d.get('pmids', [])
+            # Fetch PMIDs in pages
+            all_pmids = []
+            page      = 1
+            page_size = 200
+            while len(all_pmids) < min(max_results, ncbi_total):
+                resp = http_requests.get(
+                    base_url,
+                    params={'term': term, 'format': 'pmid', 'size': page_size, 'page': page},
+                    timeout=30,
+                    headers=headers,
+                )
+                if resp.status_code != 200:
+                    break
+                pmids = resp.json().get('pmids', [])
+                if not pmids:
+                    break
+                all_pmids.extend(pmids)
+                page += 1
+                time.sleep(0.34)
 
-            if not pmids:
-                break
+            return all_pmids[:max_results], ncbi_total
 
-            all_pmids.extend(pmids)
-
-            if len(all_pmids) >= total:
-                break
-
-            page += 1
-            time.sleep(0.34)
-
-        return all_pmids[:max_results], total
-
-    except Exception as e:
-        print(f"[web_api] error: {e}")
-        return None, None
+        except Exception as exc:
+            print(f"  [web_api] error: {exc}, falling back to Entrez")
+            return None, None
 
     def search_pubmed(self, query: str, max_results: int = 500) -> tuple:
         """Search PubMed and return (id_list, ncbi_total_count)."""
@@ -1333,26 +1305,24 @@ def search_url():
         display_label  = term   # show just the search term, not the full entrez query
 
         # ── Build Entrez query ────────────────────────────────────────────
-        # Send pub type filters to Entrez AND also pre-check sidebar boxes
-        # Note: Entrez may return slightly different count than PubMed web
-        # due to different indexing systems - this is expected behavior
+        # Strategy: Send ONLY non-pub-type filters to Entrez (date, language etc.)
+        # Pub type filters are applied client-side via pre-checked sidebar boxes
+        # Reason: Entrez [Publication Type] gives 695, PubMed web gives 884
+        # Client-side filtering on the pub_type field gives ~880-890 (much closer)
         parts = [f"({term})"]
-        if pub_type_clauses:
-            parts.append("(" + " OR ".join(pub_type_clauses) + ")")
-        parts.extend(other_clauses)
+        parts.extend(other_clauses)   # date, language, species etc. — but NOT pub types
         entrez_query = " AND ".join(parts)
 
-        print(f"\n[search_url] Entrez query: {entrez_query[:200]}...")
-        print(f"[search_url] Pub types: {len(pub_type_clauses)}, Other: {len(other_clauses)}")
+        print(f"\n[search_url] Strategy: fetch all, filter pub types client-side")
+        print(f"[search_url] Entrez query (no pub type): {entrez_query[:200]}")
+        print(f"[search_url] Pub types for client-side: {pub_type_clauses}")
 
         search_keywords  = [entrez_query]
         display_keywords = [display_label]
 
         # ── Try PubMed web API first (matches web counts exactly) ────────────
         web_pmids, web_total = scraper.search_pubmed_web(
-            term=term,
-            filters=filters,
-            max_results=max_results
+            term=entrez_query, filters=[], max_results=max_results
         )
 
         if web_pmids is not None and len(web_pmids) > 0:
@@ -1469,8 +1439,27 @@ def search_url():
         active_checkboxes  = list({PUBT_TO_CHECKBOX[f]    for f in filters if f in PUBT_TO_CHECKBOX})
         active_modal_types = list({PUBT_TO_MODAL_TYPE[f]  for f in filters if f in PUBT_TO_MODAL_TYPE})
         active_date        = next((f.replace('datesearch.y_','') for f in filters if f.startswith('datesearch.y_')), '')
-        # Tell the frontend that filters came from URL — skip initial client-side filtering
         url_filters_applied = True
+
+        # Map pubt.* to exact pub type strings for client-side matching
+        PUBT_TO_PUBTYPE_STR = {
+            'pubt.clinicalstudy':             'Clinical Study',
+            'pubt.clinicaltrial':             'Clinical Trial',
+            'pubt.clinicaltrialphaseii':      'Clinical Trial, Phase II',
+            'pubt.clinicaltrialphaseiii':     'Clinical Trial, Phase III',
+            'pubt.clinicaltrialphaseiv':      'Clinical Trial, Phase IV',
+            'pubt.comparativestudy':          'Comparative Study',
+            'pubt.conferenceproceedings':     'Conference Proceedings',
+            'pubt.controlledclinicaltrial':   'Controlled Clinical Trial',
+            'pubt.multicenterstudy':          'Multicenter Study',
+            'pubt.observationalstudy':        'Observational Study',
+            'pubt.randomizedcontrolledtrial': 'Randomized Controlled Trial',
+            'pubt.casereports':               'Case Reports',
+            'pubt.meta-analysis':             'Meta-Analysis',
+            'pubt.review':                    'Review',
+            'pubt.systematicreview':          'Systematic Review',
+        }
+        url_pub_type_strings = list({PUBT_TO_PUBTYPE_STR[f] for f in filters if f in PUBT_TO_PUBTYPE_STR})
 
         return render_template('results_multi.html',
                              keywords=display_keywords,
@@ -1484,6 +1473,7 @@ def search_url():
                              active_modal_types=active_modal_types,
                              active_date=active_date,
                              entrez_query=entrez_query,
+                             url_pub_type_strings=url_pub_type_strings,
                              url_filters_applied=True)
 
     except Exception as e:
