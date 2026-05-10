@@ -226,6 +226,28 @@ document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&
 document.getElementById('dl-pdfs').onclick = function() { startPdfJob(); };
 
 var datasetFile  = null;
+var fileSessionToken = null;   // set after successful upload to /api/upload_session
+
+async function uploadFileSession(file) {
+    // Upload file once to server, get session token for subsequent messages
+    var fd = new FormData();
+    fd.append('file', file);
+    try {
+        var r = await fetch('/api/upload_session', {method:'POST', body:fd});
+        var d = await r.json();
+        if (d.token) {
+            fileSessionToken = d.token;
+            console.log('[copilot] File session created:', d.token, d.count, 'articles');
+            return true;
+        } else {
+            console.warn('[copilot] Upload session failed:', d.error);
+            return false;
+        }
+    } catch(e) {
+        console.warn('[copilot] Upload session error:', e);
+        return false;
+    }
+}
 var articleFile  = null;
 var templateFile = null;
 var chatHistory  = [];
@@ -234,7 +256,10 @@ var pollTimer    = null;
 function fileChosen(input) {
     if (input.files && input.files[0]) {
         datasetFile = input.files[0];
+        fileSessionToken = null;  // reset token — will upload on first message
         markUploaded(datasetFile.name);
+        // Pre-upload immediately so first message is fast
+        uploadFileSession(datasetFile);
     }
 }
 
@@ -244,7 +269,12 @@ function handleDrop(e) {
     var f = e.dataTransfer.files[0];
     if (!f) return;
     var ok = /\.(csv|xlsx|xls|zip)$/i.test(f.name);
-    if (ok) { datasetFile = f; markUploaded(f.name); }
+    if (ok) {
+        datasetFile = f;
+        fileSessionToken = null;
+        markUploaded(f.name);
+        uploadFileSession(f);
+    }
     else { alert('Please drop a CSV, Excel (.xlsx), or ZIP file.'); }
 }
 
@@ -373,11 +403,17 @@ async function send() {
 
     try {
         var fd3 = new FormData();
-        if (datasetFile) fd3.append('file', datasetFile);
+        // Use session token (file already uploaded) — don't re-send large file each time
+        if (fileSessionToken) {
+            fd3.append('session_token', fileSessionToken);
+        } else if (datasetFile) {
+            // Fallback: upload file directly if session token not yet available
+            fd3.append('file', datasetFile);
+        }
         fd3.append('history', JSON.stringify(chatHistory));
         fd3.append('question', q);
 
-        if (!datasetFile) {
+        if (!datasetFile && !fileSessionToken) {
             hideDots();
             addMsg('bot', '<p>Please upload your exported file using the upload bar above so I can answer questions about your research data. Or attach a single article via <i class="fas fa-paperclip"></i> for direct extraction.</p>');
             chatHistory.pop();
