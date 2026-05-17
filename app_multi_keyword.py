@@ -42,7 +42,7 @@ def call_azure_openai(messages, max_tokens=1000, temperature=0.3):
             json={
                 'model':       OPENAI_MODEL,
                 'messages':    messages,
-                'max_tokens':  min(max_tokens, 8000),   # cap at 8K for safety
+                'max_tokens':  min(max_tokens, 16000),  # GPT-4o-mini supports up to 16K output tokens
                 'temperature': temperature,
             },
             timeout=120,   # increase timeout for large responses
@@ -3283,37 +3283,120 @@ def copilot_file():
                 f"   {abstract}\n"
             )
 
-        if total > cap:
-            context_lines.append(f"\n[Note: {total-cap} more articles not shown due to size limit]\n")
+        # ── Decide: single call vs batch processing ───────────────────────
+        # Single call works for ≤50 articles (fits in 16K output tokens)
+        # Batch processing for 51+ articles: split into batches of 50
+        BATCH_SIZE = 50
 
-        article_context = '\n'.join(context_lines)
+        def _build_context(article_slice, abs_length):
+            """Build context string for a slice of articles."""
+            lines = []
+            for idx, art in enumerate(article_slice, 1):
+                def _g(*keys):
+                    for k in keys:
+                        v = art.get(k,'') or ''
+                        if v and str(v).strip() not in ('','nan'): return str(v).strip()
+                    return ''
+                t  = _g('Title','title')[:120]
+                ft = _g('_fulltext')
+                ab = (ft[:abs_length] if ft else _g('Abstract','abstract')[:abs_length])
+                pd_ = _g('Publication Date','publication_date')
+                co  = _g('Country','country')
+                pt  = _g('Publication Type','publication_type')[:50]
+                pm  = _g('PMID','pmid')
+                lines.append(
+                    f"{idx}. {t} | {pd_} | {co} | {pt}" + (f" | PMID:{pm}" if pm else "") + "\n"
+                    f"   {ab}\n"
+                )
+            return '\n'.join(lines)
 
-        system_prompt = (
-            f"You are EpiLite Co-pilot, a biomedical research assistant. "
-            f"The user uploaded {total} PubMed articles (you have context for {min(cap,total)}).\n\n"
-            f"CRITICAL INSTRUCTIONS:\n"
-            f"- When asked for a table, include EVERY SINGLE article — do NOT summarise, do NOT skip any\n"
-            f"- If asked for {min(cap,total)} articles, the table must have EXACTLY {min(cap,total)} rows\n"
-            f"- Use EXACTLY the columns the user requests — do NOT use any standard template\n"
-            f"- Extract values from each article's data; write 'N/A' only if truly not available\n"
-            f"- For Sample Size: look in the abstract for numbers like 'n=', 'patients', 'participants'\n"
-            f"- Never truncate or stop early — output all rows\n\n"
-            f"{article_context}"
-        )
+        def _call_batch(article_slice, abs_length, batch_num, total_batches):
+            """Call GPT for one batch, return markdown table rows (excluding header after first batch)."""
+            ctx = _build_context(article_slice, abs_length)
+            sys_msg = (
+                f"You are EpiLite Co-pilot. Extract data from articles and return a markdown table.\n"
+                f"RULES:\n"
+                f"- Include EVERY article as a row — never skip any\n"
+                f"- Use EXACTLY the columns the user requested\n"
+                f"- Write N/A only if truly not available\n"
+                f"- Return ONLY the markdown table, no explanation\n"
+                + (f"- This is batch {batch_num} of {total_batches} — do NOT include the header row, only data rows\n"
+                   if batch_num > 1 else
+                   f"- Include the header row\n")
+            )
+            msgs = [
+                {'role': 'system', 'content': sys_msg},
+                {'role': 'user',   'content': f"Articles:\n{ctx}\n\nQuestion: {question}"},
+            ]
+            tokens = min(len(article_slice) * 80 + 500, 16000)
+            return call_azure_openai(msgs, max_tokens=tokens, temperature=0.1)
 
-        messages = [{'role': 'system', 'content': system_prompt}]
-        for msg in history[-4:]:
-            messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
-        messages.append({'role': 'user', 'content': question[:1000]})
+        if total <= BATCH_SIZE:
+            # ── Single call for small datasets ────────────────────────────
+            context_lines = [f"Dataset: {fname} | {total} articles\n"]
+            context_lines.append(_build_context(articles[:total], abs_len))
+            article_context = '\n'.join(context_lines)
 
-        # Increase max_tokens for large table responses (61 rows × ~50 tokens = ~3000 tokens)
-        estimated_rows = min(cap, total)
-        output_tokens  = max(2000, estimated_rows * 60 + 500)
-        output_tokens  = min(output_tokens, 4000)   # GPT-4o-mini max is 16K but keep cost low
+            system_prompt = (
+                f"You are EpiLite Co-pilot, a biomedical research assistant.\n\n"
+                f"CRITICAL INSTRUCTIONS:\n"
+                f"- Include EVERY SINGLE article as a table row — never skip any\n"
+                f"- Use EXACTLY the columns the user requests\n"
+                f"- Extract values from abstracts; write N/A only if truly unavailable\n"
+                f"- For Sample Size: look for 'n=', 'patients', 'participants' in abstracts\n"
+                f"- Return a markdown table\n\n"
+                f"{article_context}"
+            )
+            messages = [{'role': 'system', 'content': system_prompt}]
+            for msg in history[-4:]:
+                messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
+            messages.append({'role': 'user', 'content': question[:1000]})
+            output_tokens = min(total * 80 + 500, 16000)
+            answer, err = call_azure_openai(messages, max_tokens=output_tokens, temperature=0.2)
+            if err:
+                return jsonify({'error': err}), 500
 
-        answer, err = call_azure_openai(messages, max_tokens=output_tokens, temperature=0.3)
-        if err:
-            return jsonify({'error': err}), 500
+        else:
+            # ── Batch processing for large datasets (51+ articles) ────────
+            # Split into batches of 50, call GPT for each, stitch results
+            batches = [articles[i:i+BATCH_SIZE] for i in range(0, min(cap, total), BATCH_SIZE)]
+            total_batches = len(batches)
+            print(f"[copilot] Batch mode: {total} articles → {total_batches} batches of {BATCH_SIZE}")
+
+            all_table_parts = []
+            errors = []
+
+            for bn, batch in enumerate(batches, 1):
+                print(f"[copilot] Processing batch {bn}/{total_batches} ({len(batch)} articles)...")
+                part, err = _call_batch(batch, abs_len, bn, total_batches)
+                if err:
+                    errors.append(f"Batch {bn}: {err}")
+                    print(f"[copilot] Batch {bn} error: {err}")
+                elif part:
+                    all_table_parts.append(part.strip())
+                time.sleep(0.5)  # brief pause between batches
+
+            if not all_table_parts:
+                return jsonify({'error': f'All batches failed: {errors}'}), 500
+
+            # Stitch: keep header from first batch, data rows from all others
+            answer = all_table_parts[0]
+            for part in all_table_parts[1:]:
+                lines = part.strip().split('\n')
+                # Skip header row (starts with |) and separator row (|----|)
+                data_lines = [l for l in lines
+                              if l.strip().startswith('|')
+                              and not re.match(r'^\|[-:\s|]+\|?$', l.strip())]
+                # Also skip first data line if it looks like a duplicate header
+                if data_lines and all_table_parts[0].split('\n')[0].strip().lower() == data_lines[0].strip().lower():
+                    data_lines = data_lines[1:]
+                if data_lines:
+                    answer += '\n' + '\n'.join(data_lines)
+
+            articles_used = min(cap, total)
+            if errors:
+                answer += f"\n\n⚠️ {len(errors)} batch(es) had errors — some articles may be missing."
+
         return jsonify({'answer': answer, 'articles_used': min(cap, total)})
     except Exception as e:
         import traceback; traceback.print_exc()
