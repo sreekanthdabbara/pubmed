@@ -3106,7 +3106,47 @@ def upload_session():
                     lambda r: ' '.join(str(v) for v in r if v and str(v) not in ('','nan')), axis=1)
             articles = df.to_dict(orient='records')
         elif fname.endswith('.zip'):
-            articles = [{'title': 'PDF ZIP file uploaded', 'abstract': 'PDF content available'}]
+            import zipfile as _zf
+            zip_bytes = f.read()
+            with _zf.ZipFile(io.BytesIO(zip_bytes)) as zf:
+                pdf_files = sorted([n for n in zf.namelist()
+                                    if n.lower().endswith('.pdf') and not n.startswith('__')])
+                print(f"[upload_session] ZIP contains {len(pdf_files)} PDFs")
+                for pdf_name in pdf_files[:100]:
+                    try:
+                        pdf_bytes = zf.read(pdf_name)
+                        text = ''
+                        if PDF_SUPPORT:
+                            import pdfplumber
+                            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                                pages = []
+                                for page in pdf.pages[:20]:
+                                    pt = page.extract_text() or ''
+                                    if pt.strip():
+                                        pages.append(pt)
+                                text = '\n\n'.join(pages)
+                        # Parse filename for PMID and title
+                        clean = pdf_name.replace('.pdf','').replace('_',' ').strip('/')
+                        # Filename format: PMID_12345_Title or just title
+                        pmid, title = '', clean
+                        if 'PMID' in clean:
+                            parts = clean.replace('PMID','').strip().split(' ', 1)
+                            pmid  = parts[0].strip('_- ')
+                            title = parts[1].strip('_- ') if len(parts) > 1 else clean
+                        # Extract abstract = first 500 chars of text
+                        abstract = text[:500] if text else 'No text extracted'
+                        articles.append({
+                            'Title':            title[:150],
+                            'PMID':             pmid,
+                            'Abstract':         abstract,
+                            '_fulltext':        text[:3000],
+                            'PubMed URL':       f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/' if pmid else '',
+                            '_source':          'pdf',
+                            '_filename':        pdf_name,
+                        })
+                    except Exception as pe:
+                        print(f"[upload_session] PDF read error {pdf_name}: {pe}")
+            print(f"[upload_session] Extracted {len(articles)} articles from ZIP")
         else:
             return jsonify({'error': 'Upload CSV, Excel, or ZIP'}), 400
     except Exception as e:
@@ -3187,13 +3227,15 @@ def copilot_file():
                     if v and str(v).strip() not in ('','nan'): return str(v).strip()
                 return ''
             title    = _g('Title','title')[:120]
-            abstract = _g('Abstract','abstract')[:abs_len]
-            journal  = _g('Journal','journal')[:40]
+            # For PDFs use fulltext for better context, otherwise use abstract
+            fulltext = _g('_fulltext')
+            abstract = (fulltext[:abs_len] if fulltext else _g('Abstract','abstract')[:abs_len])
             pub_date = _g('Publication Date','publication_date')
             country  = _g('Country','country')
             pub_type = _g('Publication Type','publication_type')[:50]
+            pmid     = _g('PMID','pmid')
             context_lines.append(
-                f"{i}. {title} | {pub_date} | {country} | {pub_type}\n"
+                f"{i}. {title} | {pub_date} | {country} | {pub_type}" + (f" | PMID:{pmid}" if pmid else "") + "\n"
                 f"   {abstract}\n"
             )
 
