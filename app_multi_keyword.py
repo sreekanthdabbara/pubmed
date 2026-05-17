@@ -42,10 +42,10 @@ def call_azure_openai(messages, max_tokens=1000, temperature=0.3):
             json={
                 'model':       OPENAI_MODEL,
                 'messages':    messages,
-                'max_tokens':  max_tokens,
+                'max_tokens':  min(max_tokens, 8000),   # cap at 8K for safety
                 'temperature': temperature,
             },
-            timeout=60,
+            timeout=120,   # increase timeout for large responses
         )
         if resp.status_code == 200:
             text = resp.json()['choices'][0]['message']['content']
@@ -3205,12 +3205,13 @@ def copilot_file():
         system_prompt = (
             f"You are EpiLite Co-pilot, a biomedical research assistant. "
             f"The user uploaded {total} PubMed articles (you have context for {min(cap,total)}).\n\n"
-            f"IMPORTANT INSTRUCTIONS:\n"
-            f"- When asked for a table with specific columns, ALWAYS respond with a markdown table (| col1 | col2 | ... |)\n"
+            f"CRITICAL INSTRUCTIONS:\n"
+            f"- When asked for a table, include EVERY SINGLE article — do NOT summarise, do NOT skip any\n"
+            f"- If asked for {min(cap,total)} articles, the table must have EXACTLY {min(cap,total)} rows\n"
             f"- Use EXACTLY the columns the user requests — do NOT use any standard template\n"
-            f"- Fill each row from the article data provided\n"
-            f"- If a value is not available, write 'N/A'\n"
-            f"- Be concise, specific, and cite titles when relevant\n\n"
+            f"- Extract values from each article's data; write 'N/A' only if truly not available\n"
+            f"- For Sample Size: look in the abstract for numbers like 'n=', 'patients', 'participants'\n"
+            f"- Never truncate or stop early — output all rows\n\n"
             f"{article_context}"
         )
 
@@ -3219,7 +3220,12 @@ def copilot_file():
             messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
         messages.append({'role': 'user', 'content': question[:1000]})
 
-        answer, err = call_azure_openai(messages, max_tokens=2000, temperature=0.3)
+        # Increase max_tokens for large table responses (61 rows × ~50 tokens = ~3000 tokens)
+        estimated_rows = min(cap, total)
+        output_tokens  = max(2000, estimated_rows * 60 + 500)
+        output_tokens  = min(output_tokens, 4000)   # GPT-4o-mini max is 16K but keep cost low
+
+        answer, err = call_azure_openai(messages, max_tokens=output_tokens, temperature=0.3)
         if err:
             return jsonify({'error': err}), 500
         return jsonify({'answer': answer, 'articles_used': min(cap, total)})
