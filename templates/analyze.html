@@ -73,7 +73,7 @@
         .attach-preview.show { display:flex; }
         .chat-input-row { display:flex; align-items:flex-end; gap:.45rem; background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .5rem .55rem .85rem; }
         .chat-input-row:focus-within { border-color:#2b6cb0; background:#fff; }
-        #chat-input { flex:1; border:none; background:transparent; font-size:.85rem; font-family:inherit; resize:none; min-height:52px; max-height:160px; outline:none; color:#2d3748; line-height:1.5; }
+        #chat-input { flex:1; border:none; background:transparent; font-size:.85rem; font-family:inherit; resize:none; min-height:180px; max-height:320px; outline:none; color:#2d3748; line-height:1.5; }
         #chat-input::placeholder { color:#a0aec0; }
         .clip-btn { background:none; border:none; color:#a0aec0; cursor:pointer; padding:.1rem .2rem; flex-shrink:0; font-size:1rem; }
         .clip-btn:hover { color:#2b6cb0; }
@@ -190,17 +190,13 @@
                             <i class="fas fa-file-excel"></i>
                         </button>
                         <input type="file" id="tmpl-file" accept=".xlsx,.xls" style="display:none" onchange="artChosen(this,'template')">
-                        <textarea id="chat-input" rows="2"
+                        <textarea id="chat-input" rows="7"
                             placeholder="Ask me anything about your data, e.g. summarise by country, generate AE report..."
                             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
-                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,160)+'px'"></textarea>
+                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,320)+'px'"></textarea>
                         <button class="chat-send" onclick="send()" title="Send">
                             <i class="fas fa-paper-plane" style="font-size:.7rem"></i>
                         </button>
-                    </div>
-                    <div class="input-hint">
-                        <i class="fas fa-file-pdf" style="color:#e53e3e"></i> Attach PDF article &nbsp;+&nbsp;
-                        <i class="fas fa-file-excel" style="color:#276749"></i> Attach your Excel template &nbsp;&#183;&nbsp; AI fills template from PDF
                     </div>
                 </div>
             </div>
