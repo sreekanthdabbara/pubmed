@@ -55,6 +55,11 @@
         .cmsg.bot  .cbubble { background:#f7fafc; border:1px solid #e2e8f0; color:#2d3748; border-bottom-left-radius:3px; }
         .cbubble p { margin-bottom:.4rem; } .cbubble p:last-child { margin:0; }
         .cbubble ul { margin:.25rem 0 .25rem 1rem; } .cbubble li { margin-bottom:.2rem; }
+        .copilot-table { border-collapse:collapse; width:100%; margin:.5rem 0; font-size:.78rem; }
+        .copilot-table th { background:#1a365d; color:#fff; padding:.45rem .7rem; text-align:left; font-weight:700; border:1px solid #2b6cb0; }
+        .copilot-table td { padding:.4rem .7rem; border:1px solid #e2e8f0; color:#2d3748; vertical-align:top; }
+        .copilot-table tr:nth-child(even) td { background:#f7fafc; }
+        .copilot-table tr:hover td { background:#ebf8ff; }
         .cbubble b, .cbubble strong { color:#1a365d; }
         .cmsg.user .cbubble b, .cmsg.user .cbubble strong { color:#bee3f8; }
         .thinking-dots { display:flex; gap:4px; padding:.3rem .1rem; }
@@ -342,7 +347,40 @@ function showDots() {
 }
 function hideDots() { var el = document.getElementById('dots'); if (el) el.remove(); }
 
+function parseMarkdownTable(text) {
+    // Returns HTML table string if markdown table found, else null
+    var lines = text.trim().split('\n').map(function(l){ return l.trim(); });
+    var tableLines = lines.filter(function(l){ return l.startsWith('|'); });
+    if (tableLines.length < 2) return null;
+    var rows = tableLines.filter(function(l){ return !/^\|[-:\s|]+\|?$/.test(l); });
+    if (rows.length < 1) return null;
+    var html = '<table class="copilot-table"><thead>';
+    rows.forEach(function(row, i) {
+        var cells = row.replace(/^\||\|$/g,'').split('|').map(function(c){ return c.trim(); });
+        var tag = i === 0 ? 'th' : 'td';
+        var tr = '<tr>' + cells.map(function(c){ return '<'+tag+'>'+c+'</'+tag+'>'; }).join('') + '</tr>';
+        if (i === 0) html += tr + '</thead><tbody>';
+        else html += tr;
+    });
+    html += '</tbody></table>';
+    return html;
+}
+
+var _tableCounter = 0;
 function fmt(text) {
+    // Check for markdown table
+    if (/^\|.+\|/m.test(text)) {
+        var tableHtml = parseMarkdownTable(text);
+        if (tableHtml) {
+            var tid = 'tbl-' + (++_tableCounter);
+            return tableHtml +
+                '<div style="margin-top:.5rem">' +
+                '<button onclick="downloadTableExcel(\'' + tid + '\',this)" ' +
+                'data-tabletext="' + encodeURIComponent(text) + '" ' +
+                'style="display:inline-flex;align-items:center;gap:.4rem;background:#276749;color:#fff;border:none;border-radius:6px;padding:.35rem .85rem;font-size:.75rem;font-weight:600;cursor:pointer">' +
+                '<i class="fas fa-file-excel"></i> Download as Excel</button></div>';
+        }
+    }
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
     return text.split(/\n\n+/).map(function(p) {
@@ -350,6 +388,31 @@ function fmt(text) {
         if (p.includes('<li>')) return '<ul>' + p + '</ul>';
         return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
     }).join('');
+}
+
+async function downloadTableExcel(tid, btn) {
+    var tableText = decodeURIComponent(btn.getAttribute('data-tabletext'));
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+    btn.disabled = true;
+    try {
+        var fd = new FormData();
+        fd.append('table_text', tableText);
+        var r = await fetch('/api/table_to_excel', {method:'POST', body:fd});
+        if (!r.ok) throw new Error('Server error');
+        var blob = await r.blob();
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href = url;
+        a.download = 'copilot_analysis_' + new Date().toISOString().slice(0,10) + '.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+        btn.innerHTML = '<i class="fas fa-check"></i> Downloaded!';
+        btn.style.background = '#2b6cb0';
+    } catch(e) {
+        btn.innerHTML = '<i class="fas fa-file-excel"></i> Download as Excel';
+        btn.disabled = false;
+        alert('Download failed: ' + e.message);
+    }
 }
 
 function wantsReport(q) {

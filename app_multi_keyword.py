@@ -3020,37 +3020,151 @@ If multiple adverse events are reported, add more rows with the same article fie
         import traceback; traceback.print_exc()
 
 
+# ── In-memory file session cache ─────────────────────────────────────────────
+# Stores parsed article data per session so we don't re-upload on every message
+_file_sessions: dict = {}   # session_token -> {articles, filename, timestamp}
+FILE_SESSION_MAX = 50       # keep last 50 sessions
+
+@app.route('/api/table_to_excel', methods=['POST'])
+@login_required
+def table_to_excel():
+    """Convert markdown table text to Excel download."""
+    table_text = request.form.get('table_text', '').strip()
+    if not table_text:
+        return jsonify({'error': 'No table text provided'}), 400
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        # Parse markdown table rows
+        lines = [l.strip() for l in table_text.split('\n') if l.strip().startswith('|')]
+        rows  = [l for l in lines if not re.match(r'^\|[-:\s|]+\|?$', l)]
+
+        if not rows:
+            return jsonify({'error': 'No table data found'}), 400
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Copilot Analysis'
+
+        hdr_fill = PatternFill('solid', start_color='1A365D')
+        hdr_font = Font(bold=True, color='FFFFFF', size=10)
+
+        for ri, row in enumerate(rows, 1):
+            cells = [c.strip() for c in row.strip('|').split('|')]
+            for ci, val in enumerate(cells, 1):
+                cell = ws.cell(row=ri, column=ci, value=val)
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+                if ri == 1:
+                    cell.fill = hdr_fill
+                    cell.font = hdr_font
+                    cell.font = Font(bold=True, color='FFFFFF', size=10)
+                elif ri % 2 == 0:
+                    cell.fill = PatternFill('solid', start_color='F7FAFC')
+
+        # Auto column widths
+        for col in ws.columns:
+            max_len = max((len(str(c.value or '')) for c in col), default=10)
+            ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 60)
+        ws.row_dimensions[1].height = 30
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        return send_file(buf,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'copilot_analysis_{ts}.xlsx')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/upload_session', methods=['POST'])
+@login_required
+def upload_session():
+    """Upload file once, get a session token. Use token for subsequent chat messages."""
+    import uuid as _uuid
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No file uploaded'}), 400
+    fname = f.filename or ''
+    articles = []
+    try:
+        if fname.endswith('.csv'):
+            df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+            articles = df.to_dict(orient='records')
+        elif fname.endswith(('.xlsx', '.xls')):
+            xl = pd.ExcelFile(f)
+            sheet = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
+            if sheet == 'Summary' and len(xl.sheet_names) > 1:
+                sheet = xl.sheet_names[1]
+            df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
+            ft_cols = [c for c in df.columns if c.startswith('Full Text (PMC)')]
+            if ft_cols:
+                df['_fulltext'] = df[ft_cols].apply(
+                    lambda r: ' '.join(str(v) for v in r if v and str(v) not in ('','nan')), axis=1)
+            articles = df.to_dict(orient='records')
+        elif fname.endswith('.zip'):
+            articles = [{'title': 'PDF ZIP file uploaded', 'abstract': 'PDF content available'}]
+        else:
+            return jsonify({'error': 'Upload CSV, Excel, or ZIP'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Could not read file: {e}'}), 400
+
+    token = _uuid.uuid4().hex[:16]
+    _file_sessions[token] = {
+        'articles':  articles,
+        'filename':  fname,
+        'timestamp': time.time(),
+    }
+    # Evict oldest sessions if over limit
+    if len(_file_sessions) > FILE_SESSION_MAX:
+        oldest = min(_file_sessions, key=lambda k: _file_sessions[k]['timestamp'])
+        del _file_sessions[oldest]
+
+    return jsonify({'token': token, 'filename': fname, 'count': len(articles)})
+
+
 @app.route('/api/copilot_file', methods=['POST'])
 @login_required
 def copilot_file():
-    """Copilot chat using uploaded file as context."""
+    """Copilot chat using session token (file already uploaded via /api/upload_session)."""
     try:
-        f        = request.files.get('file')
+        token    = request.form.get('session_token', '')
         history  = json.loads(request.form.get('history', '[]'))
         question = request.form.get('question', '')
-        if not f or not question:
-            return jsonify({'error': 'File and question required'}), 400
-        fname = f.filename or ''
-        articles = []
-        try:
-            if fname.endswith('.csv'):
-                df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
-                articles = df.to_dict(orient='records')
-            elif fname.endswith(('.xlsx', '.xls')):
-                xl = pd.ExcelFile(f)
-                sheet = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
-                if sheet == 'Summary' and len(xl.sheet_names) > 1:
-                    sheet = xl.sheet_names[1]
-                df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
-                ft_cols = [c for c in df.columns if c.startswith('Full Text (PMC)')]
-                if ft_cols:
-                    df['_fulltext'] = df[ft_cols].apply(
-                        lambda r: ' '.join(str(v) for v in r if v and str(v) not in ('','nan')), axis=1)
-                articles = df.to_dict(orient='records')
-            elif fname.endswith('.zip'):
-                articles = [{'title': 'PDF ZIP file uploaded', 'abstract': 'PDF content available'}]
-        except Exception as e:
-            return jsonify({'error': f'Could not read file: {e}'}), 400
+
+        if not question:
+            return jsonify({'error': 'Question required'}), 400
+
+        # ── Get articles from session cache ───────────────────────────────
+        if token and token in _file_sessions:
+            session_data = _file_sessions[token]
+            articles = session_data['articles']
+            fname    = session_data['filename']
+            # Refresh timestamp to keep session alive
+            _file_sessions[token]['timestamp'] = time.time()
+        else:
+            # Fallback: accept direct file upload for backward compatibility
+            f = request.files.get('file')
+            if not f:
+                return jsonify({'error': 'Please upload a file first'}), 400
+            fname = f.filename or ''
+            articles = []
+            try:
+                if fname.endswith('.csv'):
+                    df = pd.read_csv(f, encoding='utf-8-sig', dtype=str).fillna('')
+                    articles = df.to_dict(orient='records')
+                elif fname.endswith(('.xlsx', '.xls')):
+                    xl = pd.ExcelFile(f)
+                    sheet = 'All Results' if 'All Results' in xl.sheet_names else xl.sheet_names[0]
+                    if sheet == 'Summary' and len(xl.sheet_names) > 1:
+                        sheet = xl.sheet_names[1]
+                    df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
+                    articles = df.to_dict(orient='records')
+            except Exception as e:
+                return jsonify({'error': f'Could not read file: {e}'}), 400
 
         # ── Build compact context — cap at 20 articles, 120 chars per abstract ──
         context_lines = [f"Dataset: {fname} ({len(articles)} total articles)\n"]
