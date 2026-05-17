@@ -368,17 +368,20 @@ function parseMarkdownTable(text) {
 
 var _tableCounter = 0;
 function fmt(text) {
-    // Check for markdown table
+    // If response contains a markdown table — show download button only, no table in chat
     if (/^\|.+\|/m.test(text)) {
         var tableHtml = parseMarkdownTable(text);
         if (tableHtml) {
-            var tid = 'tbl-' + (++_tableCounter);
-            return tableHtml +
-                '<div style="margin-top:.5rem">' +
-                '<button onclick="downloadTableExcel(\'' + tid + '\',this)" ' +
+            var rowCount = (text.match(/^\|/gm) || []).length - 2; // subtract header + separator
+            rowCount = Math.max(rowCount, 1);
+            return '<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0">' +
+                '<i class="fas fa-table" style="color:#276749;font-size:1.1rem"></i>' +
+                '<span style="font-size:.84rem;color:#2d3748">Analysis complete — <strong>' + rowCount + ' rows</strong> ready</span>' +
+                '<button onclick="downloadTableExcel(this)" ' +
                 'data-tabletext="' + encodeURIComponent(text) + '" ' +
-                'style="display:inline-flex;align-items:center;gap:.4rem;background:#276749;color:#fff;border:none;border-radius:6px;padding:.35rem .85rem;font-size:.75rem;font-weight:600;cursor:pointer">' +
-                '<i class="fas fa-file-excel"></i> Download as Excel</button></div>';
+                'style="display:inline-flex;align-items:center;gap:.4rem;background:#276749;color:#fff;border:none;border-radius:6px;padding:.4rem 1rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">' +
+                '<i class="fas fa-file-excel"></i> Download as Excel</button>' +
+                '</div>';
         }
     }
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -390,7 +393,7 @@ function fmt(text) {
     }).join('');
 }
 
-async function downloadTableExcel(tid, btn) {
+async function downloadTableExcel(btn) {
     var tableText = decodeURIComponent(btn.getAttribute('data-tabletext'));
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
     btn.disabled = true;
