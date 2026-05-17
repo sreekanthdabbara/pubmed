@@ -3284,12 +3284,39 @@ def copilot_file():
             )
 
         # ── Decide: single call vs batch processing ───────────────────────
-        # Single call works for ≤50 articles (fits in 16K output tokens)
-        # Batch processing for 51+ articles: split into batches of 50
-        BATCH_SIZE = 50
+        # Always use full content per article within each batch of 50
+        # abs_len for context was truncated globally — override for batches
+        BATCH_ABS_LEN = 99999   # no limit — use full abstract
+        BATCH_FT_LEN  = 99999   # no limit — use all full text from Excel
 
-        def _build_context(article_slice, abs_length):
-            """Build context string for a slice of articles."""
+        # ── Dynamic batch size based on actual content length ─────────────
+        # GPT-4o-mini: 128K token context ≈ 512K chars input (reserve 16K for output)
+        INPUT_CHAR_BUDGET = 400_000   # conservative budget per batch
+
+        def _avg_content_len(sample):
+            """Estimate average chars per article from a sample."""
+            total = 0
+            for art in sample:
+                ft = art.get('_fulltext','') or art.get('Full Text (PMC)','') or ''
+                ab = art.get('Abstract','') or art.get('abstract','') or ''
+                # Count all full text parts
+                for n in range(2, 10):
+                    p = art.get(f'Full Text (PMC) - Part {n}','') or ''
+                    if p: ft += p
+                    else: break
+                total += len(ft) if ft else len(ab)
+            return max(total // max(len(sample), 1), 500)
+
+        sample      = articles[:min(10, total)]
+        avg_chars   = _avg_content_len(sample)
+        BATCH_SIZE  = max(1, min(50, INPUT_CHAR_BUDGET // avg_chars))
+
+        has_fulltext = avg_chars > 2000   # >2K chars likely means full text present
+
+        print(f"[copilot] avg chars/article: {avg_chars:,} | batch size: {BATCH_SIZE} | full text: {has_fulltext}")
+
+        def _build_batch_context(article_slice):
+            """Build rich context for a batch — full abstract + full text from all Excel columns."""
             lines = []
             for idx, art in enumerate(article_slice, 1):
                 def _g(*keys):
@@ -3297,68 +3324,99 @@ def copilot_file():
                         v = art.get(k,'') or ''
                         if v and str(v).strip() not in ('','nan'): return str(v).strip()
                     return ''
-                t  = _g('Title','title')[:120]
+
+                title    = _g('Title','title')[:150]
+                abstract = _g('Abstract','abstract')
+                pub_date = _g('Publication Date','publication_date')
+                country  = _g('Country','country')
+                pub_type = _g('Publication Type','publication_type')[:60]
+                journal  = _g('Journal','journal')[:60]
+                authors  = _g('Authors','authors')[:80]
+                pmid     = _g('PMID','pmid')
+
+                # ── Gather full text from all sources ─────────────────────
+                # Priority: pre-merged _fulltext > individual Excel columns
                 ft = _g('_fulltext')
-                ab = (ft[:abs_length] if ft else _g('Abstract','abstract')[:abs_length])
-                pd_ = _g('Publication Date','publication_date')
-                co  = _g('Country','country')
-                pt  = _g('Publication Type','publication_type')[:50]
-                pm  = _g('PMID','pmid')
+                if not ft:
+                    # Combine Part 1 + Part 2 + Part 3... from Excel export
+                    parts = [_g('Full Text (PMC)')]
+                    for n in range(2, 10):
+                        p = _g(f'Full Text (PMC) - Part {n}')
+                        if p: parts.append(p)
+                        else: break
+                    ft = ' '.join(p for p in parts if p)
+                if not ft:
+                    ft = _g('full_text_merged', 'Free article complete content')
+
+                # Use full text if available, otherwise fall back to abstract
+                content = (ft[:BATCH_FT_LEN] if ft else abstract[:BATCH_ABS_LEN])
+                if not content:
+                    content = 'No content available'
+
                 lines.append(
-                    f"{idx}. {t} | {pd_} | {co} | {pt}" + (f" | PMID:{pm}" if pm else "") + "\n"
-                    f"   {ab}\n"
+                    f"--- Article {idx} ---\n"
+                    f"Title: {title}\n"
+                    f"Journal: {journal} | Date: {pub_date} | Country: {country}\n"
+                    f"Type: {pub_type}" + (f" | PMID: {pmid}" if pmid else "") + "\n"
+                    f"Authors: {authors}\n"
+                    f"Abstract: {abstract[:BATCH_ABS_LEN]}\n"
+                    + (f"Full Text: {ft[:BATCH_FT_LEN]}\n" if ft else "")
                 )
             return '\n'.join(lines)
 
-        def _call_batch(article_slice, abs_length, batch_num, total_batches):
-            """Call GPT for one batch, return markdown table rows (excluding header after first batch)."""
-            ctx = _build_context(article_slice, abs_length)
+        def _call_batch(article_slice, batch_num, total_batches):
+            """Call GPT for one batch, return markdown table rows."""
+            ctx = _build_batch_context(article_slice)
             sys_msg = (
-                f"You are EpiLite Co-pilot. Extract data from articles and return a markdown table.\n"
-                f"RULES:\n"
-                f"- Include EVERY article as a row — never skip any\n"
-                f"- Use EXACTLY the columns the user requested\n"
-                f"- Write N/A only if truly not available\n"
-                f"- Return ONLY the markdown table, no explanation\n"
-                + (f"- This is batch {batch_num} of {total_batches} — do NOT include the header row, only data rows\n"
+                "You are EpiLite Co-pilot, a clinical data extraction expert.\n"
+                "Extract data from each article's content and return a markdown table.\n"
+                "RULES:\n"
+                "- Include EVERY article as a row — never skip any\n"
+                "- Use EXACTLY the columns the user requested\n"
+                "- Extract values from the Content field — read it carefully\n"
+                "- For sample size: look for 'n=', 'patients', 'participants', numbers\n"
+                "- For outcomes: look for results, findings, conclusions\n"
+                "- Write N/A only if genuinely not mentioned anywhere\n"
+                "- Return ONLY the markdown table, no explanation\n"
+                + ("- Do NOT include the header row — data rows only\n"
                    if batch_num > 1 else
-                   f"- Include the header row\n")
+                   "- Include the header row\n")
             )
             msgs = [
                 {'role': 'system', 'content': sys_msg},
-                {'role': 'user',   'content': f"Articles:\n{ctx}\n\nQuestion: {question}"},
+                {'role': 'user',   'content': f"Articles to analyze:\n{ctx}\n\nUser request: {question}"},
             ]
-            tokens = min(len(article_slice) * 80 + 500, 16000)
+            # Output tokens: each article may produce multiple rows
+            tokens = min(len(article_slice) * 200 + 1000, 16000)
             return call_azure_openai(msgs, max_tokens=tokens, temperature=0.1)
 
         if total <= BATCH_SIZE:
             # ── Single call for small datasets ────────────────────────────
-            context_lines = [f"Dataset: {fname} | {total} articles\n"]
-            context_lines.append(_build_context(articles[:total], abs_len))
-            article_context = '\n'.join(context_lines)
-
+            ctx = _build_batch_context(articles[:total])
             system_prompt = (
-                f"You are EpiLite Co-pilot, a biomedical research assistant.\n\n"
-                f"CRITICAL INSTRUCTIONS:\n"
-                f"- Include EVERY SINGLE article as a table row — never skip any\n"
-                f"- Use EXACTLY the columns the user requests\n"
-                f"- Extract values from abstracts; write N/A only if truly unavailable\n"
-                f"- For Sample Size: look for 'n=', 'patients', 'participants' in abstracts\n"
-                f"- Return a markdown table\n\n"
-                f"{article_context}"
+                "You are EpiLite Co-pilot, a clinical data extraction expert.\n"
+                "Extract data from each article's content and return a markdown table.\n"
+                "RULES:\n"
+                "- Include EVERY article as a row — never skip any\n"
+                "- Use EXACTLY the columns the user requests\n"
+                "- Extract values from the Content field carefully\n"
+                "- For sample size: look for 'n=', 'patients', 'participants'\n"
+                "- For outcomes: look for results, findings, conclusions\n"
+                "- Write N/A only if genuinely not mentioned\n"
+                "- Return a markdown table with header row\n\n"
+                f"Articles:\n{ctx}"
             )
             messages = [{'role': 'system', 'content': system_prompt}]
             for msg in history[-4:]:
                 messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
             messages.append({'role': 'user', 'content': question[:1000]})
-            output_tokens = min(total * 80 + 500, 16000)
-            answer, err = call_azure_openai(messages, max_tokens=output_tokens, temperature=0.2)
+            output_tokens = min(total * 200 + 1000, 16000)
+            answer, err = call_azure_openai(messages, max_tokens=output_tokens, temperature=0.1)
             if err:
                 return jsonify({'error': err}), 500
 
         else:
             # ── Batch processing for large datasets (51+ articles) ────────
-            # Split into batches of 50, call GPT for each, stitch results
             batches = [articles[i:i+BATCH_SIZE] for i in range(0, min(cap, total), BATCH_SIZE)]
             total_batches = len(batches)
             print(f"[copilot] Batch mode: {total} articles → {total_batches} batches of {BATCH_SIZE}")
@@ -3368,13 +3426,13 @@ def copilot_file():
 
             for bn, batch in enumerate(batches, 1):
                 print(f"[copilot] Processing batch {bn}/{total_batches} ({len(batch)} articles)...")
-                part, err = _call_batch(batch, abs_len, bn, total_batches)
+                part, err = _call_batch(batch, bn, total_batches)
                 if err:
                     errors.append(f"Batch {bn}: {err}")
                     print(f"[copilot] Batch {bn} error: {err}")
                 elif part:
                     all_table_parts.append(part.strip())
-                time.sleep(0.5)  # brief pause between batches
+                time.sleep(0.5)
 
             if not all_table_parts:
                 return jsonify({'error': f'All batches failed: {errors}'}), 500
@@ -3383,17 +3441,14 @@ def copilot_file():
             answer = all_table_parts[0]
             for part in all_table_parts[1:]:
                 lines = part.strip().split('\n')
-                # Skip header row (starts with |) and separator row (|----|)
                 data_lines = [l for l in lines
                               if l.strip().startswith('|')
                               and not re.match(r'^\|[-:\s|]+\|?$', l.strip())]
-                # Also skip first data line if it looks like a duplicate header
                 if data_lines and all_table_parts[0].split('\n')[0].strip().lower() == data_lines[0].strip().lower():
                     data_lines = data_lines[1:]
                 if data_lines:
                     answer += '\n' + '\n'.join(data_lines)
 
-            articles_used = min(cap, total)
             if errors:
                 answer += f"\n\n⚠️ {len(errors)} batch(es) had errors — some articles may be missing."
 
