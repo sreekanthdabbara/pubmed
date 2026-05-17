@@ -149,7 +149,8 @@
                     <span id="upload-label">Upload exported file (CSV / Excel / ZIP)</span>
                 </div>
                 <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" style="display:none" onchange="fileChosen(this)">
-                <div class="upload-hint-text">
+                <div class="upload-hint-text" id="upload-status-text">
+                    <i class="fas fa-info-circle" style="color:#4a9eed"></i>
                     <b>Tip:</b> Export your preferred download type and upload for best AI results
                 </div>
             </div>
@@ -242,6 +243,11 @@ async function uploadFileSession(file) {
         if (d.token) {
             fileSessionToken = d.token;
             console.log('[copilot] Session ready:', d.count, 'articles loaded');
+            // Show success status in tip area
+            setUploadStatus(
+                '<i class="fas fa-check-circle" style="color:#276749"></i> ' +
+                '<b>' + d.count + ' articles</b> uploaded and ready — ask me anything!'
+            );
             // Update the "file loaded" message with article count
             document.querySelectorAll('#chat-messages .cmsg.bot .cbubble p').forEach(function(p){
                 if (p.textContent.includes('loaded!')) {
@@ -250,10 +256,18 @@ async function uploadFileSession(file) {
             });
             return true;
         } else {
+            setUploadStatus(
+                '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> ' +
+                'Upload failed: ' + (d.error || 'unknown error') + '. Please try again.'
+            );
             console.warn('[copilot] Upload failed:', d.error);
             return false;
         }
     } catch(e) {
+        setUploadStatus(
+            '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> ' +
+            'Upload error — please try again.'
+        );
         console.warn('[copilot] Upload error:', e);
         return false;
     }
@@ -288,11 +302,21 @@ function handleDrop(e) {
     else { alert('Please drop a CSV, Excel (.xlsx), or ZIP file.'); }
 }
 
+function setUploadStatus(html) {
+    var el = document.getElementById('upload-status-text');
+    if (el) el.innerHTML = html;
+}
+
 function markUploaded(name) {
     document.getElementById('upload-drop').classList.add('has-file');
     document.getElementById('upload-bar').classList.add('has-file');
     document.getElementById('upload-label').innerHTML = '<i class="fas fa-check-circle"></i> ' + name;
     document.getElementById('chat-input').placeholder = 'Ask me about your data, or say "generate report"...';
+    // Show uploading status in tip area
+    setUploadStatus(
+        '<i class="fas fa-spinner fa-spin" style="color:#d69e2e"></i> ' +
+        '<b>Uploading</b> ' + name + ' — processing articles...'
+    );
     addMsg('bot', '<p>File <b>' + name + '</b> loaded! Ask me questions or say <b>"generate AE extraction report"</b> to create the 51-column Excel.</p>');
 }
 
