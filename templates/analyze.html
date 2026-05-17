@@ -234,7 +234,6 @@ var datasetFile  = null;
 var fileSessionToken = null;   // set after successful upload to /api/upload_session
 
 async function uploadFileSession(file) {
-    // Upload file once to server, get session token for subsequent messages
     var fd = new FormData();
     fd.append('file', file);
     try {
@@ -242,14 +241,20 @@ async function uploadFileSession(file) {
         var d = await r.json();
         if (d.token) {
             fileSessionToken = d.token;
-            console.log('[copilot] File session created:', d.token, d.count, 'articles');
+            console.log('[copilot] Session ready:', d.count, 'articles loaded');
+            // Update the "file loaded" message with article count
+            document.querySelectorAll('#chat-messages .cmsg.bot .cbubble p').forEach(function(p){
+                if (p.textContent.includes('loaded!')) {
+                    p.innerHTML = 'File <b>' + d.filename + '</b> loaded — <b>' + d.count + ' articles</b> ready. Ask me anything!';
+                }
+            });
             return true;
         } else {
-            console.warn('[copilot] Upload session failed:', d.error);
+            console.warn('[copilot] Upload failed:', d.error);
             return false;
         }
     } catch(e) {
-        console.warn('[copilot] Upload session error:', e);
+        console.warn('[copilot] Upload error:', e);
         return false;
     }
 }
@@ -368,29 +373,34 @@ function parseMarkdownTable(text) {
 
 var _tableCounter = 0;
 function fmt(text) {
-    // If response contains a markdown table — show download button only, no table in chat
-    if (/^\|.+\|/m.test(text)) {
-        var tableHtml = parseMarkdownTable(text);
-        if (tableHtml) {
-            var rowCount = (text.match(/^\|/gm) || []).length - 2; // subtract header + separator
-            rowCount = Math.max(rowCount, 1);
-            return '<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0">' +
-                '<i class="fas fa-table" style="color:#276749;font-size:1.1rem"></i>' +
-                '<span style="font-size:.84rem;color:#2d3748">Analysis complete — <strong>' + rowCount + ' rows</strong> ready</span>' +
-                '<button onclick="downloadTableExcel(this)" ' +
-                'data-tabletext="' + encodeURIComponent(text) + '" ' +
-                'style="display:inline-flex;align-items:center;gap:.4rem;background:#276749;color:#fff;border:none;border-radius:6px;padding:.4rem 1rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">' +
-                '<i class="fas fa-file-excel"></i> Download as Excel</button>' +
-                '</div>';
-        }
+    if (!text) return '<p style="color:#718096">No response received.</p>';
+
+    // Detect markdown table — any line starting with |
+    var hasTable = /^\|.+\|/m.test(text);
+    if (hasTable) {
+        // Count data rows (lines with | excluding separator line)
+        var allPipeLines = (text.match(/^\|.+/gm) || []);
+        var dataRows = allPipeLines.filter(function(l){ return !/^\|[-:\s|]+$/.test(l.trim()); });
+        var rowCount = Math.max(dataRows.length - 1, 1); // subtract header row
+        return '<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0;flex-wrap:wrap">' +
+            '<i class="fas fa-check-circle" style="color:#276749;font-size:1.1rem"></i>' +
+            '<span style="font-size:.84rem;color:#2d3748">Analysis complete — <strong>' + rowCount + ' rows</strong> ready to download</span>' +
+            '<button onclick="downloadTableExcel(this)" ' +
+            'data-tabletext="' + encodeURIComponent(text) + '" ' +
+            'style="display:inline-flex;align-items:center;gap:.4rem;background:#276749;color:#fff;border:none;border-radius:6px;padding:.4rem 1rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">' +
+            '<i class="fas fa-file-excel"></i> Download as Excel</button>' +
+            '</div>';
     }
+
+    // Regular text formatting
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
-    return text.split(/\n\n+/).map(function(p) {
+    var out = text.split(/\n\n+/).map(function(p) {
         p = p.trim(); if (!p) return '';
         if (p.includes('<li>')) return '<ul>' + p + '</ul>';
         return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
     }).join('');
+    return out || '<p>' + text.replace(/\n/g,'<br>') + '</p>';
 }
 
 async function downloadTableExcel(btn) {

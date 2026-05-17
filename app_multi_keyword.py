@@ -3020,6 +3020,87 @@ If multiple adverse events are reported, add more rows with the same article fie
         import traceback; traceback.print_exc()
 
 
+def _extract_zip_articles(zip_bytes: bytes) -> list:
+    """Extract articles from a ZIP of EpiLite-generated PDFs."""
+    import zipfile as _zf
+
+    def _strip_html(t):
+        return re.sub(r'  +', ' ', re.sub(r'<[^>]+>', '', t)).strip()
+
+    def _field(text, label):
+        m = re.search(label + r'[:\s]+(.+)', text, re.IGNORECASE)
+        return m.group(1).strip()[:200] if m else ''
+
+    articles = []
+    try:
+        with _zf.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            pdf_files = sorted([n for n in zf.namelist()
+                                if n.lower().endswith('.pdf') and not n.startswith('__')])
+            print(f"[zip_extract] {len(pdf_files)} PDFs found")
+
+            for pdf_name in pdf_files[:100]:
+                try:
+                    pdf_bytes = zf.read(pdf_name)
+                    raw_text  = ''
+                    if PDF_SUPPORT:
+                        import pdfplumber
+                        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                            raw_text = '\n'.join(
+                                page.extract_text() or '' for page in pdf.pages[:20]
+                            )
+                    text = _strip_html(raw_text)
+
+                    pmid    = _field(text, 'PMID')
+                    journal = _field(text, 'Journal')
+                    date    = _field(text, 'Date')
+                    authors = _field(text, 'Authors')
+                    url     = _field(text, 'URL')
+
+                    # Title: second non-empty line after "EpiLite"
+                    lines = [l.strip() for l in text.split('\n') if l.strip()]
+                    title = ''
+                    for li, line in enumerate(lines):
+                        if 'EpiLite' in line and li + 1 < len(lines):
+                            title = lines[li + 1]
+                            break
+                    if not title:
+                        clean_name = pdf_name.replace('.pdf','').replace('_',' ')
+                        if 'PMID' in clean_name:
+                            parts = clean_name.replace('PMID','').strip().split(' ', 1)
+                            if not pmid: pmid = parts[0].strip('- ')
+                            title = parts[1] if len(parts) > 1 else clean_name
+                        else:
+                            title = clean_name[:150]
+
+                    abs_m = re.search(
+                        r'Abstract\s*\n+(.*?)(?:\n\nFull Text|URL:|$)', text,
+                        re.DOTALL | re.IGNORECASE
+                    )
+                    abstract = abs_m.group(1).strip()[:500] if abs_m else text[:300]
+                    ft_m = re.search(r'Abstract\s*\n+(.+)', text, re.DOTALL | re.IGNORECASE)
+                    fulltext = ft_m.group(1).strip()[:3000] if ft_m else text[:3000]
+
+                    articles.append({
+                        'Title':            title[:150],
+                        'PMID':             pmid,
+                        'Abstract':         abstract,
+                        '_fulltext':        fulltext,
+                        'Journal':          journal,
+                        'Publication Date': date,
+                        'Authors':          authors,
+                        'PubMed URL':       url or (f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/' if pmid else ''),
+                        '_source':          'pdf',
+                        '_filename':        pdf_name,
+                    })
+                except Exception as pe:
+                    print(f"[zip_extract] PDF error {pdf_name}: {pe}")
+
+        print(f"[zip_extract] Extracted {len(articles)} articles")
+    except Exception as e:
+        print(f"[zip_extract] ZIP error: {e}")
+    return articles
+
+
 # ── In-memory file session cache ─────────────────────────────────────────────
 # Stores parsed article data per session so we don't re-upload on every message
 _file_sessions: dict = {}   # session_token -> {articles, filename, timestamp}
@@ -3106,86 +3187,7 @@ def upload_session():
                     lambda r: ' '.join(str(v) for v in r if v and str(v) not in ('','nan')), axis=1)
             articles = df.to_dict(orient='records')
         elif fname.endswith('.zip'):
-            import zipfile as _zf
-            zip_bytes = f.read()
-
-            def _strip_html(t):
-                return re.sub(r'  +', ' ', re.sub(r'<[^>]+>', '', t)).strip()
-
-            def _field(text, label):
-                m = re.search(label + r'[:\s]+(.+)', text, re.IGNORECASE)
-                return m.group(1).strip()[:200] if m else ''
-
-            with _zf.ZipFile(io.BytesIO(zip_bytes)) as zf:
-                pdf_files = sorted([n for n in zf.namelist()
-                                    if n.lower().endswith('.pdf')
-                                    and not n.startswith('__')])
-                print(f"[upload_session] ZIP: {len(pdf_files)} PDFs found")
-
-                for pdf_name in pdf_files[:100]:
-                    try:
-                        pdf_bytes = zf.read(pdf_name)
-                        raw_text = ''
-                        if PDF_SUPPORT:
-                            import pdfplumber
-                            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                                raw_text = '\n'.join(
-                                    page.extract_text() or ''
-                                    for page in pdf.pages[:20]
-                                )
-                        text = _strip_html(raw_text)
-
-                        # Parse structured fields from EpiLite-generated PDFs
-                        pmid    = _field(text, 'PMID')
-                        journal = _field(text, 'Journal')
-                        date    = _field(text, 'Date')
-                        authors = _field(text, 'Authors')
-                        url     = _field(text, 'URL')
-
-                        # Extract title (second line after "EpiLite -- Generated PDF")
-                        lines = [l.strip() for l in text.split('\n') if l.strip()]
-                        title = ''
-                        for li, line in enumerate(lines):
-                            if 'EpiLite' in line and li + 1 < len(lines):
-                                title = lines[li + 1]
-                                break
-                        if not title:
-                            # Fallback: parse from filename
-                            clean_name = pdf_name.replace('.pdf','').replace('_',' ')
-                            if 'PMID' in clean_name:
-                                parts = clean_name.replace('PMID','').strip().split(' ', 1)
-                                if not pmid: pmid = parts[0].strip('- ')
-                                title = parts[1] if len(parts) > 1 else clean_name
-                            else:
-                                title = clean_name[:150]
-
-                        # Extract abstract
-                        abs_m = re.search(
-                            r'Abstract\s*\n+(.*?)(?:\n\nFull Text|URL:|$)',
-                            text, re.DOTALL | re.IGNORECASE
-                        )
-                        abstract = abs_m.group(1).strip()[:500] if abs_m else text[:300]
-
-                        # Full text = everything after Abstract
-                        ft_m = re.search(r'Abstract\s*\n+(.+)', text, re.DOTALL | re.IGNORECASE)
-                        fulltext = ft_m.group(1).strip()[:3000] if ft_m else text[:3000]
-
-                        articles.append({
-                            'Title':            title[:150],
-                            'PMID':             pmid,
-                            'Abstract':         abstract,
-                            '_fulltext':        fulltext,
-                            'Journal':          journal,
-                            'Publication Date': date,
-                            'Authors':          authors,
-                            'PubMed URL':       url or (f'https://pubmed.ncbi.nlm.nih.gov/{pmid}/' if pmid else ''),
-                            '_source':          'pdf',
-                            '_filename':        pdf_name,
-                        })
-                    except Exception as pe:
-                        print(f"[upload_session] PDF error {pdf_name}: {pe}")
-
-            print(f"[upload_session] Extracted {len(articles)} articles from ZIP")
+            articles = _extract_zip_articles(f.read())
         else:
             return jsonify({'error': 'Upload CSV, Excel, or ZIP'}), 400
     except Exception as e:
@@ -3242,6 +3244,9 @@ def copilot_file():
                         sheet = xl.sheet_names[1]
                     df = pd.read_excel(xl, sheet_name=sheet, dtype=str).fillna('')
                     articles = df.to_dict(orient='records')
+                elif fname.endswith('.zip'):
+                    # Extract PDFs from ZIP — same logic as upload_session
+                    articles = _extract_zip_articles(f.read())
             except Exception as e:
                 return jsonify({'error': f'Could not read file: {e}'}), 400
 
