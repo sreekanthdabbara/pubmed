@@ -3166,36 +3166,52 @@ def copilot_file():
             except Exception as e:
                 return jsonify({'error': f'Could not read file: {e}'}), 400
 
-        # ── Build compact context — cap at 20 articles, 120 chars per abstract ──
-        context_lines = [f"Dataset: {fname} ({len(articles)} total articles)\n"]
-        for i, art in enumerate(articles[:20], 1):
+        # ── Build compact context — GPT-4o-mini has 128K token window ──────
+        # Strategy: scale detail based on dataset size
+        # ≤50 articles  → full abstract (300 chars)
+        # ≤150 articles → medium abstract (150 chars)
+        # >150 articles → compact (80 chars) + cap at 200
+        total = len(articles)
+        if total <= 50:
+            cap, abs_len = total, 300
+        elif total <= 150:
+            cap, abs_len = total, 150
+        else:
+            cap, abs_len = 200, 80
+
+        context_lines = [f"Dataset: {fname} | Total articles: {total} | Showing: {min(cap,total)}\n"]
+        for i, art in enumerate(articles[:cap], 1):
             def _g(*keys):
                 for k in keys:
                     v = art.get(k,'') or ''
                     if v and str(v).strip() not in ('','nan'): return str(v).strip()
                 return ''
-            title    = _g('Title','title')[:100]
-            abstract = _g('Abstract','abstract')[:120]
-            journal  = _g('Journal','journal')[:50]
+            title    = _g('Title','title')[:120]
+            abstract = _g('Abstract','abstract')[:abs_len]
+            journal  = _g('Journal','journal')[:40]
             pub_date = _g('Publication Date','publication_date')
             country  = _g('Country','country')
-            pub_type = _g('Publication Type','publication_type')
+            pub_type = _g('Publication Type','publication_type')[:50]
             context_lines.append(
-                f"{i}. {title} | {journal} | {pub_date} | {country} | {pub_type}\n"
+                f"{i}. {title} | {pub_date} | {country} | {pub_type}\n"
                 f"   {abstract}\n"
             )
 
-        if len(articles) > 20:
-            context_lines.append(f"... and {len(articles)-20} more articles (showing first 20 for context)\n")
+        if total > cap:
+            context_lines.append(f"\n[Note: {total-cap} more articles not shown due to size limit]\n")
 
         article_context = '\n'.join(context_lines)
 
-        # Keep total system prompt under 2000 chars
         system_prompt = (
             f"You are EpiLite Co-pilot, a biomedical research assistant. "
-            f"The user uploaded {len(articles)} PubMed articles. "
-            f"Answer questions based on this data:\n\n{article_context}\n\n"
-            f"Be concise, specific, and cite article titles when relevant."
+            f"The user uploaded {total} PubMed articles (you have context for {min(cap,total)}).\n\n"
+            f"IMPORTANT INSTRUCTIONS:\n"
+            f"- When asked for a table with specific columns, ALWAYS respond with a markdown table (| col1 | col2 | ... |)\n"
+            f"- Use EXACTLY the columns the user requests — do NOT use any standard template\n"
+            f"- Fill each row from the article data provided\n"
+            f"- If a value is not available, write 'N/A'\n"
+            f"- Be concise, specific, and cite titles when relevant\n\n"
+            f"{article_context}"
         )
 
         messages = [{'role': 'system', 'content': system_prompt}]
@@ -3203,10 +3219,10 @@ def copilot_file():
             messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
         messages.append({'role': 'user', 'content': question[:1000]})
 
-        answer, err = call_azure_openai(messages, max_tokens=1200, temperature=0.3)
+        answer, err = call_azure_openai(messages, max_tokens=2000, temperature=0.3)
         if err:
             return jsonify({'error': err}), 500
-        return jsonify({'answer': answer, 'articles_used': min(len(articles), 20)})
+        return jsonify({'answer': answer, 'articles_used': min(cap, total)})
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500

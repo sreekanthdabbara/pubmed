@@ -165,9 +165,13 @@
                             <p>Upload your <b>CSV / Excel / PDF</b> files above, then ask me anything about your data — or tell me how you'd like it analysed.</p>
                             <p style="margin-top:.5rem;font-size:.82rem;color:#4a5568">
                                 <i class="fas fa-lightbulb" style="color:#d69e2e"></i>&nbsp;
-                                Try: <i>"Summarise treatment patterns by country"</i> &nbsp;·&nbsp;
-                                <i>"Generate AE extraction report"</i> &nbsp;·&nbsp;
-                                <i>"Compare study designs across articles"</i>
+                                Try: <i>"Summarise in a table of Country, Sample size, Treatment, Reference"</i><br>
+                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<i>"Generate AE extraction report"</i> &nbsp;·&nbsp;
+                                <i>"List all RCTs from USA"</i>
+                            </p>
+                            <p style="margin-top:.4rem;font-size:.78rem;color:#718096">
+                                💡 Any table response gets a <b>Download as Excel</b> button automatically.<br>
+                                Say <b>"generate AE extraction report"</b> for the full 51-column template.
                             </p>
                         </div>
                     </div>
@@ -412,7 +416,9 @@ async function downloadTableExcel(tid, btn) {
 }
 
 function wantsReport(q) {
-    return /generate|create|extract|report|excel|download|ae extraction|51.col/i.test(q);
+    // Only trigger AE extraction template for EXPLICIT AE extraction requests
+    // NOT for general "give me excel" or "table format" requests
+    return /\b(generate|create|run)\b.*\b(ae extraction|51.col|adverse event.*report|ae.*report)\b|\bae extraction report\b/i.test(q);
 }
 
 async function send() {
