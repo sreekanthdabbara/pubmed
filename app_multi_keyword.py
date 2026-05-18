@@ -2278,6 +2278,71 @@ def health():
     })
 
 
+@app.route('/api/export_to_copilot', methods=['POST'])
+@login_required
+def export_to_copilot():
+    """Create copilot session directly from search cache — no download/upload needed."""
+    import uuid as _uuid
+    search_id = request.form.get('search_id', '')
+    mode      = request.form.get('mode', 'abstract')  # abstract | full
+
+    if not search_id or search_id not in _search_cache:
+        return jsonify({'error': 'Search session expired. Please search again.'}), 404
+
+    cached         = _search_cache[search_id]
+    sorted_results = cached['sorted_results']
+    keywords       = cached['keywords']
+
+    articles = []
+    for kw, df in sorted_results.items():
+        if df.empty:
+            continue
+        for r in df.to_dict('records'):
+            art = {
+                'Title':            r.get('title', ''),
+                'PMID':             r.get('pmid', ''),
+                'Abstract':         r.get('abstract', ''),
+                'Authors':          r.get('authors', ''),
+                'Journal':          r.get('journal', ''),
+                'Publication Date': r.get('publication_date', ''),
+                'Publication Type': r.get('publication_type', ''),
+                'Country':          r.get('country', ''),
+                'PubMed URL':       r.get('url', ''),
+                'keyword':          r.get('keyword', kw),
+                'is_free_pmc':      r.get('is_free_pmc', False),
+            }
+            # For full mode — fetch PMC full text if available
+            if mode == 'full' and r.get('is_free_pmc') and r.get('pdf_url'):
+                try:
+                    ft = fetch_pdf_text(r['pdf_url'])
+                    if ft and not ft.startswith('Error'):
+                        art['_fulltext'] = ft
+                except Exception:
+                    pass
+            articles.append(art)
+
+    if not articles:
+        return jsonify({'error': 'No articles found in search results'}), 404
+
+    kw_label = keywords[0][:40] if keywords else 'search'
+    fname    = f"{kw_label} — {len(articles)} articles"
+    token    = _uuid.uuid4().hex[:16]
+
+    _file_sessions[token] = {
+        'articles':  articles,
+        'filename':  fname,
+        'timestamp': time.time(),
+        'from_search': True,
+        'search_id': search_id,
+    }
+    if len(_file_sessions) > FILE_SESSION_MAX:
+        oldest = min(_file_sessions, key=lambda k: _file_sessions[k]['timestamp'])
+        del _file_sessions[oldest]
+
+    print(f"[copilot] Direct session created: {len(articles)} articles, mode={mode}")
+    return jsonify({'token': token, 'count': len(articles), 'filename': fname})
+
+
 @app.route('/analyze')
 @login_required
 def analyze():

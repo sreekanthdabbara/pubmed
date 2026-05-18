@@ -54,7 +54,9 @@
         .cmsg.user .cbubble { background:#2b6cb0; color:#fff; border-bottom-right-radius:3px; }
         .cmsg.bot  .cbubble { background:#f7fafc; border:1px solid #e2e8f0; color:#2d3748; border-bottom-left-radius:3px; }
         .cbubble p { margin-bottom:.4rem; } .cbubble p:last-child { margin:0; }
-        .cbubble ul { margin:.25rem 0 .25rem 1rem; } .cbubble li { margin-bottom:.2rem; }
+        .copilot-direct-btn { margin-top:.5rem; width:100%; background:linear-gradient(135deg,#2b6cb0,#1a365d); color:#fff; border:none; border-radius:7px; padding:.45rem .7rem; font-size:.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:.4rem; transition:opacity .2s; }
+        .copilot-direct-btn:hover { opacity:.88; }
+        .copilot-direct-btn:disabled { opacity:.5; cursor:not-allowed; }
         .copilot-table { border-collapse:collapse; width:100%; margin:.5rem 0; font-size:.78rem; }
         .copilot-table th { background:#1a365d; color:#fff; padding:.45rem .7rem; text-align:left; font-weight:700; border:1px solid #2b6cb0; }
         .copilot-table td { padding:.4rem .7rem; border:1px solid #e2e8f0; color:#2d3748; vertical-align:top; }
@@ -117,6 +119,9 @@
                         <a id="dl-csv-abs"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV</a>
                         <a id="dl-excel-abs" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel</a>
                     </div>
+                    <button class="copilot-direct-btn" onclick="sendToCopilot('abstract')">
+                        <i class="fas fa-bolt"></i> Send directly to Co-pilot
+                    </button>
                 </div>
                 <div class="export-card">
                     <div class="export-card-title">2. Export - Abstract + Full text</div>
@@ -124,6 +129,9 @@
                         <a id="dl-csv-full"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV</a>
                         <a id="dl-excel-full" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel</a>
                     </div>
+                    <button class="copilot-direct-btn" onclick="sendToCopilot('full')">
+                        <i class="fas fa-bolt"></i> Send directly to Co-pilot
+                    </button>
                 </div>
                 <div class="export-card">
                     <div class="export-card-title">3. Export - Free PDFs</div>
@@ -132,6 +140,9 @@
                         <a id="dl-excel-pmc" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel (Free PMC)</a>
                         <button id="dl-pdfs" class="export-btn btn-zip"><i class="fas fa-file-archive"></i> Download PDFs (ZIP)</button>
                     </div>
+                    <button class="copilot-direct-btn" onclick="sendToCopilot('pmc_only')">
+                        <i class="fas fa-bolt"></i> Send directly to Co-pilot
+                    </button>
                 </div>
             </div>
         </div>
@@ -139,19 +150,15 @@
         <!-- Step 2 -->
         <div class="step2-panel">
 
-            <!-- Upload bar -->
-            <div class="upload-bar" id="upload-bar"
-                 ondragover="event.preventDefault();this.classList.add('has-file')"
-                 ondragleave="this.classList.remove('has-file')"
-                 ondrop="handleDrop(event)">
-                <div class="upload-drop" id="upload-drop" onclick="document.getElementById('file-input').click()">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <span id="upload-label">Upload exported file (CSV / Excel / ZIP)</span>
+            <!-- Status bar (shows which data is loaded) -->
+            <div class="upload-bar has-file" id="upload-bar" style="cursor:default">
+                <div class="upload-drop has-file" id="upload-drop" style="cursor:default;pointer-events:none">
+                    <i class="fas fa-database"></i>
+                    <span id="upload-label">Select an option from Step 1 above to load data</span>
                 </div>
-                <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.zip" style="display:none" onchange="fileChosen(this)">
                 <div class="upload-hint-text" id="upload-status-text">
                     <i class="fas fa-info-circle" style="color:#4a9eed"></i>
-                    <b>Tip:</b> Export your preferred download type and upload for best AI results
+                    Click <b>⚡ Send directly to Co-pilot</b> above to load your articles
                 </div>
             </div>
 
@@ -232,7 +239,67 @@ document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&
 document.getElementById('dl-pdfs').onclick = function() { startPdfJob(); };
 
 var datasetFile  = null;
-var fileSessionToken = null;   // set after successful upload to /api/upload_session
+var fileSessionToken = null;
+
+// ── Auto-load session token from URL (direct from search results) ─────────
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var tok = params.get('session_token');
+    var cnt = params.get('article_count');
+    var fn  = params.get('filename') || 'Search results';
+    if (tok) {
+        fileSessionToken = tok;
+        var count = cnt ? parseInt(cnt) : 0;
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('upload-label').innerHTML =
+                '<i class="fas fa-check-circle" style="color:#276749"></i> ' + fn;
+            setUploadStatus(
+                '<i class="fas fa-check-circle" style="color:#276749"></i> ' +
+                '<b>' + count + ' articles</b> loaded — ask me anything!'
+            );
+            addMsg('bot', '<p>Ready! <b>' + count + ' articles</b> are loaded directly from your search. Ask me anything or say <b>"generate AE extraction report"</b>.</p>');
+        });
+    }
+})();
+
+// ── Send to Co-pilot directly from search (no download/upload needed) ─────
+async function sendToCopilot(mode) {
+    var btns = document.querySelectorAll('.copilot-direct-btn');
+    btns.forEach(function(b){ b.disabled = true; b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...'; });
+
+    var searchId = '{{ search_id }}';
+    if (!searchId) {
+        alert('No active search found. Please search first.');
+        btns.forEach(function(b){ b.disabled = false; b.innerHTML = '<i class="fas fa-bolt"></i> Send directly to Co-pilot'; });
+        return;
+    }
+    try {
+        var fd = new FormData();
+        fd.append('search_id', searchId);
+        fd.append('mode', mode);
+        var r = await fetch('/api/export_to_copilot', {method:'POST', body:fd});
+        var d = await r.json();
+        if (d.token) {
+            // Redirect to analyze page with session token in URL
+            var params = new URLSearchParams({
+                session_token:  d.token,
+                article_count:  d.count,
+                filename:       d.filename,
+                search_id:      searchId,
+                keywords:       '{{ keywords_str }}',
+                max_results:    '{{ max_results }}',
+                sort_order:     'ascending',
+            });
+            window.location.href = '/analyze?' + params.toString();
+        } else {
+            alert('Error: ' + (d.error || 'Could not load articles'));
+            btns.forEach(function(b){ b.disabled = false; b.innerHTML = '<i class="fas fa-bolt"></i> Send directly to Co-pilot'; });
+        }
+    } catch(e) {
+        alert('Error connecting to server. Please try again.');
+        btns.forEach(function(b){ b.disabled = false; b.innerHTML = '<i class="fas fa-bolt"></i> Send directly to Co-pilot'; });
+    }
+}
 
 async function uploadFileSession(file) {
     var fd = new FormData();
@@ -277,47 +344,16 @@ var templateFile = null;
 var chatHistory  = [];
 var pollTimer    = null;
 
-function fileChosen(input) {
-    if (input.files && input.files[0]) {
-        datasetFile = input.files[0];
-        fileSessionToken = null;  // reset token — will upload on first message
-        markUploaded(datasetFile.name);
-        // Pre-upload immediately so first message is fast
-        uploadFileSession(datasetFile);
-    }
-}
-
-function handleDrop(e) {
-    e.preventDefault();
-    document.getElementById('upload-bar').classList.remove('has-file');
-    var f = e.dataTransfer.files[0];
-    if (!f) return;
-    var ok = /\.(csv|xlsx|xls|zip)$/i.test(f.name);
-    if (ok) {
-        datasetFile = f;
-        fileSessionToken = null;
-        markUploaded(f.name);
-        uploadFileSession(f);
-    }
-    else { alert('Please drop a CSV, Excel (.xlsx), or ZIP file.'); }
-}
 
 function setUploadStatus(html) {
     var el = document.getElementById('upload-status-text');
     if (el) el.innerHTML = html;
 }
 
-function markUploaded(name) {
-    document.getElementById('upload-drop').classList.add('has-file');
-    document.getElementById('upload-bar').classList.add('has-file');
-    document.getElementById('upload-label').innerHTML = '<i class="fas fa-check-circle"></i> ' + name;
-    document.getElementById('chat-input').placeholder = 'Ask me about your data, or say "generate report"...';
-    // Show uploading status in tip area
-    setUploadStatus(
-        '<i class="fas fa-spinner fa-spin" style="color:#d69e2e"></i> ' +
-        '<b>Uploading</b> ' + name + ' — processing articles...'
-    );
-    addMsg('bot', '<p>File <b>' + name + '</b> loaded! Ask me questions or say <b>"generate AE extraction report"</b> to create the 51-column Excel.</p>');
+function markUploaded(name, count) {
+    document.getElementById('upload-label').innerHTML =
+        '<i class="fas fa-check-circle" style="color:#276749"></i> ' + name +
+        (count ? ' — <b>' + count + ' articles</b>' : '');
 }
 
 function artChosen(input, type) {
