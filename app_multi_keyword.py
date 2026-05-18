@@ -3514,49 +3514,49 @@ def copilot_file():
         def _call_batch(article_slice, batch_num, total_batches):
             """Call GPT for one batch, return markdown table rows."""
             ctx = _build_batch_context(article_slice)
+            n   = len(article_slice)
             sys_msg = (
-                "You are EpiLite Co-pilot, a clinical data extraction expert.\n"
-                "Extract data from each article's content and return a markdown table.\n"
-                "RULES:\n"
-                "- Include EVERY article as a row — never skip any\n"
+                f"You are EpiLite Co-pilot. This batch has EXACTLY {n} articles.\n"
+                f"Your output MUST have EXACTLY {n} data rows — one per article, no exceptions.\n"
+                "STRICT RULES:\n"
+                f"- {n} articles in = {n} rows out — never fewer\n"
+                "- ANY study type mentioned in column names is for extraction context only — NOT a filter\n"
+                "- Include ALL articles regardless of study design\n"
                 "- Use EXACTLY the columns the user requested\n"
-                "- Extract values from the Content field — read it carefully\n"
-                "- For sample size: look for 'n=', 'patients', 'participants', numbers\n"
-                "- For outcomes: look for results, findings, conclusions\n"
-                "- Write N/A only if genuinely not mentioned anywhere\n"
+                "- Extract values from Abstract and Full Text carefully\n"
+                "- Write N/A only if truly absent from the article\n"
                 "- Return ONLY the markdown table, no explanation\n"
                 + ("- Do NOT include the header row — data rows only\n"
                    if batch_num > 1 else
-                   "- Include the header row\n")
+                   "- First line must be the header row\n")
             )
             msgs = [
                 {'role': 'system', 'content': sys_msg},
-                {'role': 'user',   'content': f"Articles to analyze:\n{ctx}\n\nUser request: {question}"},
+                {'role': 'user',   'content': f"Analyze ALL {n} articles below and return {n} rows:\n{ctx}\n\nRequest: {question}"},
             ]
-            # Output tokens: each article may produce multiple rows
-            tokens = min(len(article_slice) * 200 + 1000, 16000)
+            tokens = min(n * 200 + 1000, 16000)
             return call_azure_openai(msgs, max_tokens=tokens, temperature=0.1)
 
         if total <= BATCH_SIZE:
             # ── Single call for small datasets ────────────────────────────
             ctx = _build_batch_context(articles[:total])
             system_prompt = (
-                "You are EpiLite Co-pilot, a clinical data extraction expert.\n"
-                "Extract data from each article's content and return a markdown table.\n"
-                "RULES:\n"
-                "- Include EVERY article as a row — never skip any\n"
+                f"You are EpiLite Co-pilot. You have EXACTLY {total} articles.\n"
+                f"Your output MUST have EXACTLY {total} data rows — one per article.\n"
+                "STRICT RULES:\n"
+                f"- {total} articles in = {total} rows out — never fewer\n"
+                "- ANY study type in column names is extraction context only — NOT a filter\n"
+                "- Include ALL articles regardless of study design\n"
                 "- Use EXACTLY the columns the user requests\n"
-                "- Extract values from the Content field carefully\n"
-                "- For sample size: look for 'n=', 'patients', 'participants'\n"
-                "- For outcomes: look for results, findings, conclusions\n"
-                "- Write N/A only if genuinely not mentioned\n"
+                "- Extract values from Abstract and Full Text\n"
+                "- Write N/A only if truly absent\n"
                 "- Return a markdown table with header row\n\n"
-                f"Articles:\n{ctx}"
+                f"Articles ({total} total):\n{ctx}"
             )
             messages = [{'role': 'system', 'content': system_prompt}]
             for msg in history[-4:]:
                 messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
-            messages.append({'role': 'user', 'content': question[:1000]})
+            messages.append({'role': 'user', 'content': f"Analyze ALL {total} articles and return {total} rows. Request: {question[:800]}"})
             output_tokens = min(total * 200 + 1000, 16000)
             answer, err = call_azure_openai(messages, max_tokens=output_tokens, temperature=0.1)
             if err:
