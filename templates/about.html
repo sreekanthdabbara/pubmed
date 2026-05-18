@@ -1,164 +1,653 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyze &amp; Report - EpiLite</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:#f0f4f8; color:#2d3748; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+        .topbar { background:linear-gradient(135deg,#1a365d,#2b6cb0); color:#fff; padding:.6rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+        .topbar-brand { font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:.5rem; }
+        .topbar-meta { font-size:.75rem; opacity:.85; }
+        .action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; justify-content:center; }
+        .action-tab { display:flex; align-items:center; gap:.4rem; padding:.4rem 1rem; border-radius:20px; font-size:.8rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
+        .action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
+        .page-body { display:flex; flex:1; min-height:0; }
+        .steps-sidebar { width:96px; background:#1a365d; padding:1.25rem .5rem; display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+        .step-pill { background:#2b6cb0; color:#fff; font-size:.72rem; font-weight:800; padding:.38rem .7rem; border-radius:6px; width:76px; text-align:center; }
+        .step-pill.active { background:#63b3ed; box-shadow:0 0 0 3px rgba(99,179,237,.35); }
+        .step-connector { width:2px; height:200px; background:#2b4c7e; margin:.25rem 0; }
+        .main-content { flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+        .step1-panel { background:#dbeafe; padding:1rem 1.5rem; border-bottom:2px solid #bfdbfe; flex-shrink:0; }
+        .panel-title { font-size:.85rem; font-weight:700; color:#1e3a5f; margin-bottom:.75rem; display:flex; align-items:center; gap:.45rem; }
+        .export-grid { display:flex; gap:.75rem; flex-wrap:wrap; }
+        .export-card { background:#fff; border-radius:10px; padding:.8rem .9rem; min-width:160px; flex:1; max-width:210px; box-shadow:0 1px 4px rgba(0,0,0,.07); border:1.5px solid #bfdbfe; }
+        .export-card-title { font-size:.68rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.5rem; padding-bottom:.3rem; border-bottom:2px solid #ebf8ff; }
+        .export-btn-row { display:flex; flex-direction:column; gap:.28rem; }
+        .export-btn { display:flex; align-items:center; gap:.32rem; padding:.25rem .5rem; border-radius:5px; font-size:.71rem; font-weight:600; text-decoration:none; border:1.5px solid; transition:opacity .15s; cursor:pointer; background:none; }
+        .export-btn:hover { opacity:.75; }
+        .btn-csv   { background:#e6fffa; color:#234e52; border-color:#81e6d9; }
+        .btn-excel { background:#f0fff4; color:#22543d; border-color:#9ae6b4; }
+        .btn-zip   { background:#ebf8ff; color:#2c5282; border-color:#90cdf4; }
+        .step2-panel { flex:1; display:flex; flex-direction:column; min-height:0; background:#fff; }
+        .upload-bar { padding:.7rem 1.5rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:.85rem; flex-shrink:0; background:#f7fbff; }
+        .upload-bar.has-file { background:#f0fff4; border-color:#9ae6b4; }
+        .upload-drop { border:2px dashed #90cdf4; border-radius:8px; padding:.45rem 1rem; cursor:pointer; display:flex; align-items:center; gap:.5rem; font-size:.76rem; color:#2b6cb0; font-weight:600; flex-shrink:0; transition:all .15s; }
+        .upload-drop:hover { border-color:#2b6cb0; background:#ebf8ff; }
+        .upload-drop.has-file { border-color:#9ae6b4; background:#f0fff4; color:#276749; }
+        .upload-hint-text { font-size:.7rem; color:#718096; line-height:1.4; }
+        .upload-hint-text b { color:#2b6cb0; }
+        .chat-area { flex:1; display:flex; flex-direction:column; min-height:0; }
+        .suggest-row { display:flex; flex-wrap:wrap; gap:.32rem; padding:.5rem 1.5rem .2rem; flex-shrink:0; }
+        .suggest-chip { font-size:.69rem; background:#ebf8ff; color:#2b6cb0; border:1px solid #bee3f8; border-radius:14px; padding:.22rem .62rem; cursor:pointer; white-space:nowrap; }
+        .suggest-chip:hover { background:#bee3f8; }
+        .chat-messages { flex:1; overflow-y:auto; padding:1rem 1.5rem; display:flex; flex-direction:column; gap:.75rem; }
+        .cmsg { display:flex; gap:.55rem; }
+        .cmsg.user { align-self:flex-end; flex-direction:row-reverse; max-width:82%; }
+        .cmsg.bot  { align-self:flex-start; max-width:90%; }
+        .cavatar { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; flex-shrink:0; margin-top:2px; }
+        .cmsg.user .cavatar { background:#2b6cb0; color:#fff; }
+        .cmsg.bot  .cavatar { background:#1a365d; color:#fff; }
+        .cbubble { padding:.55rem .85rem; border-radius:12px; font-size:.83rem; line-height:1.56; }
+        .cmsg.user .cbubble { background:#2b6cb0; color:#fff; border-bottom-right-radius:3px; }
+        .cmsg.bot  .cbubble { background:#f7fafc; border:1px solid #e2e8f0; color:#2d3748; border-bottom-left-radius:3px; }
+        .cbubble p { margin-bottom:.4rem; } .cbubble p:last-child { margin:0; }
+        .copilot-direct-btn { margin-top:.5rem; width:100%; background:linear-gradient(135deg,#2b6cb0,#1a365d); color:#fff; border:none; border-radius:7px; padding:.45rem .7rem; font-size:.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:.4rem; transition:opacity .2s; }
+        .copilot-direct-btn:hover { opacity:.88; }
+        .copilot-direct-btn:disabled { opacity:.5; cursor:not-allowed; }
+        .copilot-table { border-collapse:collapse; width:100%; margin:.5rem 0; font-size:.78rem; }
+        .copilot-table th { background:#1a365d; color:#fff; padding:.45rem .7rem; text-align:left; font-weight:700; border:1px solid #2b6cb0; }
+        .copilot-table td { padding:.4rem .7rem; border:1px solid #e2e8f0; color:#2d3748; vertical-align:top; }
+        .copilot-table tr:nth-child(even) td { background:#f7fafc; }
+        .copilot-table tr:hover td { background:#ebf8ff; }
+        .cbubble b, .cbubble strong { color:#1a365d; }
+        .cmsg.user .cbubble b, .cmsg.user .cbubble strong { color:#bee3f8; }
+        .thinking-dots { display:flex; gap:4px; padding:.3rem .1rem; }
+        .thinking-dots span { width:6px; height:6px; border-radius:50%; background:#a0aec0; animation:tdot .9s infinite; }
+        .thinking-dots span:nth-child(2){animation-delay:.2s} .thinking-dots span:nth-child(3){animation-delay:.4s}
+        @keyframes tdot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+        .dl-excel-btn { display:inline-flex; align-items:center; gap:.4rem; background:linear-gradient(135deg,#276749,#22543d); color:#fff; border:none; border-radius:7px; padding:.45rem 1rem; font-size:.78rem; font-weight:700; cursor:pointer; text-decoration:none; margin-top:.4rem; }
+        .dl-excel-btn:hover { opacity:.88; }
+        .chat-input-wrap { padding:.75rem 1.2rem .85rem; border-top:1px solid #e2e8f0; flex-shrink:0; }
+        .attach-preview { display:none; background:#ebf8ff; border:1px solid #bee3f8; border-radius:8px; padding:.3rem .75rem; margin-bottom:.35rem; font-size:.73rem; color:#2b6cb0; align-items:center; justify-content:space-between; gap:.5rem; }
+        .attach-preview.show { display:flex; }
+        .chat-input-row { display:flex; align-items:flex-end; gap:.45rem; background:#f7fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .5rem .55rem .85rem; }
+        .chat-input-row:focus-within { border-color:#2b6cb0; background:#fff; }
+        #chat-input { flex:1; border:none; background:transparent; font-size:.85rem; font-family:inherit; resize:none; min-height:180px; max-height:320px; outline:none; color:#2d3748; line-height:1.5; }
+        #chat-input::placeholder { color:#a0aec0; }
+        .clip-btn { background:none; border:none; color:#a0aec0; cursor:pointer; padding:.1rem .2rem; flex-shrink:0; font-size:1rem; }
+        .clip-btn:hover { color:#2b6cb0; }
+        .chat-send { background:#2b6cb0; color:#fff; border:none; border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+        .chat-send:hover { background:#2c5282; }
+        .input-hint { font-size:.66rem; color:#a0aec0; margin-top:.28rem; }
+        .chat-messages::-webkit-scrollbar { width:4px; }
+        .chat-messages::-webkit-scrollbar-thumb { background:#cbd5e0; border-radius:3px; }
+        .pbar-wrap { background:#e2e8f0; border-radius:99px; height:7px; margin:.3rem 0; overflow:hidden; }
+        .pbar { height:100%; background:linear-gradient(90deg,#2b6cb0,#63b3ed); border-radius:99px; transition:width .4s; }
+    </style>
+</head>
+<body>
 
-{% block title %}About - PubMed Scraper{% endblock %}
-
-{% block content %}
-<div class="container">
-    <div class="about-content">
-        <h1><i class="fas fa-info-circle"></i> About PubMed Abstract Scraper</h1>
-        
-        <div class="about-section">
-            <h2>What is this?</h2>
-            <p>
-                This web application allows you to search <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PubMed</a>, 
-                the premier database of biomedical literature, and extract article abstracts in bulk. 
-                It uses the official NCBI E-utilities API to provide fast, reliable access to millions of research articles.
-            </p>
-        </div>
-
-        <div class="about-section">
-            <h2>How to Use</h2>
-            <ol class="usage-steps">
-                <li>
-                    <strong>Enter your search query</strong>
-                    <p>Type any medical or scientific term. Use AND, OR, NOT operators for complex searches.</p>
-                </li>
-                <li>
-                    <strong>Set the number of results</strong>
-                    <p>Choose how many articles to retrieve (1-500).</p>
-                </li>
-                <li>
-                    <strong>Click Search</strong>
-                    <p>The app will fetch articles from PubMed and display full abstracts.</p>
-                </li>
-                <li>
-                    <strong>Export your data</strong>
-                    <p>Download results in CSV, JSON, or Excel format for further analysis.</p>
-                </li>
-            </ol>
-        </div>
-
-        <div class="about-section">
-            <h2>Advanced Search Tips</h2>
-            <div class="tips-grid">
-                <div class="tip-card">
-                    <h4><i class="fas fa-quote-left"></i> Phrase Search</h4>
-                    <code>"lung cancer"</code>
-                    <p>Use quotes to search for exact phrases</p>
-                </div>
-                <div class="tip-card">
-                    <h4><i class="fas fa-plus"></i> Boolean Operators</h4>
-                    <code>cancer AND treatment</code>
-                    <p>Combine terms with AND, OR, NOT</p>
-                </div>
-                <div class="tip-card">
-                    <h4><i class="fas fa-tag"></i> Field Tags</h4>
-                    <code>smith[Author]</code>
-                    <p>Search specific fields: [Title], [Author], [Journal]</p>
-                </div>
-                <div class="tip-card">
-                    <h4><i class="fas fa-calendar"></i> Date Filters</h4>
-                    <code>2020:2023[pdat]</code>
-                    <p>Filter by publication date range</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="about-section">
-            <h2>API Access</h2>
-            <p>
-                You can also access this scraper programmatically using our REST API.
-            </p>
-            
-            <div class="code-block">
-                <h4>Example API Request:</h4>
-                <pre><code>POST /api/search
-Content-Type: application/json
-
-{
-  "query": "lung cancer",
-  "max_results": 20
-}</code></pre>
-            </div>
-
-            <div class="code-block">
-                <h4>Example Response:</h4>
-                <pre><code>{
-  "query": "lung cancer",
-  "count": 20,
-  "results": [
-    {
-      "pmid": "12345678",
-      "title": "Article Title",
-      "abstract": "Abstract text...",
-      "authors": "John Doe, Jane Smith",
-      "journal": "Nature",
-      "publication_date": "2023 Jan",
-      "url": "https://pubmed.ncbi.nlm.nih.gov/12345678/"
-    }
-  ]
-}</code></pre>
-            </div>
-        </div>
-
-        <div class="about-section">
-            <h2>Technology Stack</h2>
-            <div class="tech-stack">
-                <div class="tech-item">
-                    <i class="fab fa-python"></i>
-                    <span>Python</span>
-                </div>
-                <div class="tech-item">
-                    <i class="fas fa-flask"></i>
-                    <span>Flask</span>
-                </div>
-                <div class="tech-item">
-                    <i class="fas fa-database"></i>
-                    <span>Biopython</span>
-                </div>
-                <div class="tech-item">
-                    <i class="fas fa-table"></i>
-                    <span>Pandas</span>
-                </div>
-                <div class="tech-item">
-                    <i class="fas fa-code"></i>
-                    <span>NCBI E-utilities API</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="about-section">
-            <h2>Disclaimer</h2>
-            <p class="disclaimer">
-                This tool is for educational and research purposes only. All data is retrieved from the 
-                <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PubMed database</a> using the 
-                official NCBI E-utilities API. Please respect PubMed's 
-                <a href="https://www.ncbi.nlm.nih.gov/home/about/policies/" target="_blank">terms of service</a> 
-                and do not overload their servers.
-            </p>
-        </div>
-
-        <div class="about-section">
-            <h2>Resources</h2>
-            <ul class="resources-list">
-                <li>
-                    <i class="fas fa-book"></i>
-                    <a href="https://pubmed.ncbi.nlm.nih.gov/help/" target="_blank">PubMed Search Tips</a>
-                </li>
-                <li>
-                    <i class="fas fa-code"></i>
-                    <a href="https://www.ncbi.nlm.nih.gov/books/NBK25501/" target="_blank">NCBI E-utilities API Documentation</a>
-                </li>
-                <li>
-                    <i class="fas fa-flask"></i>
-                    <a href="https://flask.palletsprojects.com/" target="_blank">Flask Documentation</a>
-                </li>
-                <li>
-                    <i class="fas fa-dna"></i>
-                    <a href="https://biopython.org/" target="_blank">Biopython Documentation</a>
-                </li>
-            </ul>
-        </div>
-    </div>
+<div class="topbar">
+    <div class="topbar-brand"><i class="fas fa-dna"></i> EpiLite AI Platform</div>
+    <div class="topbar-meta"><i class="fas fa-search"></i> {{ keywords_str }} &nbsp;&#183;&nbsp; <i class="fas fa-list"></i> {{ total_articles }} articles</div>
 </div>
-{% endblock %}
+
+<div class="action-tabs">
+    <a href="javascript:history.back()" class="action-tab"><i class="fas fa-search"></i> Search, extract and curate</a>
+    <a href="#" class="action-tab active"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+</div>
+
+<div class="page-body">
+    <div class="steps-sidebar">
+        <div class="step-pill active">Step 1</div>
+        <div class="step-connector"></div>
+        <div class="step-pill">Step 2</div>
+    </div>
+
+    <div class="main-content">
+
+        <!-- Step 1 -->
+        <div class="step1-panel">
+            <div class="panel-title"><i class="fas fa-file-export" style="color:#2b6cb0"></i> Select required data to export to Co-pilot</div>
+            <div class="export-grid">
+                <div class="export-card">
+                    <div class="export-card-title">1. Export - Only Abstract</div>
+                    <div class="export-btn-row">
+                        <a id="dl-csv-abs"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV</a>
+                        <a id="dl-excel-abs" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel</a>
+                    </div>
+                    <button class="copilot-direct-btn" onclick="sendToCopilot('abstract', this)">
+                        <i class="fas fa-bolt"></i> Send directly to Co-pilot
+                    </button>
+                </div>
+                <div class="export-card">
+                    <div class="export-card-title">2. Export - Abstract + Full text</div>
+                    <div class="export-btn-row">
+                        <a id="dl-csv-full"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV</a>
+                        <a id="dl-excel-full" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel</a>
+                    </div>
+                    <button class="copilot-direct-btn" onclick="sendToCopilot('full', this)">
+                        <i class="fas fa-bolt"></i> Send directly to Co-pilot
+                    </button>
+                </div>
+                <div class="export-card">
+                    <div class="export-card-title">3. Export - Free PDFs</div>
+                    <div class="export-btn-row">
+                        <a id="dl-csv-pmc"   href="#" class="export-btn btn-csv"><i class="fas fa-file-csv"></i> CSV (Free PMC)</a>
+                        <a id="dl-excel-pmc" href="#" class="export-btn btn-excel"><i class="fas fa-file-excel"></i> Excel (Free PMC)</a>
+                        <button id="dl-pdfs" class="export-btn btn-zip"><i class="fas fa-file-archive"></i> Download PDFs (ZIP)</button>
+                    </div>
+                    <button class="copilot-direct-btn" onclick="sendToCopilot('pmc_only', this)">
+                        <i class="fas fa-bolt"></i> Send directly to Co-pilot
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step2-panel">
+
+            <!-- Status bar (shows which data is loaded) -->
+            <div class="upload-bar has-file" id="upload-bar" style="cursor:default">
+                <div class="upload-drop has-file" id="upload-drop" style="cursor:default;pointer-events:none">
+                    <i class="fas fa-database"></i>
+                    <span id="upload-label">Select an option from Step 1 above to load data</span>
+                </div>
+                <div class="upload-hint-text" id="upload-status-text">
+                    <i class="fas fa-info-circle" style="color:#4a9eed"></i>
+                    Click <b>⚡ Send directly to Co-pilot</b> above to load your articles
+                </div>
+            </div>
+
+            <!-- Chat -->
+            <div class="chat-area">
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="cmsg bot">
+                        <div class="cavatar"><i class="fas fa-robot"></i></div>
+                        <div class="cbubble">
+                            <p>Ask me anything about your data — or tell me how you'd like it analysed.</p>
+                            <p style="margin-top:.4rem;font-size:.82rem;color:#4a5568">
+                                <i class="fas fa-lightbulb" style="color:#d69e2e"></i>&nbsp;
+                                Try: <i>"Summarise in a table of Country, Sample size, Treatment, Reference"</i><br>
+                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<i>"Generate AE extraction report"</i> &nbsp;·&nbsp;
+                                <i>"List all RCTs from USA"</i>
+                            </p>
+                            <p style="margin-top:.4rem;font-size:.78rem;color:#718096">
+                                Use <b>⚡ Send directly to Co-pilot</b> above, or upload your own Excel / CSV / ZIP file below.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-wrap">
+                    <div class="attach-preview" id="attach-preview">
+                        <span id="attach-info" style="display:flex;flex-direction:column;gap:.15rem;font-size:.72rem">
+                            <span id="attach-pdf-label" style="display:none"><i class="fas fa-file-pdf" style="color:#e53e3e"></i> <span id="attach-pdf-name"></span></span>
+                            <span id="attach-tmpl-label" style="display:none"><i class="fas fa-file-excel" style="color:#276749"></i> <span id="attach-tmpl-name"></span></span>
+                        </span>
+                        <button onclick="clearAttach()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:.85rem;padding:0"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="chat-input-row">
+                        <button class="clip-btn" title="Attach article (PDF/TXT)" onclick="document.getElementById('art-file').click()">
+                            <i class="fas fa-file-pdf"></i>
+                        </button>
+                        <input type="file" id="art-file" accept=".pdf,.txt" style="display:none" onchange="artChosen(this,'pdf')">
+                        <button class="clip-btn" title="Attach Excel template with column headers" onclick="document.getElementById('tmpl-file').click()" style="margin-left:.1rem">
+                            <i class="fas fa-file-excel"></i>
+                        </button>
+                        <input type="file" id="tmpl-file" accept=".xlsx,.xls" style="display:none" onchange="artChosen(this,'template')">
+                        <textarea id="chat-input" rows="7"
+                            placeholder="Ask me anything about your data, e.g. summarise by country, generate AE report..."
+                            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
+                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,320)+'px'"></textarea>
+                        <button class="chat-send" onclick="send()" title="Send">
+                            <i class="fas fa-paper-plane" style="font-size:.7rem"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /step2-panel -->
+    </div><!-- /main-content -->
+</div><!-- /page-body -->
+
+<script>
+var KWS = '{{ keywords_str }}';
+
+var QS = (function() {
+    var params = new URLSearchParams(window.location.search);
+    if (!params.get('keywords'))    params.set('keywords',   KWS);
+    if (!params.get('search_id'))   params.set('search_id',  '{{ search_id }}');
+    if (!params.get('max_results')) params.set('max_results','{{ max_results }}');
+    if (!params.get('sort_order'))  params.set('sort_order', '{{ sort_order }}');
+    return params.toString();
+})();
+
+document.getElementById('dl-csv-abs').href    = '/export/multi/csv?'   + QS + '&mode=abstract';
+document.getElementById('dl-excel-abs').href  = '/export/multi/excel?' + QS + '&mode=abstract';
+document.getElementById('dl-csv-full').href   = '/export/multi/csv?'   + QS;
+document.getElementById('dl-excel-full').href = '/export/multi/excel?' + QS;
+document.getElementById('dl-csv-pmc').href    = '/export/multi/csv?'   + QS + '&mode=pmc_only';
+document.getElementById('dl-excel-pmc').href  = '/export/multi/excel?' + QS + '&mode=pmc_only';
+
+document.getElementById('dl-pdfs').onclick = function() { startPdfJob(); };
+
+var datasetFile  = null;
+var fileSessionToken = null;
+
+// ── Auto-load session token from URL (direct from search results) ─────────
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var tok = params.get('session_token');
+    var cnt = params.get('article_count');
+    var fn  = params.get('filename') || 'Search results';
+    if (tok) {
+        fileSessionToken = tok;
+        var count = cnt ? parseInt(cnt) : 0;
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('upload-label').innerHTML =
+                '<i class="fas fa-check-circle" style="color:#276749"></i> ' + fn;
+            setUploadStatus(
+                '<i class="fas fa-check-circle" style="color:#276749"></i> ' +
+                '<b>' + count + ' articles</b> loaded — ask me anything!'
+            );
+            addMsg('bot', '<p>Ready! <b>' + count + ' articles</b> are loaded directly from your search. Ask me anything or say <b>"generate AE extraction report"</b>.</p>');
+        });
+    }
+})();
+
+// ── Send to Co-pilot directly from search (no download/upload needed) ─────
+async function sendToCopilot(mode, btn) {
+    var origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+
+    var searchId = '{{ search_id }}';
+    if (!searchId) {
+        alert('No active search found. Please search first.');
+        btn.disabled = false; btn.innerHTML = origHtml;
+        return;
+    }
+    try {
+        var fd = new FormData();
+        fd.append('search_id', searchId);
+        fd.append('mode', mode);
+        var r = await fetch('/api/export_to_copilot', {method:'POST', body:fd});
+        var d = await r.json();
+        if (d.token) {
+            var params = new URLSearchParams({
+                session_token: d.token,
+                article_count: d.count,
+                filename:      d.filename,
+                search_id:     searchId,
+                keywords:      '{{ keywords_str }}',
+                max_results:   '{{ max_results }}',
+                sort_order:    'ascending',
+            });
+            window.location.href = '/analyze?' + params.toString();
+        } else {
+            alert('Error: ' + (d.error || 'Could not load articles'));
+            btn.disabled = false; btn.innerHTML = origHtml;
+        }
+    } catch(e) {
+        alert('Error connecting to server. Please try again.');
+        btn.disabled = false; btn.innerHTML = origHtml;
+    }
+}
+
+async function uploadFileSession(file) {
+    var fd = new FormData();
+    fd.append('file', file);
+    try {
+        var r = await fetch('/api/upload_session', {method:'POST', body:fd});
+        var d = await r.json();
+        if (d.token) {
+            fileSessionToken = d.token;
+            console.log('[copilot] Session ready:', d.count, 'articles loaded');
+            // Show success status in tip area
+            setUploadStatus(
+                '<i class="fas fa-check-circle" style="color:#276749"></i> ' +
+                '<b>' + d.count + ' articles</b> uploaded and ready — ask me anything!'
+            );
+            // Update the "file loaded" message with article count
+            document.querySelectorAll('#chat-messages .cmsg.bot .cbubble p').forEach(function(p){
+                if (p.textContent.includes('loaded!')) {
+                    p.innerHTML = 'File <b>' + d.filename + '</b> loaded — <b>' + d.count + ' articles</b> ready. Ask me anything!';
+                }
+            });
+            return true;
+        } else {
+            setUploadStatus(
+                '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> ' +
+                'Upload failed: ' + (d.error || 'unknown error') + '. Please try again.'
+            );
+            console.warn('[copilot] Upload failed:', d.error);
+            return false;
+        }
+    } catch(e) {
+        setUploadStatus(
+            '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> ' +
+            'Upload error — please try again.'
+        );
+        console.warn('[copilot] Upload error:', e);
+        return false;
+    }
+}
+var articleFile  = null;
+var templateFile = null;
+var chatHistory  = [];
+var pollTimer    = null;
+
+
+function setUploadStatus(html) {
+    var el = document.getElementById('upload-status-text');
+    if (el) el.innerHTML = html;
+}
+
+function markUploaded(name, count) {
+    document.getElementById('upload-label').innerHTML =
+        '<i class="fas fa-check-circle" style="color:#276749"></i> ' + name +
+        (count ? ' — <b>' + count + ' articles</b>' : '');
+}
+
+function artChosen(input, type) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    if (type === 'pdf') {
+        articleFile = file;
+        document.getElementById('attach-pdf-name').textContent = file.name;
+        document.getElementById('attach-pdf-label').style.display = '';
+    } else {
+        templateFile = file;
+        document.getElementById('attach-tmpl-name').textContent = file.name;
+        document.getElementById('attach-tmpl-label').style.display = '';
+    }
+    document.getElementById('attach-preview').classList.add('show');
+    if (articleFile && templateFile) {
+        document.getElementById('chat-input').value = 'Extract clinical data from the PDF and fill the Excel template columns';
+        document.getElementById('chat-input').style.height = 'auto';
+        document.getElementById('chat-input').style.height = Math.min(document.getElementById('chat-input').scrollHeight, 90) + 'px';
+    } else if (articleFile) {
+        document.getElementById('chat-input').placeholder = 'Now attach your Excel template via the green button, then send...';
+    }
+}
+
+function clearAttach() {
+    articleFile = null; templateFile = null;
+    document.getElementById('attach-preview').classList.remove('show');
+    document.getElementById('attach-pdf-label').style.display = 'none';
+    document.getElementById('attach-tmpl-label').style.display = 'none';
+    document.getElementById('art-file').value = '';
+    document.getElementById('tmpl-file').value = '';
+}
+
+function chip(el) {
+    document.getElementById('chat-input').value = el.textContent;
+    send();
+}
+
+function addMsg(role, html) {
+    var wrap = document.getElementById('chat-messages');
+    var div  = document.createElement('div');
+    div.className = 'cmsg ' + role;
+    var icon = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+    div.innerHTML = '<div class="cavatar">' + icon + '</div><div class="cbubble">' + html + '</div>';
+    wrap.appendChild(div);
+    wrap.scrollTop = wrap.scrollHeight;
+    return div;
+}
+
+function showDots() {
+    var wrap = document.getElementById('chat-messages');
+    var div  = document.createElement('div');
+    div.className = 'cmsg bot'; div.id = 'dots';
+    div.innerHTML = '<div class="cavatar"><i class="fas fa-robot"></i></div><div class="cbubble"><div class="thinking-dots"><span></span><span></span><span></span></div></div>';
+    wrap.appendChild(div); wrap.scrollTop = wrap.scrollHeight;
+}
+function hideDots() { var el = document.getElementById('dots'); if (el) el.remove(); }
+
+function parseMarkdownTable(text) {
+    // Returns HTML table string if markdown table found, else null
+    var lines = text.trim().split('\n').map(function(l){ return l.trim(); });
+    var tableLines = lines.filter(function(l){ return l.startsWith('|'); });
+    if (tableLines.length < 2) return null;
+    var rows = tableLines.filter(function(l){ return !/^\|[-:\s|]+\|?$/.test(l); });
+    if (rows.length < 1) return null;
+    var html = '<table class="copilot-table"><thead>';
+    rows.forEach(function(row, i) {
+        var cells = row.replace(/^\||\|$/g,'').split('|').map(function(c){ return c.trim(); });
+        var tag = i === 0 ? 'th' : 'td';
+        var tr = '<tr>' + cells.map(function(c){ return '<'+tag+'>'+c+'</'+tag+'>'; }).join('') + '</tr>';
+        if (i === 0) html += tr + '</thead><tbody>';
+        else html += tr;
+    });
+    html += '</tbody></table>';
+    return html;
+}
+
+var _tableCounter = 0;
+function fmt(text) {
+    if (!text) return '<p style="color:#718096">No response received.</p>';
+
+    // Detect markdown table — any line starting with |
+    var hasTable = /^\|.+\|/m.test(text);
+    if (hasTable) {
+        // Count data rows (lines with | excluding separator line)
+        var allPipeLines = (text.match(/^\|.+/gm) || []);
+        var dataRows = allPipeLines.filter(function(l){ return !/^\|[-:\s|]+$/.test(l.trim()); });
+        var rowCount = Math.max(dataRows.length - 1, 1); // subtract header row
+        return '<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0;flex-wrap:wrap">' +
+            '<i class="fas fa-check-circle" style="color:#276749;font-size:1.1rem"></i>' +
+            '<span style="font-size:.84rem;color:#2d3748">Analysis complete — <strong>' + rowCount + ' rows</strong> ready to download</span>' +
+            '<button onclick="downloadTableExcel(this)" ' +
+            'data-tabletext="' + encodeURIComponent(text) + '" ' +
+            'style="display:inline-flex;align-items:center;gap:.4rem;background:#276749;color:#fff;border:none;border-radius:6px;padding:.4rem 1rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">' +
+            '<i class="fas fa-file-excel"></i> Download as Excel</button>' +
+            '</div>';
+    }
+
+    // Regular text formatting
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+    var out = text.split(/\n\n+/).map(function(p) {
+        p = p.trim(); if (!p) return '';
+        if (p.includes('<li>')) return '<ul>' + p + '</ul>';
+        return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+    }).join('');
+    return out || '<p>' + text.replace(/\n/g,'<br>') + '</p>';
+}
+
+async function downloadTableExcel(btn) {
+    var tableText = decodeURIComponent(btn.getAttribute('data-tabletext'));
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+    btn.disabled = true;
+    try {
+        var fd = new FormData();
+        fd.append('table_text', tableText);
+        var r = await fetch('/api/table_to_excel', {method:'POST', body:fd});
+        if (!r.ok) throw new Error('Server error');
+        var blob = await r.blob();
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href = url;
+        a.download = 'copilot_analysis_' + new Date().toISOString().slice(0,10) + '.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+        btn.innerHTML = '<i class="fas fa-check"></i> Downloaded!';
+        btn.style.background = '#2b6cb0';
+    } catch(e) {
+        btn.innerHTML = '<i class="fas fa-file-excel"></i> Download as Excel';
+        btn.disabled = false;
+        alert('Download failed: ' + e.message);
+    }
+}
+
+function wantsReport(q) {
+    // Only trigger AE extraction template for EXPLICIT AE extraction requests
+    // NOT for general "give me excel" or "table format" requests
+    return /\b(generate|create|run)\b.*\b(ae extraction|51.col|adverse event.*report|ae.*report)\b|\bae extraction report\b/i.test(q);
+}
+
+async function send() {
+    var input = document.getElementById('chat-input');
+    var q = input.value.trim();
+    if (!q) return;
+
+    addMsg('user', q.replace(/</g,'&lt;').replace(/>/g,'&gt;'));
+    input.value = ''; input.style.height = 'auto';
+    chatHistory.push({role:'user', content:q});
+    showDots();
+
+    if (articleFile) {
+        hideDots();
+        var pdfName  = articleFile.name;
+        var tmplName = templateFile ? templateFile.name : null;
+        var msg = tmplName
+            ? '<p><i class="fas fa-magic"></i> Reading <b>' + pdfName + '</b> and filling your template <b>' + tmplName + '</b>...</p>'
+            : '<p><i class="fas fa-magic"></i> Reading <b>' + pdfName + '</b> and extracting 51 clinical fields...</p>';
+        var progMsg = addMsg('bot', msg);
+        var fd = new FormData();
+        fd.append('article', articleFile);
+        if (templateFile) fd.append('template', templateFile);
+        fd.append('question', q);
+        clearAttach();
+        try {
+            var r = await fetch('/api/extract_article_template', {method:'POST', body:fd});
+            var d = await r.json();
+            if (d.error) { progMsg.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">' + d.error + '</p>'; }
+            else if (d.job_id) { pollJob(d.job_id, d.total || 1, progMsg); }
+        } catch(e) { progMsg.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">Error: ' + e.message + '</p>'; }
+        return;
+    }
+
+    if (wantsReport(q) && datasetFile) {
+        hideDots();
+        var progMsg2 = addMsg('bot', '<p><i class="fas fa-magic"></i> Starting AE extraction report from your dataset...</p>');
+        var fd2 = new FormData(); fd2.append('file', datasetFile);
+        try {
+            var r2 = await fetch('/api/extract_report', {method:'POST', body:fd2});
+            var d2 = await r2.json();
+            if (d2.error) { progMsg2.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">' + d2.error + '</p>'; }
+            else { pollJob(d2.job_id, d2.total, progMsg2); }
+        } catch(e) { progMsg2.querySelector('.cbubble').innerHTML = '<p style="color:#c53030">Error: ' + e.message + '</p>'; }
+        return;
+    }
+
+    try {
+        var fd3 = new FormData();
+        // Use session token (file already uploaded) — don't re-send large file each time
+        if (fileSessionToken) {
+            fd3.append('session_token', fileSessionToken);
+        } else if (datasetFile) {
+            // Fallback: upload file directly if session token not yet available
+            fd3.append('file', datasetFile);
+        }
+        fd3.append('history', JSON.stringify(chatHistory));
+        fd3.append('question', q);
+
+        if (!datasetFile && !fileSessionToken) {
+            hideDots();
+            addMsg('bot', '<p>Please upload your exported file using the upload bar above so I can answer questions about your research data. Or attach a single article via <i class="fas fa-paperclip"></i> for direct extraction.</p>');
+            chatHistory.pop();
+            return;
+        }
+
+        var r3 = await fetch('/api/copilot_file', {method:'POST', body:fd3});
+        var d3 = await r3.json();
+        hideDots();
+        if (d3.error) {
+            addMsg('bot', '<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> ' + d3.error + '</p>');
+            chatHistory.pop();
+        } else {
+            addMsg('bot', fmt(d3.answer));
+            chatHistory.push({role:'assistant', content:d3.answer});
+        }
+    } catch(e) {
+        hideDots();
+        addMsg('bot', '<p style="color:#c53030">Network error: ' + e.message + '</p>');
+        chatHistory.pop();
+    }
+}
+
+function pollJob(jobId, total, msgDiv) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async function() {
+        try {
+            var r = await fetch('/api/extract_progress/' + jobId);
+            var d = await r.json();
+            var pct = total > 0 ? Math.round((d.current / total) * 100) : 0;
+            msgDiv.querySelector('.cbubble').innerHTML =
+                '<p><i class="fas fa-cog fa-spin"></i> ' + d.status + '</p>' +
+                '<div class="pbar-wrap"><div class="pbar" style="width:' + pct + '%"></div></div>' +
+                '<p style="font-size:.7rem;color:#718096">' + d.current + ' / ' + d.total + ' articles</p>';
+            document.getElementById('chat-messages').scrollTop = 99999;
+
+            if (d.done) {
+                clearInterval(pollTimer);
+                if (d.error) {
+                    msgDiv.querySelector('.cbubble').innerHTML = '<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> ' + d.error + '</p>';
+                } else {
+                    msgDiv.querySelector('.cbubble').innerHTML =
+                        '<p><i class="fas fa-check-circle" style="color:#276749"></i> <b>Done!</b> ' + d.status + '</p>' +
+                        '<a href="/api/extract_download/' + jobId + '" class="dl-excel-btn"><i class="fas fa-file-excel"></i> Download AE Extraction Excel</a>' +
+                        '<p style="font-size:.68rem;color:#718096;margin-top:.4rem">Please verify AI-extracted values before use.</p>';
+                    document.getElementById('chat-messages').scrollTop = 99999;
+                    chatHistory.push({role:'assistant', content:'AE extraction complete. ' + d.status});
+                }
+            }
+        } catch(e) { clearInterval(pollTimer); }
+    }, 1500);
+}
+
+async function startPdfJob() {
+    var btn = document.getElementById('dl-pdfs');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+    btn.disabled = true;
+
+    try {
+        var r = await fetch('/export/pdfs?' + QS);
+        var d = await r.json();
+        if (d.error) {
+            alert('PDF error: ' + d.error);
+            btn.innerHTML = '<i class="fas fa-file-archive"></i> Download PDFs (ZIP)';
+            btn.disabled = false;
+            return;
+        }
+
+        var jobId = d.job_id, total = d.total;
+        btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> 0% (' + total + ' PDFs)';
+
+        var poll = setInterval(async function() {
+            var pr = await fetch('/export/pdfs/progress/' + jobId);
+            var pd = await pr.json();
+            var pct = total > 0 ? Math.round((pd.current / total) * 100) : 0;
+            btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> ' + pct + '% (' + pd.current + '/' + total + ')';
+
+            if (pd.done) {
+                clearInterval(poll);
+                if (pd.error) {
+                    alert('PDF error: ' + pd.error);
+                    btn.innerHTML = '<i class="fas fa-file-archive"></i> Download PDFs (ZIP)';
+                    btn.disabled = false;
+                } else {
+                    btn.innerHTML = '<i class="fas fa-download"></i> Click to Download ZIP';
+                    btn.disabled = false;
+                    btn.onclick = function() { window.location.href = '/export/pdfs/download/' + jobId; };
+                    window.location.href = '/export/pdfs/download/' + jobId;
+                }
+            }
+        }, 2000);
+
+    } catch(e) {
+        alert('Network error: ' + e.message);
+        btn.innerHTML = '<i class="fas fa-file-archive"></i> Download PDFs (ZIP)';
+        btn.disabled = false;
+    }
+}
+</script>
+</body>
+</html>

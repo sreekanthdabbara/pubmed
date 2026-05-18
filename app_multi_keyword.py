@@ -2281,10 +2281,10 @@ def health():
 @app.route('/api/export_to_copilot', methods=['POST'])
 @login_required
 def export_to_copilot():
-    """Create copilot session directly from search cache — no download/upload needed."""
+    """Create copilot session directly from search cache — filters applied server-side."""
     import uuid as _uuid
     search_id = request.form.get('search_id', '')
-    mode      = request.form.get('mode', 'abstract')  # abstract | full
+    mode      = request.form.get('mode', 'abstract')
 
     if not search_id or search_id not in _search_cache:
         return jsonify({'error': 'Search session expired. Please search again.'}), 404
@@ -2293,25 +2293,104 @@ def export_to_copilot():
     sorted_results = cached['sorted_results']
     keywords       = cached['keywords']
 
+    # ── Read filter params ────────────────────────────────────────────────
+    f_date             = request.form.get('f_date', '').strip()
+    f_date_from        = request.form.get('f_date_from', '').strip()
+    f_date_to          = request.form.get('f_date_to', '').strip()
+    f_free_pmc         = request.form.get('f_free_pmc', '') == '1'
+    f_type_journal     = request.form.get('f_type_journal', '') == '1'
+    f_type_review      = request.form.get('f_type_review', '') == '1'
+    f_type_systematic  = request.form.get('f_type_systematic', '') == '1'
+    f_type_meta        = request.form.get('f_type_meta', '') == '1'
+    f_type_rct         = request.form.get('f_type_rct', '') == '1'
+    f_type_clinical    = request.form.get('f_type_clinical', '') == '1'
+    f_type_case        = request.form.get('f_type_case', '') == '1'
+    f_type_observational = request.form.get('f_type_observational', '') == '1'
+    f_humans           = request.form.get('f_humans', '') == '1'
+    f_animals          = request.form.get('f_animals', '') == '1'
+    f_female           = request.form.get('f_female', '') == '1'
+    f_male             = request.form.get('f_male', '') == '1'
+    f_child            = request.form.get('f_child', '') == '1'
+    f_adult            = request.form.get('f_adult', '') == '1'
+    f_aged             = request.form.get('f_aged', '') == '1'
+    f_infant           = request.form.get('f_infant', '') == '1'
+
+    any_filter = any([f_date, f_free_pmc, f_type_journal, f_type_review,
+                      f_type_systematic, f_type_meta, f_type_rct, f_type_clinical,
+                      f_type_case, f_type_observational, f_humans, f_animals,
+                      f_female, f_male, f_child, f_adult, f_aged, f_infant])
+
+    def _parse_year(d):
+        m = re.search(r'\b(19|20)\d{2}\b', str(d))
+        return int(m.group()) if m else 9999
+
+    def _passes_filters(r):
+        """Return True if article row passes all active filters."""
+        if not any_filter:
+            return True
+        # Date filter
+        if f_date and f_date != 'custom':
+            cutoff = datetime.now().year - int(f_date)
+            if _parse_year(r.get('publication_date','')) < cutoff:
+                return False
+        if f_date == 'custom':
+            yr = _parse_year(r.get('publication_date',''))
+            if f_date_from and yr < int(f_date_from): return False
+            if f_date_to   and yr > int(f_date_to):   return False
+        # Free PMC
+        if f_free_pmc and not r.get('is_free_pmc'):
+            return False
+        # Article type
+        any_type = any([f_type_journal, f_type_review, f_type_systematic,
+                        f_type_meta, f_type_rct, f_type_clinical,
+                        f_type_case, f_type_observational])
+        if any_type:
+            pt = str(r.get('publication_type','')).lower()
+            match = (
+                (f_type_journal     and 'journal article' in pt) or
+                (f_type_review      and 'review' in pt) or
+                (f_type_systematic  and 'systematic' in pt) or
+                (f_type_meta        and 'meta-analysis' in pt) or
+                (f_type_rct         and 'randomized' in pt) or
+                (f_type_clinical    and 'clinical trial' in pt) or
+                (f_type_case        and 'case report' in pt) or
+                (f_type_observational and 'observational' in pt)
+            )
+            if not match: return False
+        # Species / sex / age (text search in abstract)
+        text = (str(r.get('abstract','')) + ' ' + str(r.get('affiliation',''))).lower()
+        if f_humans  and not f_animals and not re.search(r'human|patient|cohort', text): return False
+        if f_animals and not f_humans  and not re.search(r'animal|mouse|rat|murine', text): return False
+        if f_female  and not f_male   and not re.search(r'female|women|woman', text): return False
+        if f_male    and not f_female  and not re.search(r'\bmale\b|\bmen\b', text): return False
+        if f_child   and not re.search(r'child|pediatric|adolescent', text): return False
+        if f_adult   and not re.search(r'adult', text): return False
+        if f_aged    and not re.search(r'elderly|aged|geriatric', text): return False
+        if f_infant  and not re.search(r'infant|newborn|neonatal', text): return False
+        return True
+
     articles = []
+    seen = set()
     for kw, df in sorted_results.items():
-        if df.empty:
-            continue
+        if df.empty: continue
         for r in df.to_dict('records'):
+            pmid = str(r.get('pmid',''))
+            if pmid in seen: continue
+            if not _passes_filters(r): continue
+            seen.add(pmid)
             art = {
-                'Title':            r.get('title', ''),
-                'PMID':             r.get('pmid', ''),
-                'Abstract':         r.get('abstract', ''),
-                'Authors':          r.get('authors', ''),
-                'Journal':          r.get('journal', ''),
-                'Publication Date': r.get('publication_date', ''),
-                'Publication Type': r.get('publication_type', ''),
-                'Country':          r.get('country', ''),
-                'PubMed URL':       r.get('url', ''),
+                'Title':            r.get('title',''),
+                'PMID':             r.get('pmid',''),
+                'Abstract':         r.get('abstract',''),
+                'Authors':          r.get('authors',''),
+                'Journal':          r.get('journal',''),
+                'Publication Date': r.get('publication_date',''),
+                'Publication Type': r.get('publication_type',''),
+                'Country':          r.get('country',''),
+                'PubMed URL':       r.get('url',''),
                 'keyword':          r.get('keyword', kw),
                 'is_free_pmc':      r.get('is_free_pmc', False),
             }
-            # For full mode — fetch PMC full text if available
             if mode == 'full' and r.get('is_free_pmc') and r.get('pdf_url'):
                 try:
                     ft = fetch_pdf_text(r['pdf_url'])
@@ -2322,24 +2401,27 @@ def export_to_copilot():
             articles.append(art)
 
     if not articles:
-        return jsonify({'error': 'No articles found in search results'}), 404
+        return jsonify({'error': 'No articles match the current filters'}), 404
 
-    kw_label = keywords[0][:40] if keywords else 'search'
-    fname    = f"{kw_label} — {len(articles)} articles"
-    token    = _uuid.uuid4().hex[:16]
+    # Build descriptive filename with filter summary
+    kw_label    = keywords[0][:30] if keywords else 'search'
+    filter_note = f" (filtered)" if any_filter else ""
+    fname       = f"{kw_label}{filter_note} — {len(articles)} articles"
+    token       = _uuid.uuid4().hex[:16]
 
     _file_sessions[token] = {
-        'articles':  articles,
-        'filename':  fname,
-        'timestamp': time.time(),
+        'articles':    articles,
+        'filename':    fname,
+        'timestamp':   time.time(),
         'from_search': True,
-        'search_id': search_id,
+        'search_id':   search_id,
+        'filters_applied': any_filter,
     }
     if len(_file_sessions) > FILE_SESSION_MAX:
         oldest = min(_file_sessions, key=lambda k: _file_sessions[k]['timestamp'])
         del _file_sessions[oldest]
 
-    print(f"[copilot] Direct session created: {len(articles)} articles, mode={mode}")
+    print(f"[copilot] Session: {len(articles)} articles, mode={mode}, filters={any_filter}")
     return jsonify({'token': token, 'count': len(articles), 'filename': fname})
 
 
