@@ -3433,20 +3433,17 @@ def copilot_file():
         # ── Decide: single call vs batch processing ───────────────────────
         # Always use full content per article within each batch of 50
         # abs_len for context was truncated globally — override for batches
-        BATCH_ABS_LEN = 99999   # no limit — use full abstract
-        BATCH_FT_LEN  = 99999   # no limit — use all full text from Excel
-
-        # ── Dynamic batch size based on actual content length ─────────────
-        # GPT-4o-mini: 128K token context ≈ 512K chars input (reserve 16K for output)
-        INPUT_CHAR_BUDGET = 400_000   # conservative budget per batch
+        # ── Dynamic batch size ─────────────────────────────────────────────
+        # GPT reliably outputs ~15-20 rows per call regardless of token limits
+        # Smaller batches = complete output every time
+        INPUT_CHAR_BUDGET  = 400_000
+        MAX_ROWS_PER_BATCH = 15   # GPT reliably outputs this many rows per call
 
         def _avg_content_len(sample):
-            """Estimate average chars per article from a sample."""
             total = 0
             for art in sample:
                 ft = art.get('_fulltext','') or art.get('Full Text (PMC)','') or ''
                 ab = art.get('Abstract','') or art.get('abstract','') or ''
-                # Count all full text parts
                 for n in range(2, 10):
                     p = art.get(f'Full Text (PMC) - Part {n}','') or ''
                     if p: ft += p
@@ -3454,13 +3451,18 @@ def copilot_file():
                 total += len(ft) if ft else len(ab)
             return max(total // max(len(sample), 1), 500)
 
-        sample      = articles[:min(10, total)]
-        avg_chars   = _avg_content_len(sample)
-        BATCH_SIZE  = max(1, min(50, INPUT_CHAR_BUDGET // avg_chars))
+        sample    = articles[:min(10, total)]
+        avg_chars = _avg_content_len(sample)
+        # Input-based limit (context window)
+        input_batch = max(1, min(50, INPUT_CHAR_BUDGET // avg_chars))
+        # Output-based limit (GPT reliability) — take the smaller
+        BATCH_SIZE  = min(input_batch, MAX_ROWS_PER_BATCH)
 
-        has_fulltext = avg_chars > 2000   # >2K chars likely means full text present
+        has_fulltext = avg_chars > 2000
+        print(f"[copilot] avg_chars={avg_chars} | batch_size={BATCH_SIZE} | fulltext={has_fulltext}")
 
-        print(f"[copilot] avg chars/article: {avg_chars:,} | batch size: {BATCH_SIZE} | full text: {has_fulltext}")
+        BATCH_ABS_LEN = 99999   # no limit on abstract
+        BATCH_FT_LEN  = 99999   # no limit on full text
 
         def _build_batch_context(article_slice):
             """Build rich context for a batch — full abstract + full text from all Excel columns."""
