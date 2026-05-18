@@ -3397,7 +3397,34 @@ def copilot_file():
             except Exception as e:
                 return jsonify({'error': f'Could not read file: {e}'}), 400
 
-        # ── Build compact context — GPT-4o-mini has 128K token window ──────
+        # ── Handle attachment (image or file) ────────────────────────────
+        attach_name = request.form.get('attach_name', '')
+        attach_mime = request.form.get('attach_mime', '')
+        attach_data = request.form.get('attach_data', '')  # base64
+        attach_type = request.form.get('attach_type', '')  # image | file
+        attachment_context = ''
+
+        if attach_data and attach_type == 'file':
+            # Decode base64 and extract text from file
+            import base64 as _b64
+            try:
+                raw = _b64.b64decode(attach_data)
+                ext = attach_name.rsplit('.', 1)[-1].lower() if attach_name else ''
+                if ext == 'pdf' and PDF_SUPPORT:
+                    import pdfplumber
+                    with pdfplumber.open(io.BytesIO(raw)) as pdf:
+                        attachment_context = '\n'.join(p.extract_text() or '' for p in pdf.pages[:10])
+                elif ext in ('xlsx', 'xls'):
+                    df_att = pd.read_excel(io.BytesIO(raw), dtype=str).fillna('')
+                    attachment_context = df_att.to_string(index=False)[:5000]
+                elif ext == 'csv':
+                    df_att = pd.read_csv(io.BytesIO(raw), encoding='utf-8-sig', dtype=str).fillna('')
+                    attachment_context = df_att.to_string(index=False)[:5000]
+                else:
+                    attachment_context = raw.decode('utf-8', errors='ignore')[:5000]
+                attachment_context = f"\n\n[Attached file: {attach_name}]\n{attachment_context}"
+            except Exception as ae:
+                attachment_context = f"\n\n[Could not read attached file {attach_name}: {ae}]"
         # Strategy: scale detail based on dataset size
         # ≤50 articles  → full abstract (300 chars)
         # ≤150 articles → medium abstract (150 chars)
@@ -3558,7 +3585,14 @@ def copilot_file():
             messages = [{'role': 'system', 'content': system_prompt}]
             for msg in history[-4:]:
                 messages.append({'role': msg['role'], 'content': str(msg['content'])[:500]})
-            messages.append({'role': 'user', 'content': f"Analyze ALL {total} articles and return {total} rows. Request: {question[:800]}"})
+            user_text = f"Analyze ALL {total} articles and return {total} rows. Request: {question[:800]}" + attachment_context[:2000]
+            if attach_data and attach_type == 'image':
+                messages.append({'role': 'user', 'content': [
+                    {'type': 'text', 'text': user_text},
+                    {'type': 'image_url', 'image_url': {'url': f'data:{attach_mime};base64,{attach_data}'}},
+                ]})
+            else:
+                messages.append({'role': 'user', 'content': user_text})
             output_tokens = min(total * 200 + 1000, 16000)
             answer, err = call_azure_openai(messages, max_tokens=output_tokens, temperature=0.1)
             if err:

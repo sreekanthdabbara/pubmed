@@ -184,30 +184,31 @@
                 </div>
 
                 <div class="chat-input-wrap">
-                    <div class="attach-preview" id="attach-preview">
-                        <span id="attach-info" style="display:flex;flex-direction:column;gap:.15rem;font-size:.72rem">
-                            <span id="attach-pdf-label" style="display:none"><i class="fas fa-file-pdf" style="color:#e53e3e"></i> <span id="attach-pdf-name"></span></span>
-                            <span id="attach-tmpl-label" style="display:none"><i class="fas fa-file-excel" style="color:#276749"></i> <span id="attach-tmpl-name"></span></span>
-                        </span>
-                        <button onclick="clearAttach()" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:.85rem;padding:0"><i class="fas fa-times"></i></button>
+                    <!-- Attachment preview bar -->
+                    <div class="attach-preview" id="attach-preview" style="display:none">
+                        <div style="display:flex;align-items:center;gap:.5rem;flex:1;overflow:hidden">
+                            <img id="attach-img-preview" style="display:none;height:36px;width:36px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0">
+                            <i id="attach-file-icon" class="fas fa-file" style="display:none;color:#2b6cb0;font-size:1.1rem"></i>
+                            <span id="attach-name" style="font-size:.75rem;color:#2d3748;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+                        </div>
+                        <button onclick="clearAttachment()" style="background:none;border:none;color:#e53e3e;cursor:pointer;padding:0 .3rem;font-size:.85rem" title="Remove attachment"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="chat-input-row">
-                        <button class="clip-btn" title="Attach article (PDF/TXT)" onclick="document.getElementById('art-file').click()">
-                            <i class="fas fa-file-pdf"></i>
+                        <!-- Single attach button — accepts anything -->
+                        <button class="clip-btn" title="Attach image, PDF, Excel, CSV or any file" onclick="document.getElementById('chat-attach-input').click()">
+                            <i class="fas fa-paperclip"></i>
                         </button>
-                        <input type="file" id="art-file" accept=".pdf,.txt" style="display:none" onchange="artChosen(this,'pdf')">
-                        <button class="clip-btn" title="Attach Excel template with column headers" onclick="document.getElementById('tmpl-file').click()" style="margin-left:.1rem">
-                            <i class="fas fa-file-excel"></i>
-                        </button>
-                        <input type="file" id="tmpl-file" accept=".xlsx,.xls" style="display:none" onchange="artChosen(this,'template')">
+                        <input type="file" id="chat-attach-input" accept="*/*" style="display:none" onchange="handleAttachFile(this)">
                         <textarea id="chat-input" rows="7"
-                            placeholder="Ask me anything about your data, e.g. summarise by country, generate AE report..."
+                            placeholder="Ask me anything… or paste a screenshot (Ctrl+V)"
                             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"
-                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,320)+'px'"></textarea>
+                            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,320)+'px'"
+                            onpaste="handlePaste(event)"></textarea>
                         <button class="chat-send" onclick="send()" title="Send">
                             <i class="fas fa-paper-plane" style="font-size:.7rem"></i>
                         </button>
                     </div>
+                </div>
                 </div>
             </div>
 
@@ -259,6 +260,62 @@ var fileSessionToken = null;
         });
     }
 })();
+
+// ── Attachment handling ───────────────────────────────────────────────────
+var _attachment = null;  // {type:'image'|'file', name, data:base64, mime, dataUrl}
+
+function showAttachPreview(name, isImage, dataUrl) {
+    document.getElementById('attach-preview').style.display = 'flex';
+    document.getElementById('attach-name').textContent = name;
+    var img  = document.getElementById('attach-img-preview');
+    var icon = document.getElementById('attach-file-icon');
+    if (isImage && dataUrl) {
+        img.src = dataUrl; img.style.display = 'block'; icon.style.display = 'none';
+    } else {
+        img.style.display = 'none'; icon.style.display = 'inline';
+        var ext = name.split('.').pop().toLowerCase();
+        icon.className = 'fas ' + (ext==='pdf'?'fa-file-pdf':ext==='xlsx'||ext==='xls'?'fa-file-excel':ext==='csv'?'fa-file-csv':ext==='txt'?'fa-file-alt':'fa-file');
+        icon.style.color = ext==='pdf'?'#e53e3e':(ext==='xlsx'||ext==='xls'||ext==='csv')?'#276749':'#2b6cb0';
+    }
+}
+
+function clearAttachment() {
+    _attachment = null;
+    document.getElementById('attach-preview').style.display = 'none';
+    document.getElementById('chat-attach-input').value = '';
+}
+
+function handleAttachFile(input) {
+    var file = input.files[0]; if (!file) return;
+    var isImage = file.type.startsWith('image/');
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var dataUrl = e.target.result;
+        _attachment = { name:file.name, mime:file.type, data:dataUrl.split(',')[1],
+                        type:isImage?'image':'file', dataUrl:dataUrl };
+        showAttachPreview(file.name, isImage, dataUrl);
+    };
+    reader.readAsDataURL(file);
+}
+
+function handlePaste(event) {
+    var items = (event.clipboardData || event.originalEvent.clipboardData).items;
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+            event.preventDefault();
+            var file = items[i].getAsFile();
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var dataUrl = e.target.result;
+                _attachment = { name:'screenshot.png', mime:'image/png',
+                                data:dataUrl.split(',')[1], type:'image', dataUrl:dataUrl };
+                showAttachPreview('📸 Pasted screenshot', true, dataUrl);
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+    }
+}
 
 // ── Send to Co-pilot directly from search (no download/upload needed) ─────
 async function sendToCopilot(mode, btn) {
@@ -549,19 +606,26 @@ async function send() {
 
     try {
         var fd3 = new FormData();
-        // Use session token (file already uploaded) — don't re-send large file each time
         if (fileSessionToken) {
             fd3.append('session_token', fileSessionToken);
         } else if (datasetFile) {
-            // Fallback: upload file directly if session token not yet available
             fd3.append('file', datasetFile);
         }
         fd3.append('history', JSON.stringify(chatHistory));
         fd3.append('question', q);
 
-        if (!datasetFile && !fileSessionToken) {
+        // ── Attach image or file if present ───────────────────────────────
+        if (_attachment) {
+            fd3.append('attach_name', _attachment.name);
+            fd3.append('attach_mime', _attachment.mime);
+            fd3.append('attach_data', _attachment.data);   // base64
+            fd3.append('attach_type', _attachment.type);   // image | file
+        }
+
+        // Allow chat with just an attachment (no session needed)
+        if (!datasetFile && !fileSessionToken && !_attachment) {
             hideDots();
-            addMsg('bot', '<p>Please upload your exported file using the upload bar above so I can answer questions about your research data. Or attach a single article via <i class="fas fa-paperclip"></i> for direct extraction.</p>');
+            addMsg('bot', '<p>Please select a data option from Step 1, or attach a file/image using the paperclip 📎</p>');
             chatHistory.pop();
             return;
         }
@@ -569,6 +633,7 @@ async function send() {
         var r3 = await fetch('/api/copilot_file', {method:'POST', body:fd3});
         var d3 = await r3.json();
         hideDots();
+        clearAttachment();   // clear after send
         if (d3.error) {
             addMsg('bot', '<p style="color:#c53030"><i class="fas fa-exclamation-circle"></i> ' + d3.error + '</p>');
             chatHistory.pop();
