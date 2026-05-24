@@ -2352,8 +2352,11 @@ def extract_columns():
 
     return_json = request.form.get('return_json', '0') == '1'
 
-    # (rest of processing is same — build all_rows)
+    if not articles:
+        return jsonify({'error': 'No articles found for current filters'}), 404
 
+    total      = len(articles)
+    BATCH_SIZE = 15
     cols_str   = ', '.join(columns)
 
     print(f"[extract_columns] {total} articles, columns: {cols_str}")
