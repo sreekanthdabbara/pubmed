@@ -196,10 +196,12 @@
         .article-card.is-pmc   { border-left-color: #48bb78; }
         .article-card.multi-kw { border-left-color: #ed8936; }
         /* Extracted columns strip — Elicit-style */
-        .extracted-cols-strip { display:flex; flex-wrap:wrap; gap:.4rem; margin:.5rem 0 .25rem; padding:.45rem .55rem; background:#f0f7ff; border-radius:6px; border:1px solid #bee3f8; }
-        .extracted-col-cell { display:flex; flex-direction:column; min-width:80px; max-width:220px; }
-        .extracted-col-label { font-size:.65rem; font-weight:700; color:#2b6cb0; text-transform:uppercase; letter-spacing:.03em; margin-bottom:.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .extracted-col-value { font-size:.78rem; color:#2d3748; line-height:1.3; }
+        .extracted-cols-strip { display:flex; flex-wrap:wrap; gap:0; margin:.4rem 0; border:1px solid #bee3f8; border-radius:7px; overflow:hidden; background:#fff; }
+        .extracted-col-cell { display:flex; flex-direction:column; padding:.35rem .65rem; border-right:1px solid #e2e8f0; flex:1; min-width:90px; max-width:260px; background:#f8fbff; }
+        .extracted-col-cell:last-child { border-right:none; }
+        .extracted-col-label { font-size:.62rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .extracted-col-value { font-size:.8rem; color:#1a202c; line-height:1.35; font-weight:500; }
+        .extracted-na { color:#a0aec0; font-weight:400; }
         .article-top { display: flex; align-items: flex-start; gap: .55rem; margin-bottom: .4rem; flex-wrap: wrap; }
         .article-title { flex: 1; font-weight: 600; font-size: .86rem; color: #1a365d; line-height: 1.45; }
         .article-title a { color: inherit; text-decoration: none; }
@@ -1038,24 +1040,23 @@ function renderArticle(art,uid){
         const rows=art.per_keyword_hits.split('; ').map(s=>{const ci=s.lastIndexOf(':');return ci===-1?null:{kw:s.slice(0,ci).trim(),count:parseInt(s.slice(ci+1).trim())||0};}).filter(Boolean);
         if(rows.length){const mx=Math.max(...rows.map(r=>r.count),1);hitsPanel=`<div class="kw-hits-panel"><div class="kw-hits-panel-title"><i class="fas fa-chart-bar"></i> Keyword hits in title &amp; abstract</div>${rows.map(r=>`<div class="kw-hit-row"><span class="kw-hit-label" title="${esc(r.kw)}">${esc(r.kw)}</span><div class="kw-hit-bar-wrap"><div class="kw-hit-bar" style="width:${Math.round(r.count/mx*100)}%"></div></div><span class="kw-hit-count">${r.count}</span></div>`).join('')}</div>`;}
     }
-    const absBlock=(art.abstract&&art.abstract!=='N/A')?`<div class="abstract-wrap"><div class="abstract-text" id="abs-${uid}">${esc(art.abstract)}</div><button class="toggle-abstract" onclick="toggleAbs('abs-${uid}',this)"><i class="fas fa-chevron-down"></i> Show more</button></div>`:'';
-
-    // ── Extracted columns row (Elicit-style) ─────────────────────────────
+    // ── Extracted columns (Elicit-style) — shown right after title ───────
     var extractedBlock = '';
     if (_extractedData && _extractedData[art.pmid] && _resColumns.length) {
         var vals = _extractedData[art.pmid];
         extractedBlock = '<div class="extracted-cols-strip">' +
             _resColumns.map(function(col) {
-                var v = vals[col] || '';
+                var v = (vals[col] || '').toString().trim();
+                var isEmpty = !v || v === 'null' || v === 'N/A' || v === 'undefined';
                 return '<div class="extracted-col-cell">' +
-                    '<span class="extracted-col-label">' + esc(col) + '</span>' +
-                    '<span class="extracted-col-value">' + (v && v !== 'null' ? esc(String(v)) : '<span style="color:#a0aec0">N/A</span>') + '</span>' +
+                    '<div class="extracted-col-label"><i class="fas fa-table" style="font-size:.55rem;margin-right:.2rem"></i>' + esc(col) + '</div>' +
+                    '<div class="extracted-col-value">' + (isEmpty ? '<span class="extracted-na">—</span>' : esc(v)) + '</div>' +
                     '</div>';
             }).join('') +
             '</div>';
     }
 
-    return `<div class="${cls}" data-pmid="${esc(art.pmid)}"><div class="article-top"><div class="article-title"><a href="${esc(art.url)}" target="_blank" rel="noopener">${esc(art.title)}</a></div><div class="article-badges">${badges}</div></div>${pmcBtns}<div class="article-meta"><span><i class="fas fa-fingerprint"></i> PMID: ${esc(art.pmid)}</span>${art.journal&&art.journal!=='N/A'?`<span><i class="fas fa-book"></i> ${trunc(art.journal,50)}</span>`:''}${art.publication_date&&art.publication_date!=='N/A'?`<span><i class="fas fa-calendar"></i> ${esc(art.publication_date)}</span>`:''}${art.publication_type&&art.publication_type!=='N/A'?`<span><i class="fas fa-file-alt"></i> ${esc(art.publication_type)}</span>`:''}${art.authors&&art.authors!=='N/A'?`<span><i class="fas fa-users"></i> ${trunc(art.authors,70)}</span>`:''}${art.country&&art.country!=='N/A'?`<span><i class="fas fa-globe"></i> ${esc(art.country)}</span>`:''}${art.pmc_id&&art.pmc_id!=='N/A'?`<span style="color:#276749"><i class="fas fa-database"></i> ${esc(art.pmc_id)}</span>`:''}</div>${hitsPanel}${extractedBlock}${absBlock}</div>`;
+    return `<div class="${cls}" data-pmid="${esc(art.pmid)}"><div class="article-top"><div class="article-title"><a href="${esc(art.url)}" target="_blank" rel="noopener">${esc(art.title)}</a></div><div class="article-badges">${badges}</div></div>${extractedBlock}${pmcBtns}<div class="article-meta"><span><i class="fas fa-fingerprint"></i> PMID: ${esc(art.pmid)}</span>${art.journal&&art.journal!=='N/A'?`<span><i class="fas fa-book"></i> ${trunc(art.journal,50)}</span>`:''}${art.publication_date&&art.publication_date!=='N/A'?`<span><i class="fas fa-calendar"></i> ${esc(art.publication_date)}</span>`:''}${art.publication_type&&art.publication_type!=='N/A'?`<span><i class="fas fa-file-alt"></i> ${esc(art.publication_type)}</span>`:''}${art.authors&&art.authors!=='N/A'?`<span><i class="fas fa-users"></i> ${trunc(art.authors,70)}</span>`:''}${art.country&&art.country!=='N/A'?`<span><i class="fas fa-globe"></i> ${esc(art.country)}</span>`:''}${art.pmc_id&&art.pmc_id!=='N/A'?`<span style="color:#276749"><i class="fas fa-database"></i> ${esc(art.pmc_id)}</span>`:''}</div>${hitsPanel}${absBlock}</div>`;
 }
 
 function renderSections(sorted, limit, artMode){
