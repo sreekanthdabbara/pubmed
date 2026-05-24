@@ -452,38 +452,6 @@
     <!-- ══ MIDDLE CONTENT ══ -->
     <div class="content">
 
-        <!-- Summary strip -->
-        <div class="summary-strip">
-            <div class="ss-stat">
-                <span class="ss-num" id="ncbi-total-num">{{ total_ncbi_articles | default(total_articles) | int }}</span>
-                <span class="ss-label">Total<br>in NCBI</span>
-            </div>
-            <div class="ss-divider"></div>
-            <div class="ss-stat">
-                <span class="ss-num" id="ss-fetched">{{ total_articles }}</span>
-                <span class="ss-label">Fetched</span>
-            </div>
-            <div class="ss-divider"></div>
-            <div class="ss-stat">
-                <span class="ss-num" id="sb-shown">—</span>
-                <span class="ss-label">Shown</span>
-            </div>
-            <div class="ss-divider"></div>
-            <div class="ss-stat">
-                <span class="ss-num" id="ss-free-pmc" style="color:#68d391">{{ total_free_articles | default(0) }}</span>
-                <span class="ss-label">Free PMC<br>shown</span>
-            </div>
-            <div class="ss-divider"></div>
-            <div class="ss-stat">
-                <span class="ss-num">{{ keywords|length }}</span>
-                <span class="ss-label">Keywords</span>
-            </div>
-            <div class="ss-note" id="ss-note">
-                <strong>First 1,000 shown by default.</strong><br>
-                Use left filters or controls below to refine.
-            </div>
-        </div>
-
         <!-- Sort/limit bar -->
         <div class="sort-bar">
             <span class="sb-label"><i class="fas fa-sliders-h"></i> Sort &amp; Limit</span>
@@ -845,7 +813,7 @@ function setNcbiTotal(total, loading, perKeyword) {
     _filteredNcbiTotals     = perKeyword || null;
 
     // Update the big "Total in NCBI" number in the summary strip
-    const numEl = document.getElementById('ncbi-total-num');
+    const numEl = document.getElementById('ncbi-total-num-top');
     if (numEl) {
         if (loading) {
             numEl.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:.9rem;opacity:.7"></i>';
@@ -1200,7 +1168,7 @@ function updateExports(limit, kwOrder){
     document.getElementById('export-pdfs').setAttribute('data-qs', qs);
 
     // Update PDF count badge from current filtered free PMC count
-    const totalFreePmc = parseInt(document.getElementById('ss-free-pmc')?.textContent?.replace(/,/g,'')) || 0;
+    const totalFreePmc = parseInt(document.getElementById('ss-free-pmc-top')?.textContent?.replace(/,/g,'')) || 0;
     const badge = document.getElementById('pdf-count-badge');
     const num   = document.getElementById('pdf-count-num');
     if (badge && num) {
@@ -1291,10 +1259,10 @@ function updateCounters(sorted, limit, fc){
     const freePmc = _allArticles.filter(({art}) => art.is_free_pmc).length;
 
     // ── Summary strip ─────────────────────────────────────────────────
-    const sbShown = document.getElementById('sb-shown');
+    const sbShown = document.getElementById('sb-shown-top');
     if (sbShown) sbShown.textContent = fmt(shown);
 
-    const ssFreePmc = document.getElementById('ss-free-pmc');
+    const ssFreePmc = document.getElementById('ss-free-pmc-top');
     if (ssFreePmc) ssFreePmc.textContent = fmt(freePmc);
 
     // Update note text when filters are active
@@ -1323,7 +1291,7 @@ function updateCounters(sorted, limit, fc){
 
     const fsEl = document.getElementById('filter-showing');
     if (fsEl) {
-        const ncbiEl  = document.getElementById('ncbi-total-num');
+        const ncbiEl  = document.getElementById('ncbi-total-num-top');
         const ncbiStr = ncbiEl ? ncbiEl.textContent : fmt(TOTAL_NCBI);
         fsEl.innerHTML = `<strong id="shown-count">${fmt(shown)}</strong> / <strong>${fmt(TOTAL_ALL)}</strong> fetched &nbsp;·&nbsp; <strong>${ncbiStr}</strong> total in NCBI`;
     }
