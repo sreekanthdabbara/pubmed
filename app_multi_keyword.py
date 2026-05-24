@@ -2278,6 +2278,195 @@ def health():
     })
 
 
+@app.route('/api/extract_columns', methods=['POST'])
+@login_required
+def extract_columns():
+    """Extract user-defined columns for all articles in search cache → return Excel."""
+    import uuid as _uuid
+    search_id = request.form.get('search_id', '')
+    columns   = json.loads(request.form.get('columns', '[]'))
+
+    if not search_id or search_id not in _search_cache:
+        return jsonify({'error': 'Search session expired. Please search again.'}), 404
+    if not columns:
+        return jsonify({'error': 'No columns specified'}), 400
+
+    cached         = _search_cache[search_id]
+    sorted_results = cached['sorted_results']
+
+    # ── Apply same sidebar filters as results page ───────────────────────
+    f_date             = request.form.get('f_date', '').strip()
+    f_free_pmc         = request.form.get('f_free_pmc', '') == '1'
+    f_type_clinical    = request.form.get('f_type_clinical', '') == '1'
+    f_type_rct         = request.form.get('f_type_rct', '') == '1'
+    f_type_review      = request.form.get('f_type_review', '') == '1'
+    f_type_systematic  = request.form.get('f_type_systematic', '') == '1'
+    f_type_meta        = request.form.get('f_type_meta', '') == '1'
+    f_type_observational = request.form.get('f_type_observational', '') == '1'
+    f_type_case        = request.form.get('f_type_case', '') == '1'
+    f_type_journal     = request.form.get('f_type_journal', '') == '1'
+
+    def _parse_year(d):
+        m = re.search(r'\b(19|20)\d{2}\b', str(d))
+        return int(m.group()) if m else 9999
+
+    def _passes(r):
+        if f_date:
+            cutoff = datetime.now().year - int(f_date)
+            if _parse_year(r.get('publication_date','')) < cutoff: return False
+        if f_free_pmc and not r.get('is_free_pmc'): return False
+        any_type = any([f_type_clinical, f_type_rct, f_type_review, f_type_systematic,
+                        f_type_meta, f_type_observational, f_type_case, f_type_journal])
+        if any_type:
+            pt = str(r.get('publication_type','')).lower()
+            if not ((f_type_clinical and 'clinical trial' in pt) or
+                    (f_type_rct and 'randomized' in pt) or
+                    (f_type_review and 'review' in pt) or
+                    (f_type_systematic and 'systematic' in pt) or
+                    (f_type_meta and 'meta-analysis' in pt) or
+                    (f_type_observational and 'observational' in pt) or
+                    (f_type_case and 'case report' in pt) or
+                    (f_type_journal and 'journal article' in pt)):
+                return False
+        return True
+
+    articles = []
+    seen = set()
+    for kw, df in sorted_results.items():
+        if df.empty: continue
+        for r in df.to_dict('records'):
+            pmid = str(r.get('pmid',''))
+            if pmid in seen or not _passes(r): continue
+            seen.add(pmid)
+            articles.append({
+                'Title':    r.get('title',''),
+                'PMID':     r.get('pmid',''),
+                'Abstract': r.get('abstract',''),
+                'Authors':  r.get('authors',''),
+                'Journal':  r.get('journal',''),
+                'Publication Date': r.get('publication_date',''),
+                'Publication Type': r.get('publication_type',''),
+                'Country':  r.get('country',''),
+                'PubMed URL': r.get('url',''),
+            })
+
+    if not articles:
+        return jsonify({'error': 'No articles match current filters'}), 404
+
+    total      = len(articles)
+    BATCH_SIZE = 15
+    cols_str   = ', '.join(columns)
+
+    print(f"[extract_columns] {total} articles, columns: {cols_str}")
+
+    all_rows = []
+    batches  = [articles[i:i+BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
+
+    for bn, batch in enumerate(batches, 1):
+        n = len(batch)
+        ctx_lines = []
+        for idx, art in enumerate(batch, 1):
+            ctx_lines.append(
+                f"--- Article {idx} ---\n"
+                f"Title: {art.get('Title','')}\n"
+                f"Authors: {art.get('Authors','')[:80]}\n"
+                f"Journal: {art.get('Journal','')} | Date: {art.get('Publication Date','')} | Country: {art.get('Country','')}\n"
+                f"PMID: {art.get('PMID','')} | Type: {art.get('Publication Type','')[:60]}\n"
+                f"Abstract: {art.get('Abstract','')[:800]}\n"
+            )
+        ctx = '\n'.join(ctx_lines)
+
+        sys_msg = (
+            f"You are a clinical data extractor. Extract EXACTLY {n} rows from {n} articles.\n"
+            f"Columns to extract: {cols_str}\n"
+            f"RULES:\n"
+            f"- {n} articles in = {n} rows out — never fewer\n"
+            f"- Return ONLY valid JSON — no markdown, no explanation\n"
+            f"- Column names mentioned are extraction targets — not filters\n"
+            f"- Use null for missing values\n"
+        )
+        user_msg = f"Extract {cols_str} from these {n} articles:\n{ctx}"
+        # Build JSON template
+        template = {c: '' for c in columns}
+        template['Title'] = ''
+        template['PMID']  = ''
+
+        user_msg += f'\n\nReturn JSON: {{"rows": [{json.dumps(template)}, ...]}}'
+
+        msgs = [{'role':'system','content':sys_msg}, {'role':'user','content':user_msg}]
+        raw, err = call_azure_openai(msgs, max_tokens=min(n*150+500, 8000), temperature=0)
+
+        if err:
+            print(f"[extract_columns] batch {bn} error: {err}")
+            for art in batch:
+                row = {c: 'N/A' for c in columns}
+                row['Title'] = art.get('Title','')
+                row['PMID']  = art.get('PMID','')
+                all_rows.append(row)
+            continue
+
+        try:
+            clean = re.sub(r'^```[a-z]*\n?','',raw.strip())
+            clean = re.sub(r'\n?```$','',clean.strip())
+            jm    = re.search(r'\{.*\}', clean, re.DOTALL)
+            data  = json.loads(jm.group()) if jm else {}
+            rows  = data.get('rows', [])
+            for i, row in enumerate(rows[:n]):
+                if 'Title' not in row:
+                    row['Title'] = batch[i].get('Title','') if i < len(batch) else ''
+                if 'PMID' not in row:
+                    row['PMID'] = batch[i].get('PMID','') if i < len(batch) else ''
+                all_rows.append(row)
+            # Fill any missing rows
+            for i in range(len(rows), n):
+                row = {c: 'N/A' for c in columns}
+                row['Title'] = batch[i].get('Title','')
+                row['PMID']  = batch[i].get('PMID','')
+                all_rows.append(row)
+        except Exception as e:
+            print(f"[extract_columns] parse error batch {bn}: {e}")
+            for art in batch:
+                row = {c: 'N/A' for c in columns}
+                row['Title'] = art.get('Title','')
+                row['PMID']  = art.get('PMID','')
+                all_rows.append(row)
+
+        time.sleep(0.3)
+
+    # ── Build Excel ───────────────────────────────────────────────────────
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    wb = Workbook(); ws = wb.active; ws.title = 'Extracted Columns'
+    hdr_fill = PatternFill('solid', start_color='1A365D')
+    hdr_font = Font(bold=True, color='FFFFFF', size=10)
+
+    # Header: Title + PMID + user columns
+    all_cols = ['Title', 'PMID'] + [c for c in columns if c not in ('Title','PMID')]
+    for ci, col in enumerate(all_cols, 1):
+        cell = ws.cell(row=1, column=ci, value=col)
+        cell.fill = hdr_fill; cell.font = hdr_font
+        cell.alignment = Alignment(horizontal='center', wrap_text=True)
+        ws.column_dimensions[cell.column_letter].width = min(max(len(col)+4, 15), 50)
+
+    ws.row_dimensions[1].height = 30
+    ws.freeze_panes = 'A2'
+
+    for ri, row in enumerate(all_rows, 2):
+        for ci, col in enumerate(all_cols, 1):
+            val  = row.get(col, '') or ''
+            cell = ws.cell(row=ri, column=ci, value=str(val) if val else '')
+            cell.alignment = Alignment(vertical='top', wrap_text=True)
+            if ri % 2 == 0:
+                cell.fill = PatternFill('solid', start_color='EBF4FF')
+
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    ts  = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'extracted_columns_{ts}.xlsx')
+
+
 @app.route('/api/export_to_copilot', methods=['POST'])
 @login_required
 def export_to_copilot():

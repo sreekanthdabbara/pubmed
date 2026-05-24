@@ -308,6 +308,33 @@
 <div class="action-tabs">
     <a href="/" class="action-tab active"><i class="fas fa-search"></i> Search, extract and curate</a>
     <a href="/analyze?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending" id="analyze-tab-link" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+    <button class="action-tab" id="col-extractor-tab" onclick="toggleColExtractorPanel()" style="border:none;cursor:pointer;background:none">
+        <i class="fas fa-table"></i> Extract Columns
+    </button>
+</div>
+
+<!-- COLUMN EXTRACTOR PANEL -->
+<div id="col-extractor-panel" style="display:none;background:#fff;border:1.5px solid #bee3f8;border-radius:10px;margin:.5rem 1rem;padding:.8rem 1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+        <span style="font-weight:700;font-size:.85rem;color:#1a365d"><i class="fas fa-table" style="color:#2b6cb0"></i> Column Extractor <span style="font-weight:400;font-size:.75rem;color:#718096">— AI scans every article and fills your columns</span></span>
+        <button onclick="toggleColExtractorPanel()" style="background:none;border:none;cursor:pointer;color:#718096;font-size:.85rem"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:.35rem;min-height:2rem;margin-bottom:.5rem" id="res-col-chips">
+        <span style="font-size:.75rem;color:#a0aec0;font-style:italic;align-self:center">No columns yet — add below</span>
+    </div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
+        <input id="res-col-input" placeholder="Type column name e.g. Country, Sample Size, Treatment..." 
+               style="flex:1;min-width:200px;border:1.5px solid #e2e8f0;border-radius:7px;padding:.35rem .7rem;font-size:.8rem;outline:none"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();resAddColumn();}"
+               onfocus="this.style.borderColor='#2b6cb0'" onblur="this.style.borderColor='#e2e8f0'">
+        <button onclick="resAddColumn()" style="background:#edf2f7;border:1px solid #e2e8f0;border-radius:7px;padding:.35rem .8rem;font-size:.78rem;font-weight:600;cursor:pointer"><i class="fas fa-plus"></i> Add</button>
+        <button onclick="resAddPresets()" style="background:#edf2f7;border:1px solid #e2e8f0;border-radius:7px;padding:.35rem .8rem;font-size:.78rem;font-weight:600;cursor:pointer"><i class="fas fa-magic"></i> Presets</button>
+        <button onclick="resExtractColumns()" id="res-extract-btn"
+                style="background:linear-gradient(135deg,#276749,#1a4731);color:#fff;border:none;border-radius:7px;padding:.38rem 1.1rem;font-size:.8rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem">
+            <i class="fas fa-bolt"></i> Extract All Articles
+        </button>
+    </div>
+    <div id="res-extract-status" style="display:none;margin-top:.5rem;font-size:.78rem;color:#4a5568;padding:.4rem .6rem;background:#f7fafc;border-radius:6px"></div>
 </div>
 
 <!-- SEARCH MODE TABS -->
@@ -633,10 +660,10 @@ const _URL_CHECKBOXES    = {{ active_checkboxes  | default([]) | tojson }};
 const _URL_MODAL_TYPES   = {{ active_modal_types | default([]) | tojson }};
 const _URL_DATE          = {{ active_date        | default('') | tojson }};
 const _URL_FILTERS_APPLIED = {{ url_filters_applied | default(false) | tojson }};
-// Track which checkboxes were pre-set from URL (to detect user changes)
-var _urlPreChecked    = new Set();  // sidebar checkbox IDs pre-set from URL
-var _urlModalTypes    = new Set();  // modal type names pre-set from URL
-var _userChangedFilters = false;
+// Exact pub type strings from URL filters for accurate client-side matching
+const _URL_PUB_TYPES = {{ url_pub_type_strings | default([]) | tojson }};
+var _urlPreChecked    = new Set();
+var _urlModalTypes    = new Set();
 
 function hasUserChangedFilters() {
     if (!_URL_FILTERS_APPLIED) return true;
@@ -866,41 +893,17 @@ function extractYear(dateStr) {
 }
 
 function articlePassesSidebarFilters(art) {
-    // For URL searches: apply ONLY article type filters from pre-checked boxes
-    // (Entrez already filtered by pub type server-side, but client-side helps
-    // refine when user changes selections)
     if (_URL_FILTERS_APPLIED && !hasUserChangedFilters()) {
-        // pub_type field is semicolon-separated e.g. "Review; English Abstract"
-        // split and check each part
-        const ptParts = (art.publication_type||'').toLowerCase()
-                            .split(';').map(s => s.trim()).filter(Boolean);
-
-        const typeCheckMap = {
-            'f-type-journal':         ['journal article'],
-            'f-type-review':          ['review'],
-            'f-type-systematic':      ['systematic review'],
-            'f-type-meta':            ['meta-analysis'],
-            'f-type-rct':             ['randomized controlled trial'],
-            'f-type-clinical':        ['clinical trial'],
-            'f-type-clinical-study':  ['clinical study'],
-            'f-type-clinical-2':      ['clinical trial, phase ii'],
-            'f-type-clinical-3':      ['clinical trial, phase iii'],
-            'f-type-clinical-4':      ['clinical trial, phase iv'],
-            'f-type-case':            ['case reports', 'case report'],
-            'f-type-observational':   ['observational study'],
-        };
-        const anyTypeChecked = Object.keys(typeCheckMap).some(id => getChecked(id))
-                            || _modalSelectedTypes.size > 0;
-        if (anyTypeChecked) {
-            const matchesType =
-                Object.entries(typeCheckMap).some(([id, terms]) =>
-                    getChecked(id) && ptParts.some(pt => terms.some(t => pt === t || pt.includes(t)))
-                ) ||
-                (_modalSelectedTypes.size > 0 &&
-                 [..._modalSelectedTypes].some(mt =>
-                     ptParts.some(pt => pt.includes(mt.toLowerCase()))
-                 ));
-            if (!matchesType) return false;
+        // Use exact pub type strings from URL for precise client-side matching
+        // Fetching without Entrez pub type filter + client-side filter gives
+        // ~880-890 articles — much closer to PubMed web's count than Entrez's 695
+        if (_URL_PUB_TYPES.length > 0) {
+            const ptParts = (art.publication_type||'').split(';')
+                                .map(s => s.trim().toLowerCase()).filter(Boolean);
+            const matches = _URL_PUB_TYPES.some(upt =>
+                ptParts.some(pt => pt === upt.toLowerCase() || pt.includes(upt.toLowerCase()))
+            );
+            if (!matches) return false;
         }
         return true;
     }
@@ -1593,6 +1596,101 @@ if (_URL_CHECKBOXES.length || _URL_MODAL_TYPES.length || _URL_DATE) {
 }
 
 applyFilters();  // initial render — skips client-side filtering until user changes a filter
+
+// ── Column Extractor ──────────────────────────────────────────────────────
+var _resColumns = [];
+var RES_PRESETS = ['Country','Sample Size','Study Design','Treatment / Drug',
+                   'Outcome','Publication Year','Authors','Journal'];
+
+function toggleColExtractorPanel() {
+    var panel = document.getElementById('col-extractor-panel');
+    var tab   = document.getElementById('col-extractor-tab');
+    var open  = panel.style.display === 'none';
+    panel.style.display = open ? 'block' : 'none';
+    tab.style.background = open ? '#ebf8ff' : '';
+    tab.style.color      = open ? '#2b6cb0' : '';
+    tab.style.borderColor= open ? '#2b6cb0' : '';
+}
+
+function resRenderChips() {
+    var el = document.getElementById('res-col-chips');
+    if (!_resColumns.length) {
+        el.innerHTML = '<span style="font-size:.75rem;color:#a0aec0;font-style:italic;align-self:center">No columns yet — add below</span>';
+        return;
+    }
+    el.innerHTML = _resColumns.map(function(c) {
+        return '<span style="display:inline-flex;align-items:center;gap:.3rem;background:#ebf8ff;border:1px solid #bee3f8;color:#2b6cb0;border-radius:20px;padding:.2rem .65rem;font-size:.75rem;font-weight:600">' +
+               c + '<button onclick="resRemoveCol(\'' + c.replace(/'/g,"\\'") + '\')" style="background:none;border:none;cursor:pointer;color:#4a9eed;padding:0;font-size:.7rem">✕</button></span>';
+    }).join('');
+}
+
+function resAddColumn() {
+    var val = document.getElementById('res-col-input').value.trim();
+    if (!val || _resColumns.includes(val)) { document.getElementById('res-col-input').value=''; return; }
+    _resColumns.push(val);
+    document.getElementById('res-col-input').value = '';
+    resRenderChips();
+}
+
+function resRemoveCol(name) {
+    _resColumns = _resColumns.filter(function(c){ return c !== name; });
+    resRenderChips();
+}
+
+function resAddPresets() {
+    RES_PRESETS.forEach(function(c){ if (!_resColumns.includes(c)) _resColumns.push(c); });
+    resRenderChips();
+}
+
+async function resExtractColumns() {
+    if (!_resColumns.length) { alert('Please add at least one column first.'); return; }
+    var searchId = '{{ search_id }}';
+    if (!searchId) { alert('No search session found. Please search again.'); return; }
+
+    var btn    = document.getElementById('res-extract-btn');
+    var status = document.getElementById('res-extract-status');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting...';
+    status.style.display = 'block';
+    status.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#2b6cb0"></i> Scanning articles for: <b>' + _resColumns.join(', ') + '</b>...';
+
+    // Collect active sidebar filters to apply
+    var filterStr = typeof collectFilterParams === 'function' ? collectFilterParams() : '';
+
+    try {
+        var fd = new FormData();
+        fd.append('search_id', searchId);
+        fd.append('columns',   JSON.stringify(_resColumns));
+        if (filterStr) {
+            filterStr.split('&').forEach(function(p) {
+                var kv = p.split('=');
+                if (kv[0] && kv[1]) fd.append(decodeURIComponent(kv[0]), decodeURIComponent(kv[1]));
+            });
+        }
+
+        var r = await fetch('/api/extract_columns', {method:'POST', body:fd});
+
+        if (r.ok && r.headers.get('content-type') && r.headers.get('content-type').includes('spreadsheet')) {
+            // Download Excel directly
+            var blob = await r.blob();
+            var url  = URL.createObjectURL(blob);
+            var a    = document.createElement('a');
+            a.href = url;
+            a.download = 'column_extraction_' + new Date().toISOString().slice(0,10) + '.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);
+            status.innerHTML = '<i class="fas fa-check-circle" style="color:#276749"></i> <b>Downloaded!</b> Excel file with ' + _resColumns.length + ' columns extracted for all articles.';
+        } else {
+            var d = await r.json();
+            status.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> Error: ' + (d.error || 'Extraction failed');
+        }
+    } catch(e) {
+        status.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> Network error: ' + e.message;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-bolt"></i> Extract All Articles';
+}
 
 </script>
 </body>
