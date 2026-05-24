@@ -2350,11 +2350,10 @@ def extract_columns():
                 'PubMed URL': r.get('url',''),
             })
 
-    if not articles:
-        return jsonify({'error': 'No articles match current filters'}), 404
+    return_json = request.form.get('return_json', '0') == '1'
 
-    total      = len(articles)
-    BATCH_SIZE = 15
+    # (rest of processing is same — build all_rows)
+
     cols_str   = ', '.join(columns)
 
     print(f"[extract_columns] {total} articles, columns: {cols_str}")
@@ -2432,6 +2431,16 @@ def extract_columns():
                 all_rows.append(row)
 
         time.sleep(0.3)
+
+    # ── Return JSON for inline display OR Excel for download ─────────────
+    if return_json:
+        # Build dict keyed by PMID for inline injection into article cards
+        data_by_pmid = {}
+        for row in all_rows:
+            pmid = str(row.get('PMID', ''))
+            if pmid:
+                data_by_pmid[pmid] = {c: row.get(c, '') for c in columns}
+        return jsonify({'data': data_by_pmid, 'count': len(data_by_pmid)})
 
     # ── Build Excel ───────────────────────────────────────────────────────
     from openpyxl import Workbook
