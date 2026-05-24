@@ -493,8 +493,6 @@
             </p>
         </div>
 
-        <!-- Keyword summary cards -->
-        <div class="kw-summary" id="kw-summary"></div>
 
         <!-- Article sections -->
         <div id="kw-sections"></div>
@@ -1062,45 +1060,6 @@ function renderCards(sorted, limit, fc, freeCounts){
     const artMode        = document.getElementById('ctrl-art-sort')?.value || '';
     const pmcMode        = (artMode === 'pmc_first');
 
-    document.getElementById('kw-summary').innerHTML = sorted.map((kw, i) => {
-        const fetched     = kw.count;
-        const matchFilter = fc[kw.keyword] ?? fetched;
-        const ncbiTotal   = _filteredNcbiTotals?.[kw.keyword] ?? kw.ncbi_total ?? fetched;
-        const freeNum     = freeCounts?.[kw.keyword] ?? kw.free_count;
-
-        let countHtml;
-        if (pmcMode) {
-            // Free PMC mode: show free PMC count prominently
-            countHtml = `
-                <div class="kw-total">
-                    <span style="color:#276749">${freeNum.toLocaleString()}</span>
-                    <span style="font-size:.72rem;color:#718096;font-weight:400"> / ${ncbiTotal.toLocaleString()}</span>
-                </div>
-                <div class="kw-shown" style="color:#276749">
-                    <i class="fas fa-unlock-alt"></i> free PMC / in NCBI
-                </div>`;
-        } else if (isFiltered) {
-            countHtml = `
-                <div class="kw-total">
-                    <span style="color:#2b6cb0">${matchFilter.toLocaleString()}</span>
-                    <span style="font-size:.72rem;color:#718096;font-weight:400"> / ${ncbiTotal.toLocaleString()}</span>
-                </div>
-                <div class="kw-shown">match filter / in NCBI</div>`;
-        } else {
-            countHtml = `
-                <div class="kw-total">
-                    ${fetched.toLocaleString()}
-                    <span style="font-size:.72rem;color:#718096;font-weight:400"> / ${ncbiTotal.toLocaleString()}</span>
-                </div>
-                <div class="kw-shown">fetched / available in NCBI</div>`;
-        }
-
-        return `<a href="#kws-${i}" class="kw-card">
-            <div class="kw-name">${esc(kw.keyword)}</div>
-            ${countHtml}
-            ${freeNum ? `<div class="kw-free-badge"><i class="fas fa-unlock-alt"></i> ${freeNum.toLocaleString()} Free PMC</div>` : ''}
-        </a>`;
-    }).join('');
 }
 
 /* ── Update export links ───────────────────── */
