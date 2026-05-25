@@ -1577,16 +1577,17 @@ function resAddColumn() {
     _resColumns.push(val);
     document.getElementById('res-col-input').value = '';
     resRenderChips();
-    // Clear old extracted data when columns change
-    _extractedData = {};
-    removeExtractedRows();
+    // New column needs extraction — don't wipe existing data
 }
 
 function resRemoveCol(name) {
     _resColumns = _resColumns.filter(function(c){ return c !== name; });
     resRenderChips();
-    _extractedData = {};
-    removeExtractedRows();
+    // Re-render articles — extractedBlock uses _resColumns so removed col disappears
+    // Don't clear _extractedData so remaining columns still show
+    if (Object.keys(_extractedData).length) {
+        applyFilters();
+    }
 }
 
 function resAddPresets() {
