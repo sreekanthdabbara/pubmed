@@ -195,12 +195,14 @@
         .article-card:hover { background: #f7fafc; }
         .article-card.is-pmc   { border-left-color: #48bb78; }
         .article-card.multi-kw { border-left-color: #ed8936; }
-        /* Extracted columns strip — Elicit-style */
-        .extracted-cols-strip { display:flex; flex-wrap:wrap; gap:0; margin:.4rem 0; border:1px solid #bee3f8; border-radius:7px; overflow:hidden; background:#fff; }
-        .extracted-col-cell { display:flex; flex-direction:column; padding:.35rem .65rem; border-right:1px solid #e2e8f0; flex:1; min-width:90px; max-width:260px; background:#f8fbff; }
-        .extracted-col-cell:last-child { border-right:none; }
-        .extracted-col-label { font-size:.62rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .extracted-col-value { font-size:.8rem; color:#1a202c; line-height:1.35; font-weight:500; }
+        /* Side-by-side layout when columns extracted */
+        .article-card.has-extracted { display:flex; align-items:stretch; padding:0; overflow:hidden; }
+        .article-card.has-extracted .article-main { flex:1; min-width:0; padding:.75rem .9rem; }
+        .extracted-cols-side { display:flex; flex-shrink:0; border-left:2px solid #bee3f8; background:#f8fbff; }
+        .extracted-col-side { width:150px; padding:.6rem .65rem; border-right:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:flex-start; }
+        .extracted-col-side:last-child { border-right:none; }
+        .extracted-col-label { font-size:.6rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.3rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid #e2e8f0; padding-bottom:.2rem; }
+        .extracted-col-value { font-size:.8rem; color:#1a202c; line-height:1.4; font-weight:500; }
         .extracted-na { color:#a0aec0; font-weight:400; }
         .article-top { display: flex; align-items: flex-start; gap: .55rem; margin-bottom: .4rem; flex-wrap: wrap; }
         .article-title { flex: 1; font-weight: 600; font-size: .86rem; color: #1a365d; line-height: 1.45; }
@@ -1042,23 +1044,23 @@ function renderArticle(art,uid){
     }
     const absBlock=(art.abstract&&art.abstract!=='N/A')?`<div class="abstract-wrap"><div class="abstract-text" id="abs-${uid}">${esc(art.abstract)}</div><button class="toggle-abstract" onclick="toggleAbs('abs-${uid}',this)"><i class="fas fa-chevron-down"></i> Show more</button></div>`:'';
 
-    // ── Extracted columns (Elicit-style) — shown right after title ───────
-    var extractedBlock = '';
+    // ── Extracted columns — side panel (right of article) ────────────────
+    var extractedSide = '';
     if (_extractedData && _extractedData[art.pmid] && _resColumns.length) {
         var vals = _extractedData[art.pmid];
-        extractedBlock = '<div class="extracted-cols-strip">' +
-            _resColumns.map(function(col) {
-                var v = (vals[col] || '').toString().trim();
-                var isEmpty = !v || v === 'null' || v === 'N/A' || v === 'undefined';
-                return '<div class="extracted-col-cell">' +
-                    '<div class="extracted-col-label"><i class="fas fa-table" style="font-size:.55rem;margin-right:.2rem"></i>' + esc(col) + '</div>' +
-                    '<div class="extracted-col-value">' + (isEmpty ? '<span class="extracted-na">—</span>' : esc(v)) + '</div>' +
-                    '</div>';
-            }).join('') +
-            '</div>';
+        extractedSide = _resColumns.map(function(col) {
+            var v = (vals[col] || '').toString().trim();
+            var isEmpty = !v || v === 'null' || v === 'N/A' || v === 'undefined';
+            return '<div class="extracted-col-side">' +
+                '<div class="extracted-col-label">' + esc(col) + '</div>' +
+                '<div class="extracted-col-value">' + (isEmpty ? '<span class="extracted-na">—</span>' : esc(v)) + '</div>' +
+                '</div>';
+        }).join('');
     }
 
-    return `<div class="${cls}" data-pmid="${esc(art.pmid)}"><div class="article-top"><div class="article-title"><a href="${esc(art.url)}" target="_blank" rel="noopener">${esc(art.title)}</a></div><div class="article-badges">${badges}</div></div>${extractedBlock}${pmcBtns}<div class="article-meta"><span><i class="fas fa-fingerprint"></i> PMID: ${esc(art.pmid)}</span>${art.journal&&art.journal!=='N/A'?`<span><i class="fas fa-book"></i> ${trunc(art.journal,50)}</span>`:''}${art.publication_date&&art.publication_date!=='N/A'?`<span><i class="fas fa-calendar"></i> ${esc(art.publication_date)}</span>`:''}${art.publication_type&&art.publication_type!=='N/A'?`<span><i class="fas fa-file-alt"></i> ${esc(art.publication_type)}</span>`:''}${art.authors&&art.authors!=='N/A'?`<span><i class="fas fa-users"></i> ${trunc(art.authors,70)}</span>`:''}${art.country&&art.country!=='N/A'?`<span><i class="fas fa-globe"></i> ${esc(art.country)}</span>`:''}${art.pmc_id&&art.pmc_id!=='N/A'?`<span style="color:#276749"><i class="fas fa-database"></i> ${esc(art.pmc_id)}</span>`:''}</div>${hitsPanel}${absBlock}</div>`;
+    var articleMain = `<div class="article-main"><div class="article-top"><div class="article-title"><a href="${esc(art.url)}" target="_blank" rel="noopener">${esc(art.title)}</a></div><div class="article-badges">${badges}</div></div>${pmcBtns}<div class="article-meta"><span><i class="fas fa-fingerprint"></i> PMID: ${esc(art.pmid)}</span>${art.journal&&art.journal!=='N/A'?`<span><i class="fas fa-book"></i> ${trunc(art.journal,50)}</span>`:''}${art.publication_date&&art.publication_date!=='N/A'?`<span><i class="fas fa-calendar"></i> ${esc(art.publication_date)}</span>`:''}${art.publication_type&&art.publication_type!=='N/A'?`<span><i class="fas fa-file-alt"></i> ${esc(art.publication_type)}</span>`:''}${art.authors&&art.authors!=='N/A'?`<span><i class="fas fa-users"></i> ${trunc(art.authors,70)}</span>`:''}${art.country&&art.country!=='N/A'?`<span><i class="fas fa-globe"></i> ${esc(art.country)}</span>`:''}${art.pmc_id&&art.pmc_id!=='N/A'?`<span style="color:#276749"><i class="fas fa-database"></i> ${esc(art.pmc_id)}</span>`:''}</div>${hitsPanel}${absBlock}</div>`;
+
+    return `<div class="${cls}${extractedSide?' has-extracted':''}" data-pmid="${esc(art.pmid)}">${articleMain}${extractedSide?`<div class="extracted-cols-side">${extractedSide}</div>`:''}</div>`;
 }
 
 function renderSections(sorted, limit, artMode){
