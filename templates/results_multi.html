@@ -1040,6 +1040,8 @@ function renderArticle(art,uid){
         const rows=art.per_keyword_hits.split('; ').map(s=>{const ci=s.lastIndexOf(':');return ci===-1?null:{kw:s.slice(0,ci).trim(),count:parseInt(s.slice(ci+1).trim())||0};}).filter(Boolean);
         if(rows.length){const mx=Math.max(...rows.map(r=>r.count),1);hitsPanel=`<div class="kw-hits-panel"><div class="kw-hits-panel-title"><i class="fas fa-chart-bar"></i> Keyword hits in title &amp; abstract</div>${rows.map(r=>`<div class="kw-hit-row"><span class="kw-hit-label" title="${esc(r.kw)}">${esc(r.kw)}</span><div class="kw-hit-bar-wrap"><div class="kw-hit-bar" style="width:${Math.round(r.count/mx*100)}%"></div></div><span class="kw-hit-count">${r.count}</span></div>`).join('')}</div>`;}
     }
+    const absBlock=(art.abstract&&art.abstract!=='N/A')?`<div class="abstract-wrap"><div class="abstract-text" id="abs-${uid}">${esc(art.abstract)}</div><button class="toggle-abstract" onclick="toggleAbs('abs-${uid}',this)"><i class="fas fa-chevron-down"></i> Show more</button></div>`:'';
+
     // ── Extracted columns (Elicit-style) — shown right after title ───────
     var extractedBlock = '';
     if (_extractedData && _extractedData[art.pmid] && _resColumns.length) {
