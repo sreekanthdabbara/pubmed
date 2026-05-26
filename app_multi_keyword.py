@@ -2359,81 +2359,111 @@ def extract_columns():
     BATCH_SIZE = 15
     cols_str   = ', '.join(columns)
 
+    # ── Known field map — pull directly from article data (no GPT needed) ─
+    DIRECT_FIELD_MAP = {
+        'abstract':           'Abstract',
+        'title':              'Title',
+        'authors':            'Authors',
+        'author':             'Authors',
+        'journal':            'Journal',
+        'country':            'Country',
+        'pmid':               'PMID',
+        'publication date':   'Publication Date',
+        'date':               'Publication Date',
+        'year':               'Publication Date',
+        'publication year':   'Publication Date',
+        'publication type':   'Publication Type',
+        'study type':         'Publication Type',
+        'article type':       'Publication Type',
+        'url':                'PubMed URL',
+        'link':               'PubMed URL',
+        'pubmed url':         'PubMed URL',
+    }
+
+    def _get_direct(article, col_name):
+        """Return article field value if col_name maps to a known field, else None."""
+        key = DIRECT_FIELD_MAP.get(col_name.lower().strip())
+        if key:
+            return str(article.get(key, '') or '').strip() or 'N/A'
+        return None
+
     print(f"[extract_columns] {total} articles, columns: {cols_str}")
+
+    # Split columns into direct (from article data) and GPT (needs AI extraction)
+    direct_cols = [c for c in columns if _get_direct(articles[0], c) is not None]
+    gpt_cols    = [c for c in columns if _get_direct(articles[0], c) is None]
+    print(f"[extract_columns] direct={direct_cols}, gpt={gpt_cols}")
 
     all_rows = []
     batches  = [articles[i:i+BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
 
     for bn, batch in enumerate(batches, 1):
         n = len(batch)
-        ctx_lines = []
-        for idx, art in enumerate(batch, 1):
-            ctx_lines.append(
-                f"--- Article {idx} ---\n"
-                f"Title: {art.get('Title','')}\n"
-                f"Authors: {art.get('Authors','')[:80]}\n"
-                f"Journal: {art.get('Journal','')} | Date: {art.get('Publication Date','')} | Country: {art.get('Country','')}\n"
-                f"PMID: {art.get('PMID','')} | Type: {art.get('Publication Type','')[:60]}\n"
-                f"Abstract: {art.get('Abstract','')[:800]}\n"
+
+        # ── Fill direct fields from article data ──────────────────────────
+        batch_direct = []
+        for art in batch:
+            row = {'Title': art.get('Title',''), 'PMID': art.get('PMID','')}
+            for c in direct_cols:
+                row[c] = _get_direct(art, c) or ''
+            batch_direct.append(row)
+
+        # ── Send only GPT columns to AI ───────────────────────────────────
+        if gpt_cols:
+            gpt_cols_str = ', '.join(gpt_cols)
+            ctx_lines = []
+            for idx, art in enumerate(batch, 1):
+                ctx_lines.append(
+                    f"--- Article {idx} ---\n"
+                    f"Title: {art.get('Title','')}\n"
+                    f"Authors: {art.get('Authors','')[:80]}\n"
+                    f"Journal: {art.get('Journal','')} | Date: {art.get('Publication Date','')} | Country: {art.get('Country','')}\n"
+                    f"PMID: {art.get('PMID','')} | Type: {art.get('Publication Type','')[:60]}\n"
+                    f"Abstract: {art.get('Abstract','')[:800]}\n"
+                )
+            ctx = '\n'.join(ctx_lines)
+
+            sys_msg = (
+                f"You are a clinical data extractor. Extract EXACTLY {n} rows from {n} articles.\n"
+                f"Columns to extract: {gpt_cols_str}\n"
+                f"RULES:\n"
+                f"- {n} articles in = {n} rows out — never fewer\n"
+                f"- Return ONLY valid JSON — no markdown, no explanation\n"
+                f"- Use null for missing values\n"
             )
-        ctx = '\n'.join(ctx_lines)
+            template = {c: '' for c in gpt_cols}
+            template['PMID'] = ''
+            user_msg = f"Extract {gpt_cols_str} from these {n} articles:\n{ctx}\n\nReturn JSON: {{\"rows\": [{json.dumps(template)}, ...]}}"
 
-        sys_msg = (
-            f"You are a clinical data extractor. Extract EXACTLY {n} rows from {n} articles.\n"
-            f"Columns to extract: {cols_str}\n"
-            f"RULES:\n"
-            f"- {n} articles in = {n} rows out — never fewer\n"
-            f"- Return ONLY valid JSON — no markdown, no explanation\n"
-            f"- Column names mentioned are extraction targets — not filters\n"
-            f"- Use null for missing values\n"
-        )
-        user_msg = f"Extract {cols_str} from these {n} articles:\n{ctx}"
-        # Build JSON template
-        template = {c: '' for c in columns}
-        template['Title'] = ''
-        template['PMID']  = ''
+            msgs = [{'role':'system','content':sys_msg}, {'role':'user','content':user_msg}]
+            raw, err = call_azure_openai(msgs, max_tokens=min(n*150+500, 8000), temperature=0)
 
-        user_msg += f'\n\nReturn JSON: {{"rows": [{json.dumps(template)}, ...]}}'
+            gpt_rows = []
+            if not err and raw:
+                try:
+                    clean = re.sub(r'^```[a-z]*\n?','',raw.strip())
+                    clean = re.sub(r'\n?```$','',clean.strip())
+                    jm    = re.search(r'\{.*\}', clean, re.DOTALL)
+                    data  = json.loads(jm.group()) if jm else {}
+                    gpt_rows = data.get('rows', [])
+                except Exception as e:
+                    print(f"[extract_columns] parse error batch {bn}: {e}")
 
-        msgs = [{'role':'system','content':sys_msg}, {'role':'user','content':user_msg}]
-        raw, err = call_azure_openai(msgs, max_tokens=min(n*150+500, 8000), temperature=0)
+            # Merge GPT rows with direct rows
+            for i, direct_row in enumerate(batch_direct):
+                if i < len(gpt_rows):
+                    gpt_row = gpt_rows[i]
+                    for c in gpt_cols:
+                        direct_row[c] = str(gpt_row.get(c, '') or '').strip() or 'N/A'
+                else:
+                    for c in gpt_cols:
+                        direct_row[c] = 'N/A'
+        else:
+            # All columns are direct — no GPT needed at all
+            pass
 
-        if err:
-            print(f"[extract_columns] batch {bn} error: {err}")
-            for art in batch:
-                row = {c: 'N/A' for c in columns}
-                row['Title'] = art.get('Title','')
-                row['PMID']  = art.get('PMID','')
-                all_rows.append(row)
-            continue
-
-        try:
-            clean = re.sub(r'^```[a-z]*\n?','',raw.strip())
-            clean = re.sub(r'\n?```$','',clean.strip())
-            jm    = re.search(r'\{.*\}', clean, re.DOTALL)
-            data  = json.loads(jm.group()) if jm else {}
-            rows  = data.get('rows', [])
-            for i, row in enumerate(rows[:n]):
-                if 'Title' not in row:
-                    row['Title'] = batch[i].get('Title','') if i < len(batch) else ''
-                if 'PMID' not in row:
-                    row['PMID'] = batch[i].get('PMID','') if i < len(batch) else ''
-                all_rows.append(row)
-            # Fill any missing rows
-            for i in range(len(rows), n):
-                row = {c: 'N/A' for c in columns}
-                row['Title'] = batch[i].get('Title','')
-                row['PMID']  = batch[i].get('PMID','')
-                all_rows.append(row)
-        except Exception as e:
-            print(f"[extract_columns] parse error batch {bn}: {e}")
-            for art in batch:
-                row = {c: 'N/A' for c in columns}
-                row['Title'] = art.get('Title','')
-                row['PMID']  = art.get('PMID','')
-                all_rows.append(row)
-
-        time.sleep(0.3)
+        all_rows.extend(batch_direct)
+        time.sleep(0.1 if not gpt_cols else 0.3)
 
     # ── Return JSON for inline display OR Excel for download ─────────────
     if return_json:
