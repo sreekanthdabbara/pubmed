@@ -317,9 +317,6 @@
 <div class="action-tabs">
     <a href="/" class="action-tab active"><i class="fas fa-search"></i> Search, extract and curate</a>
     <a href="/analyze?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending" id="analyze-tab-link" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
-    <button class="action-tab" id="col-extractor-tab" onclick="toggleColExtractorPanel()" style="border:none;cursor:pointer;background:none">
-        <i class="fas fa-table"></i> Extract Columns
-    </button>
 </div>
 
 
@@ -1677,18 +1674,27 @@ async function resExtractColumns() {
 }
 
 async function resDownloadExtracted() {
-    if (!Object.keys(_extractedData).length) return;
-    var searchId = '{{ search_id }}';
-    var fd = new FormData();
-    fd.append('search_id', searchId);
-    fd.append('columns',   JSON.stringify(_resColumns));
-    var r = await fetch('/api/extract_columns', {method:'POST', body:fd});
-    if (r.ok && r.headers.get('content-type').includes('spreadsheet')) {
-        var blob = await r.blob();
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a'); a.href=url;
-        a.download='extracted_columns_'+new Date().toISOString().slice(0,10)+'.xlsx';
-        a.click(); URL.revokeObjectURL(url);
+    if (!Object.keys(_extractedData).length) { alert('No extracted data to download. Please run Extract first.'); return; }
+
+    try {
+        var fd = new FormData();
+        fd.append('columns',  JSON.stringify(_resColumns));
+        fd.append('data',     JSON.stringify(_extractedData));  // send stored data
+        var r = await fetch('/api/extracted_to_excel', {method:'POST', body:fd});
+        if (r.ok) {
+            var blob = await r.blob();
+            var url  = URL.createObjectURL(blob);
+            var a    = document.createElement('a');
+            a.href   = url;
+            a.download = 'extracted_columns_' + new Date().toISOString().slice(0,10) + '.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);
+        } else {
+            var d = await r.json();
+            alert('Download failed: ' + (d.error || 'Server error'));
+        }
+    } catch(e) {
+        alert('Download error: ' + e.message);
     }
 }
 

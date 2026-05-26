@@ -2278,6 +2278,53 @@ def health():
     })
 
 
+@app.route('/api/extracted_to_excel', methods=['POST'])
+@login_required
+def extracted_to_excel():
+    """Convert already-extracted column data (JSON) directly to Excel download."""
+    try:
+        columns = json.loads(request.form.get('columns', '[]'))
+        data    = json.loads(request.form.get('data', '{}'))  # {pmid: {col: val}}
+
+        if not columns or not data:
+            return jsonify({'error': 'No data to export'}), 400
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = Workbook(); ws = wb.active; ws.title = 'Extracted Columns'
+        hdr_fill = PatternFill('solid', start_color='1A365D')
+        hdr_font = Font(bold=True, color='FFFFFF', size=10)
+
+        all_cols = ['PMID'] + columns
+        for ci, col in enumerate(all_cols, 1):
+            cell = ws.cell(row=1, column=ci, value=col)
+            cell.fill = hdr_fill; cell.font = hdr_font
+            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+            ws.column_dimensions[cell.column_letter].width = min(max(len(col)+4, 12), 60)
+
+        ws.row_dimensions[1].height = 28
+        ws.freeze_panes = 'A2'
+
+        for ri, (pmid, row_data) in enumerate(data.items(), 2):
+            ws.cell(row=ri, column=1, value=pmid).alignment = Alignment(vertical='top')
+            for ci, col in enumerate(columns, 2):
+                val  = str(row_data.get(col, '') or '').strip()
+                cell = ws.cell(row=ri, column=ci, value=val)
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+                if ri % 2 == 0:
+                    cell.fill = PatternFill('solid', start_color='EBF4FF')
+
+        buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+        ts  = datetime.now().strftime('%Y%m%d_%H%M%S')
+        return send_file(buf,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'extracted_columns_{ts}.xlsx')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/extract_columns', methods=['POST'])
 @login_required
 def extract_columns():
