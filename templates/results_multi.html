@@ -41,6 +41,11 @@
         }
         .action-tab.active { background: #ebf8ff; border-color: #2b6cb0; color: #2b6cb0; }
         .action-tab:hover  { background: #ebf8ff; border-color: #2b6cb0; color: #2b6cb0; }
+        /* Curate mode — hide sidebar and export panel */
+        body.curate-mode .sidebar       { display: none !important; }
+        body.curate-mode .export-panel  { display: none !important; }
+        body.curate-mode .results-main  { margin-left: 0 !important; width: 100% !important; }
+        body.curate-mode .page-body     { grid-template-columns: 1fr !important; }
 
         /* ══ SEARCH MODE TABS ════════════════════════════════════════════ */
         .search-tabs {
@@ -316,8 +321,8 @@
 <!-- TOP ACTION TABS -->
 <div class="action-tabs">
     <a href="/" class="action-tab"><i class="fas fa-search"></i> Search</a>
-    <a href="#" class="action-tab active"><i class="fas fa-sliders-h"></i> Customize and extract</a>
-    <a href="#" class="action-tab"><i class="fas fa-filter"></i> Curate and extract</a>
+    <a href="/results?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending&view=customize" id="tab-customize" class="action-tab"><i class="fas fa-sliders-h"></i> Customize and extract</a>
+    <a href="/results?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending&view=curate" id="tab-curate" class="action-tab"><i class="fas fa-filter"></i> Curate and extract</a>
     <a href="/analyze?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending" id="analyze-tab-link" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
 </div>
 
@@ -609,6 +614,19 @@
 
 <!-- Data from Flask -->
 <script>
+// ── View mode: customize (default) vs curate ─────────────────────────────
+(function() {
+    var viewMode = new URLSearchParams(window.location.search).get('view') || 'customize';
+    if (viewMode === 'curate') {
+        document.body.classList.add('curate-mode');
+        var t = document.getElementById('tab-curate');
+        if (t) t.classList.add('active');
+    } else {
+        var t = document.getElementById('tab-customize');
+        if (t) t.classList.add('active');
+    }
+})();
+
 const ALL_DATA     = {{ keyword_summary | tojson }};
 const KEYWORDS_STR = {{ keywords_str | tojson }};
 const TOTAL_ALL    = {{ total_articles }};
