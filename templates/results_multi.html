@@ -477,6 +477,13 @@
                     <option value="journal">Journal</option>
                 </select>
             </div>
+            <div class="sb-div"></div>
+            <div class="sb-group">
+                <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;font-size:.78rem;color:#276749;font-weight:600">
+                    <input type="checkbox" id="ctrl-free-pmc" onchange="applyFilters()" style="width:14px;height:14px;accent-color:#276749">
+                    <i class="fas fa-unlock-alt"></i> Free PMC only
+                </label>
+            </div>
             <button class="btn-apply" onclick="applyFilters()"><i class="fas fa-check"></i> Apply</button>
             <span class="sb-count" id="filter-showing">
                 <strong id="shown-count">{{ total_articles }}</strong> / <strong>{{ total_articles }}</strong>
@@ -905,6 +912,7 @@ function articlePassesSidebarFilters(art) {
 
     // ── Text availability ─────────────────────────────────────────────
     if (getChecked('f-free-pmc') && !art.is_free_pmc) return false;
+    if (document.getElementById('ctrl-free-pmc')?.checked && !art.is_free_pmc) return false;
     if (getChecked('f-abstract') && (!art.abstract||art.abstract==='N/A')) return false;
 
     // ── Article type — OR logic: keep if matches ANY checked type ─────
