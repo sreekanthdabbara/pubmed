@@ -315,7 +315,9 @@
 
 <!-- TOP ACTION TABS -->
 <div class="action-tabs">
-    <a href="/" class="action-tab active"><i class="fas fa-search"></i> Search, extract and curate</a>
+    <a href="/" class="action-tab"><i class="fas fa-search"></i> Search</a>
+    <a href="#" class="action-tab active"><i class="fas fa-sliders-h"></i> Customize and extract</a>
+    <a href="#" class="action-tab"><i class="fas fa-filter"></i> Curate and extract</a>
     <a href="/analyze?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending" id="analyze-tab-link" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
 </div>
 
@@ -460,28 +462,14 @@
 
         <!-- Sort/limit bar -->
         <div class="sort-bar">
-            <span class="sb-label"><i class="fas fa-sliders-h"></i> Sort &amp; Limit</span>
             <div class="sb-group">
-                <label for="ctrl-limit">Per keyword:</label>
-                <input type="number" id="ctrl-limit" value="1000" min="1" max="10000" placeholder="All">
-                <button onclick="document.getElementById('ctrl-limit').value='';applyFilters()"
-                    style="background:none;border:1.5px solid #cbd5e0;border-radius:5px;padding:.26rem .5rem;font-size:.7rem;color:#718096;cursor:pointer">All</button>
-            </div>
-            <div class="sb-div"></div>
-            <div class="sb-group">
-                <label for="ctrl-kw-sort">Keywords:</label>
-                <select id="ctrl-kw-sort">
-                    <option value="ascending" selected>⬆ Ascending</option>
-                    <option value="descending">⬇ Descending</option>
-                </select>
-            </div>
-            <div class="sb-div"></div>
-            <div class="sb-group">
-                <label for="ctrl-art-sort">Articles:</label>
+                <label for="ctrl-art-sort">Sort by:</label>
                 <select id="ctrl-art-sort">
-                    <option value="kw_match">KW matches first</option>
-                    <option value="pmc_first">Free PMC only</option>
-                    <option value="relevance">PubMed relevance</option>
+                    <option value="kw_match">Best match</option>
+                    <option value="relevance" selected>Most recent</option>
+                    <option value="pub_date">Publication date</option>
+                    <option value="first_author">First author</option>
+                    <option value="journal">Journal</option>
                 </select>
             </div>
             <button class="btn-apply" onclick="applyFilters()"><i class="fas fa-check"></i> Apply</button>
@@ -831,7 +819,7 @@ function setNcbiTotal(total, loading, perKeyword) {
 
     // Re-render cards with updated available counts
     if (!loading) {
-        const limitRaw = document.getElementById('ctrl-limit')?.value.trim();
+        const limitRaw = document.getElementById('ctrl-limit')?.value?.trim();
         const limit    = limitRaw ? Math.max(1, parseInt(limitRaw,10)) : DEFAULT_LIMIT;
         const kwOrder  = document.getElementById('ctrl-kw-sort')?.value || 'ascending';
         const sorted   = sortKwGroups(ALL_DATA, kwOrder);
@@ -1006,6 +994,10 @@ function sortArticles(arts,mode){
     const c=[...arts];
     if(mode==='kw_match') c.sort((a,b)=>{const m=(b.keyword_match_count||0)-(a.keyword_match_count||0);if(m)return m;return(b.keyword_total_hits||0)-(a.keyword_total_hits||0);});
     else if(mode==='pmc_first') c.sort((a,b)=>(b.is_free_pmc?1:0)-(a.is_free_pmc?1:0));
+    else if(mode==='pub_date') c.sort((a,b)=>{const ya=parseInt((a.publication_date||'').match(/\d{4}/)?.[0]||0);const yb=parseInt((b.publication_date||'').match(/\d{4}/)?.[0]||0);return yb-ya;});
+    else if(mode==='first_author') c.sort((a,b)=>(a.authors||'').localeCompare(b.authors||''));
+    else if(mode==='journal') c.sort((a,b)=>(a.journal||'').localeCompare(b.journal||''));
+    else if(mode==='relevance') { /* keep original order */ }
     return c;
 }
 
