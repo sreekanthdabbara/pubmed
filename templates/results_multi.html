@@ -42,10 +42,13 @@
         .action-tab.active { background: #ebf8ff; border-color: #2b6cb0; color: #2b6cb0; }
         .action-tab:hover  { background: #ebf8ff; border-color: #2b6cb0; color: #2b6cb0; }
         /* Curate mode — hide sidebar and export panel */
-        body.curate-mode .sidebar       { display: none !important; }
-        body.curate-mode .export-panel  { display: none !important; }
-        body.curate-mode .results-main  { margin-left: 0 !important; width: 100% !important; }
-        body.curate-mode .page-body     { grid-template-columns: 1fr !important; }
+        body.curate-mode .sidebar        { display: none !important; }
+        body.curate-mode .export-panel   { display: none !important; }
+        body.curate-mode .results-main   { margin-left: 0 !important; width: 100% !important; }
+        body.curate-mode .page-body      { grid-template-columns: 1fr !important; }
+        /* Extract Columns bar only visible in curate mode */
+        .extract-cols-bar                { display: none; }
+        body.curate-mode .extract-cols-bar { display: flex; }
 
         /* ══ SEARCH MODE TABS ════════════════════════════════════════════ */
         .search-tabs {
@@ -333,7 +336,7 @@
     <a href="/" class="search-tab"><i class="fas fa-link"></i> PubMed URL Search</a>
 </div>
 
-<!-- STATS + COLUMN EXTRACTOR BAR (replaces matching rate bar) -->
+<!-- STATS + COLUMN EXTRACTOR BAR -->
 <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin:.4rem .5rem .5rem;padding:.55rem 1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
     <!-- Stats inline -->
     <div style="display:flex;align-items:center;gap:.6rem;flex-shrink:0">
@@ -350,21 +353,25 @@
         <strong style="font-size:.9rem;color:#276749" id="ss-free-pmc-top">{{ total_free_articles | default(0) }}</strong>
     </div>
     <div style="flex:1;min-width:1px;height:1px"></div>
-    <!-- Column Extractor inline -->
-    <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+    <!-- Column Extractor — curate mode only -->
+    <div class="extract-cols-bar" style="align-items:center;gap:.4rem;flex-wrap:wrap">
         <span style="font-size:.75rem;font-weight:700;color:#2b6cb0;white-space:nowrap"><i class="fas fa-table"></i> Extract Columns:</span>
         <div id="res-col-chips-inline" style="display:flex;flex-wrap:wrap;gap:.25rem;align-items:center">
             <span style="font-size:.72rem;color:#a0aec0;font-style:italic">No columns</span>
         </div>
-        <input id="res-col-input" placeholder="Add column..." 
+        <input id="res-col-input" placeholder="Add column..."
                style="width:160px;border:1.5px solid #e2e8f0;border-radius:6px;padding:.28rem .6rem;font-size:.75rem;outline:none"
                onkeydown="if(event.key==='Enter'){event.preventDefault();resAddColumn();}"
                onfocus="this.style.borderColor='#2b6cb0'" onblur="this.style.borderColor='#e2e8f0'">
         <button onclick="resAddColumn()" style="background:#edf2f7;border:1px solid #e2e8f0;border-radius:6px;padding:.28rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer" title="Add column"><i class="fas fa-plus"></i></button>
-        <button onclick="resAddPresets()" style="background:#edf2f7;border:1px solid #e2e8f0;border-radius:6px;padding:.28rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer" title="Add preset columns"><i class="fas fa-magic"></i> Presets</button>
+        <button onclick="resAddPresets()" style="background:#edf2f7;border:1px solid #e2e8f0;border-radius:6px;padding:.28rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer" title="Presets"><i class="fas fa-magic"></i> Presets</button>
         <button onclick="resExtractColumns()" id="res-extract-btn"
                 style="background:linear-gradient(135deg,#276749,#1a4731);color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:.3rem">
             <i class="fas fa-bolt"></i> Extract
+        </button>
+        <button onclick="resCurateDownload()" id="res-curate-dl-btn"
+                style="background:#2b6cb0;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:.3rem">
+            <i class="fas fa-download"></i> Download CSV
         </button>
     </div>
 </div>
@@ -1689,6 +1696,41 @@ async function resExtractColumns() {
         btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
         status.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> Network error: ' + e.message;
     }
+}
+
+async function resCurateDownload() {
+    // Download currently shown articles + extracted columns as CSV
+    var shown = _allArticles || [];
+    if (!shown.length) { alert('No articles shown to download.'); return; }
+
+    var extraCols = _resColumns.length ? _resColumns : [];
+    var baseCols  = ['pmid','title','authors','journal','publication_date','publication_type','country','url'];
+    var allCols   = baseCols.concat(extraCols.filter(function(c){ return !baseCols.includes(c.toLowerCase()); }));
+
+    var lines = [allCols.join(',')];
+    shown.forEach(function(art) {
+        var row = baseCols.map(function(c) {
+            var v = String(art[c] || '').replace(/"/g,'""').replace(/\n/g,' ');
+            return '"' + v + '"';
+        });
+        extraCols.forEach(function(col) {
+            var v = '';
+            if (_extractedData && _extractedData[art.pmid]) {
+                v = String(_extractedData[art.pmid][col] || '').replace(/"/g,'""').replace(/\n/g,' ');
+            }
+            row.push('"' + v + '"');
+        });
+        lines.push(row.join(','));
+    });
+
+    var csv  = '\uFEFF' + lines.join('\n');   // BOM for Excel
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href   = url;
+    a.download = 'curate_export_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 async function resDownloadExtracted() {

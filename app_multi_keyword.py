@@ -990,35 +990,45 @@ def results_page():
     search_id    = request.args.get('search_id', '')
     keywords_str = request.args.get('keywords', '')
     max_results  = int(request.args.get('max_results', DEFAULT_MAX_RESULTS))
-    sort_order   = request.args.get('sort_order', 'ascending')
 
     if search_id and search_id in _search_cache:
         cached         = _search_cache[search_id]
         sorted_results = cached['sorted_results']
         keywords       = cached['keywords']
 
-        keyword_summary      = []
-        total_articles       = 0
-        total_free_articles  = 0
-        total_ncbi_articles  = 0
+        keyword_summary     = []
+        total_articles      = 0
+        total_free_articles = 0
+        total_ncbi_articles = 0
 
         for kw, df in sorted_results.items():
-            count      = len(df)
+            if df.empty:
+                continue
+            count   = len(df)
             total_articles += count
-            records    = df.to_dict('records') if not df.empty else []
-            free_count = sum(1 for r in records if r.get('is_free_pmc'))
-            ncbi_total = count
+
+            # Clean NaN/inf values — prevent JSON parse errors in JS
+            df_clean = df.fillna('').copy()
+            for col in df_clean.select_dtypes(include=['float','object']).columns:
+                df_clean[col] = df_clean[col].astype(str).replace({'nan':'','None':'','inf':'','<NA>':''})
+
+            records    = df_clean.to_dict('records')
+            free_count = sum(1 for r in records if str(r.get('is_free_pmc','')).lower() == 'true')
             total_free_articles += free_count
-            total_ncbi_articles += ncbi_total
+            total_ncbi_articles += count
+
             keyword_summary.append({
                 'keyword': kw, 'count': count,
-                'ncbi_total': ncbi_total, 'fetched': count,
-                'has_more': False, 'free_count': free_count, 'results': records,
+                'ncbi_total': count, 'fetched': count,
+                'has_more': False, 'free_count': free_count,
+                'results': records,
             })
 
         return render_template('results_multi.html',
-            keywords=keywords, keywords_str=keywords_str,
-            search_id=search_id, keyword_summary=keyword_summary,
+            keywords=keywords,
+            keywords_str=keywords_str,
+            search_id=search_id,
+            keyword_summary=keyword_summary,
             total_articles=total_articles,
             total_ncbi_articles=total_ncbi_articles,
             total_free_articles=total_free_articles)
