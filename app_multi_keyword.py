@@ -2494,13 +2494,13 @@ def extract_columns():
     gpt_cols    = [c for c in columns if _get_direct(articles[0], c) is None]
     print(f"[extract_columns] direct={direct_cols}, gpt={gpt_cols}")
 
-    all_rows = []
-    batches  = [articles[i:i+BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
+    batches = [articles[i:i+BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
 
-    for bn, batch in enumerate(batches, 1):
+    def _process_batch(bn, batch):
+        """Process one batch — returns (bn, list_of_rows). Runs in a thread."""
         n = len(batch)
 
-        # ── Fill direct fields from article data ──────────────────────────
+        # ── Fill direct fields from article data (instant, no GPT) ────────
         batch_direct = []
         for art in batch:
             row = {'Title': art.get('Title',''), 'PMID': art.get('PMID','')}
@@ -2549,7 +2549,6 @@ def extract_columns():
                 except Exception as e:
                     print(f"[extract_columns] parse error batch {bn}: {e}")
 
-            # Merge GPT rows with direct rows
             for i, direct_row in enumerate(batch_direct):
                 if i < len(gpt_rows):
                     gpt_row = gpt_rows[i]
@@ -2558,12 +2557,42 @@ def extract_columns():
                 else:
                     for c in gpt_cols:
                         direct_row[c] = 'N/A'
-        else:
-            # All columns are direct — no GPT needed at all
-            pass
 
-        all_rows.extend(batch_direct)
-        time.sleep(0.1 if not gpt_cols else 0.3)
+        return bn, batch_direct
+
+    all_rows = []
+    if not gpt_cols:
+        # All columns are direct fields — no GPT needed, process instantly, no threading required
+        for bn, batch in enumerate(batches, 1):
+            _, rows = _process_batch(bn, batch)
+            all_rows.extend(rows)
+    else:
+        # ── Run batches CONCURRENTLY — major speedup over sequential calls ─
+        # Each GPT call is I/O-bound (network), so threads give near-linear speedup.
+        # Cap concurrency to avoid hitting OpenAI rate limits.
+        MAX_WORKERS = min(8, len(batches))
+        results_by_bn = {}
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(_process_batch, bn, batch): bn
+                       for bn, batch in enumerate(batches, 1)}
+            for future in as_completed(futures):
+                bn = futures[future]
+                try:
+                    _, rows = future.result()
+                    results_by_bn[bn] = rows
+                except Exception as e:
+                    print(f"[extract_columns] batch {bn} failed: {e}")
+                    batch = batches[bn-1]
+                    rows = []
+                    for art in batch:
+                        row = {'Title': art.get('Title',''), 'PMID': art.get('PMID','')}
+                        for c in columns:
+                            row[c] = 'N/A'
+                        rows.append(row)
+                    results_by_bn[bn] = rows
+        # Reassemble in original order
+        for bn in sorted(results_by_bn.keys()):
+            all_rows.extend(results_by_bn[bn])
 
     # ── Return JSON for inline display OR Excel for download ─────────────
     if return_json:
