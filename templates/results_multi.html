@@ -1744,14 +1744,21 @@ async function resCurateDownload() {
     var shown = _allArticles || [];
     if (!shown.length) { alert('No articles shown to download.'); return; }
 
-    var extraCols = _resColumns.length ? _resColumns : [];
-    var baseCols  = ['pmid','title','abstract','authors','journal','publication_date','publication_type','country','url'];
-    var allCols   = baseCols.concat(extraCols.filter(function(c){ return !baseCols.includes(c.toLowerCase()); }));
+    var baseColsAll = ['pmid','title','abstract','authors','journal','publication_date','publication_type','country','url'];
+    var extraCols   = _resColumns || [];
+    var extraColsLower = extraCols.map(function(c){ return c.toLowerCase(); });
+
+    // If the user extracted a column with the same name as a base field
+    // (e.g. "Country"), the extracted column wins — it keeps the user's
+    // label and value, and the redundant base field is dropped so the
+    // header and every data row always have the exact same column count.
+    var baseColsToShow = baseColsAll.filter(function(c){ return !extraColsLower.includes(c); });
+    var allCols = baseColsToShow.concat(extraCols);
 
     var lines = [allCols.join(',')];
     shown.forEach(function(item) {
         var art = item.art || item;   // _allArticles entries are {art, keyword} — unwrap here
-        var row = baseCols.map(function(c) {
+        var row = baseColsToShow.map(function(c) {
             var v = String(art[c] || '').replace(/"/g,'""').replace(/\n/g,' ');
             return '"' + v + '"';
         });
