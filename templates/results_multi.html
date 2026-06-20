@@ -1192,7 +1192,9 @@ function updateExports(limit, kwOrder){
     document.getElementById('export-pdfs').setAttribute('data-qs', qs);
 
     // Update PDF count badge from current filtered free PMC count
-    const totalFreePmc = parseInt(document.getElementById('ss-free-pmc-top')?.textContent?.replace(/,/g,'')) || 0;
+    // Computed directly from _allArticles (source of truth) — not from DOM text,
+    // since updateCounters() may not have run yet when this executes.
+    const totalFreePmc = (_allArticles || []).filter(({art}) => art.is_free_pmc).length;
     const badge = document.getElementById('pdf-count-badge');
     const num   = document.getElementById('pdf-count-num');
     if (badge && num) {
