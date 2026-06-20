@@ -1745,11 +1745,12 @@ async function resCurateDownload() {
     if (!shown.length) { alert('No articles shown to download.'); return; }
 
     var extraCols = _resColumns.length ? _resColumns : [];
-    var baseCols  = ['pmid','title','authors','journal','publication_date','publication_type','country','url'];
+    var baseCols  = ['pmid','title','abstract','authors','journal','publication_date','publication_type','country','url'];
     var allCols   = baseCols.concat(extraCols.filter(function(c){ return !baseCols.includes(c.toLowerCase()); }));
 
     var lines = [allCols.join(',')];
-    shown.forEach(function(art) {
+    shown.forEach(function(item) {
+        var art = item.art || item;   // _allArticles entries are {art, keyword} — unwrap here
         var row = baseCols.map(function(c) {
             var v = String(art[c] || '').replace(/"/g,'""').replace(/\n/g,' ');
             return '"' + v + '"';
