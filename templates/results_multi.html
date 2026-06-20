@@ -1306,10 +1306,10 @@ function updateCounters(sorted, limit, fc){
 
 /* ── Main apply ────────────────────────────── */
 function applyFilters(){
-    const limitRaw = document.getElementById('ctrl-limit').value.trim();
+    const limitRaw = document.getElementById('ctrl-limit')?.value?.trim();
     const limit    = limitRaw ? Math.max(1,parseInt(limitRaw,10)) : DEFAULT_LIMIT;
-    const kwOrder  = document.getElementById('ctrl-kw-sort').value;
-    const artMode  = document.getElementById('ctrl-art-sort').value;
+    const kwOrder  = document.getElementById('ctrl-kw-sort')?.value || 'ascending';
+    const artMode  = document.getElementById('ctrl-art-sort')?.value || 'relevance';
     const sorted   = sortKwGroups(ALL_DATA, kwOrder);
 
     // Get counts only from renderSections (no DOM write needed anymore)
