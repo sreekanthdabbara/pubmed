@@ -570,26 +570,10 @@
             </div>
         </div>
 
-        <!-- Section 3: Free PDFs -->
-        <div class="export-section">
-            <div class="export-section-title">
-                <span class="section-num">3</span>
-                Export – Free PDFs
-            </div>
-            <div class="export-btn-row">
-                <a id="export-csv-pdf" href="#" class="btn-exp btn-exp-pdf">
-                    <i class="fas fa-file-csv"></i> CSV (Free PMC only)
-                </a>
-                <a id="export-excel-pdf" href="#" class="btn-exp btn-exp-pdf">
-                    <i class="fas fa-file-excel"></i> Excel (Free PMC only)
-                </a>
-            </div>
-        </div>
-
         <!-- Download all PDFs -->
         <div class="export-section" style="border-top:2px solid #e53e3e">
             <div class="export-section-title" style="color:#c53030">
-                <span class="section-num" style="background:#e53e3e">4</span>
+                <span class="section-num" style="background:#e53e3e">3</span>
                 Download All PDFs
             </div>
             <p style="font-size:.72rem;color:#718096;margin-bottom:.65rem;line-height:1.5">
@@ -605,7 +589,7 @@
             </a>
             <div style="font-size:.68rem;color:#718096;margin-top:.35rem;line-height:1.4">
                 <i class="fas fa-info-circle"></i>
-                Only Free PMC articles included.
+                Only Free PMC articles matching your current filters are included.
                 Large downloads may take several minutes.
             </div>
         </div>
@@ -643,6 +627,47 @@ const SEARCH_ID    = {{ search_id | tojson }};
 const DEFAULT_LIMIT = 1000;
 // For URL searches: store original entrez query to re-run with date filters
 const _ENTREZ_QUERY = {{ entrez_query | default('') | tojson }};
+
+// ── Restore filter state when navigating between Customize/Curate/Analyze ──
+// (reads f_date, f_type_*, f_humans etc + sort_by + free_pmc_only from URL)
+(function restoreNavFilters() {
+    var p = new URLSearchParams(window.location.search);
+    var checkIds = ['f-free-pmc','f-type-journal','f-type-review','f-type-systematic',
+        'f-type-meta','f-type-rct','f-type-clinical','f-type-case','f-type-observational',
+        'f-humans','f-animals','f-female','f-male','f-child','f-adult','f-aged','f-infant'];
+    var paramMap = {
+        'f-free-pmc':'f_free_pmc','f-type-journal':'f_type_journal','f-type-review':'f_type_review',
+        'f-type-systematic':'f_type_systematic','f-type-meta':'f_type_meta','f-type-rct':'f_type_rct',
+        'f-type-clinical':'f_type_clinical','f-type-case':'f_type_case','f-type-observational':'f_type_observational',
+        'f-humans':'f_humans','f-animals':'f_animals','f-female':'f_female','f-male':'f_male',
+        'f-child':'f_child','f-adult':'f_adult','f-aged':'f_aged','f-infant':'f_infant',
+    };
+    var anyApplied = false;
+    checkIds.forEach(function(id) {
+        if (p.get(paramMap[id]) === '1') {
+            var el = document.getElementById(id);
+            if (el) { el.checked = true; anyApplied = true; }
+        }
+    });
+    var fDate = p.get('f_date');
+    if (fDate) {
+        var radio = document.querySelector('input[name="pub_date"][value="' + fDate + '"]');
+        if (radio) { radio.checked = true; anyApplied = true; }
+        if (fDate === 'custom') {
+            var from = p.get('f_date_from'), to = p.get('f_date_to');
+            if (from && document.getElementById('date-from')) document.getElementById('date-from').value = from;
+            if (to   && document.getElementById('date-to'))   document.getElementById('date-to').value   = to;
+        }
+    }
+    var sortBy = p.get('sort_by');
+    if (sortBy && document.getElementById('ctrl-art-sort')) {
+        document.getElementById('ctrl-art-sort').value = sortBy;
+    }
+    if (p.get('free_pmc_only') === '1' && document.getElementById('ctrl-free-pmc')) {
+        document.getElementById('ctrl-free-pmc').checked = true;
+    }
+    window._navFiltersApplied = anyApplied;  // checked by initial applyFilters() call at bottom of script
+})();
 
 // URL search filter flags
 const _URL_CHECKBOXES    = {{ active_checkboxes  | default([]) | tojson }};
@@ -1163,8 +1188,6 @@ function updateExports(limit, kwOrder){
     document.getElementById('export-csv-full').href   = `/export/multi/csv?${qs}`;
     document.getElementById('export-excel-full').href = `/export/multi/excel?${qs}`;
     document.getElementById('export-json').href        = `/export/multi/json?${qs}`;
-    document.getElementById('export-csv-pdf').href    = `/export/multi/csv?${qs}&mode=pmc_only`;
-    document.getElementById('export-excel-pdf').href  = `/export/multi/excel?${qs}&mode=pmc_only`;
     document.getElementById('export-pdfs').href       = `/export/pdfs?${qs}`;
     document.getElementById('export-pdfs').setAttribute('data-qs', qs);
 
@@ -1299,6 +1322,36 @@ function updateCounters(sorted, limit, fc){
 }
 
 /* ── Main apply ────────────────────────────── */
+function buildNavParams() {
+    // Combines sidebar filters + sort-by + free-pmc-only — used to keep
+    // Customize / Curate / Analyze tabs in sync with current selections
+    const filterStr = collectFilterParams();
+    const params = new URLSearchParams(filterStr);
+    const sortBy  = document.getElementById('ctrl-art-sort')?.value;
+    const fPmc    = document.getElementById('ctrl-free-pmc')?.checked;
+    if (sortBy) params.set('sort_by', sortBy);
+    if (fPmc)   params.set('free_pmc_only', '1');
+    return params.toString();
+}
+
+function syncTabLinks() {
+    const navParams = buildNavParams();
+    const base = '/results?search_id={{ search_id }}'
+        + '&keywords=' + encodeURIComponent(KEYWORDS_STR)
+        + '&max_results=1000&sort_order=ascending';
+    const analyzeBase = '/analyze?search_id={{ search_id }}'
+        + '&keywords=' + encodeURIComponent(KEYWORDS_STR)
+        + '&max_results=1000&sort_order=ascending';
+
+    const customizeLink = document.getElementById('tab-customize');
+    const curateLink    = document.getElementById('tab-curate');
+    const analyzeLink   = document.getElementById('analyze-tab-link');
+
+    if (customizeLink) customizeLink.href = base + '&view=customize' + (navParams ? '&' + navParams : '');
+    if (curateLink)    curateLink.href    = base + '&view=curate'    + (navParams ? '&' + navParams : '');
+    if (analyzeLink)   analyzeLink.href   = analyzeBase + (navParams ? '&' + navParams : '');
+}
+
 function applyFilters(){
     const limitRaw = document.getElementById('ctrl-limit')?.value?.trim();
     const limit    = limitRaw ? Math.max(1,parseInt(limitRaw,10)) : DEFAULT_LIMIT;
@@ -1319,16 +1372,8 @@ function applyFilters(){
     updateExports(limit, kwOrder);
     updateCounters(sorted, limit, fc);
 
-    // ── Keep Analyze tab link in sync with active filters ─────────────
-    const filterStr   = collectFilterParams();
-    const analyzeBase = '/analyze?search_id={{ search_id }}'
-        + '&keywords=' + encodeURIComponent(KEYWORDS_STR)
-        + '&max_results=' + (limit || DEFAULT_LIMIT)
-        + '&sort_order=' + kwOrder;
-    const analyzeLink = document.getElementById('analyze-tab-link');
-    if (analyzeLink) {
-        analyzeLink.href = filterStr ? analyzeBase + '&' + filterStr : analyzeBase;
-    }
+    // ── Keep all 3 nav tabs in sync with active filters ────────────────
+    syncTabLinks();
 }
 
 /* ── Load More ─────────────────────────────── */

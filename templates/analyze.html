@@ -57,6 +57,22 @@
         .copilot-direct-btn { margin-top:.5rem; width:100%; background:linear-gradient(135deg,#2b6cb0,#1a365d); color:#fff; border:none; border-radius:7px; padding:.45rem .7rem; font-size:.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:.4rem; transition:opacity .2s; }
         .copilot-direct-btn:hover { opacity:.88; }
         .copilot-direct-btn:disabled { opacity:.5; cursor:not-allowed; }
+        /* Column Extractor */
+        .col-extractor { background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; margin-bottom:.75rem; overflow:hidden; }
+        .col-extractor-header { display:flex; justify-content:space-between; align-items:center; padding:.55rem .9rem; background:#f7fafc; border-bottom:1px solid #e2e8f0; font-size:.82rem; }
+        .col-toggle-btn { background:none; border:none; cursor:pointer; color:#4a5568; padding:.2rem .4rem; }
+        #col-extractor-body { padding:.65rem .9rem .75rem; }
+        .col-chips { display:flex; flex-wrap:wrap; gap:.35rem; min-height:1.5rem; }
+        .col-chip { display:inline-flex; align-items:center; gap:.3rem; background:#ebf8ff; border:1px solid #bee3f8; color:#2b6cb0; border-radius:20px; padding:.2rem .65rem; font-size:.75rem; font-weight:600; }
+        .col-chip button { background:none; border:none; cursor:pointer; color:#4a9eed; padding:0; font-size:.7rem; line-height:1; }
+        .col-chip button:hover { color:#c53030; }
+        .col-add-input { flex:1; min-width:180px; border:1.5px solid #e2e8f0; border-radius:7px; padding:.35rem .7rem; font-size:.8rem; outline:none; }
+        .col-add-input:focus { border-color:#2b6cb0; }
+        .col-add-btn { background:#edf2f7; color:#2d3748; border:1px solid #e2e8f0; border-radius:7px; padding:.35rem .75rem; font-size:.78rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+        .col-add-btn:hover { background:#e2e8f0; }
+        .col-extract-btn { background:linear-gradient(135deg,#276749,#1a4731); color:#fff; border:none; border-radius:7px; padding:.38rem 1rem; font-size:.8rem; font-weight:700; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:.4rem; }
+        .col-extract-btn:hover { opacity:.88; }
+        .col-extract-btn:disabled { opacity:.5; cursor:not-allowed; }
         .copilot-table { border-collapse:collapse; width:100%; margin:.5rem 0; font-size:.78rem; }
         .copilot-table th { background:#1a365d; color:#fff; padding:.45rem .7rem; text-align:left; font-weight:700; border:1px solid #2b6cb0; }
         .copilot-table td { padding:.4rem .7rem; border:1px solid #e2e8f0; color:#2d3748; vertical-align:top; }
@@ -96,9 +112,32 @@
 </div>
 
 <div class="action-tabs">
-    <a href="javascript:history.back()" class="action-tab"><i class="fas fa-search"></i> Search, extract and curate</a>
+    <a href="/" class="action-tab"><i class="fas fa-search"></i> Search</a>
+    <a href="/results?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending&view=customize" id="tab-customize" class="action-tab"><i class="fas fa-sliders-h"></i> Customize and extract</a>
+    <a href="/results?search_id={{ search_id }}&keywords={{ keywords_str | urlencode }}&max_results=1000&sort_order=ascending&view=curate" id="tab-curate" class="action-tab"><i class="fas fa-filter"></i> Curate and extract</a>
     <a href="#" class="action-tab active"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
 </div>
+<script>
+// Carry forward any active filters (f_date, f_type_*, sort_by, free_pmc_only)
+// from this page's URL into the Customize/Curate tab links, so switching
+// tabs doesn't lose the filtered view the user was working with.
+(function() {
+    var p = new URLSearchParams(window.location.search);
+    var carryKeys = ['f_date','f_date_from','f_date_to','f_free_pmc','f_abstract',
+        'f_type_journal','f_type_review','f_type_systematic','f_type_meta',
+        'f_type_rct','f_type_clinical','f_type_case','f_type_observational',
+        'f_humans','f_animals','f_female','f_male','f_child','f_adult','f_aged','f_infant',
+        'sort_by','free_pmc_only'];
+    var extra = new URLSearchParams();
+    carryKeys.forEach(function(k){ var v = p.get(k); if (v) extra.set(k, v); });
+    var extraStr = extra.toString();
+    if (!extraStr) return;
+    ['tab-customize','tab-curate'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.href = el.href + '&' + extraStr;
+    });
+})();
+</script>
 
 <div class="page-body">
     <div class="steps-sidebar">
@@ -159,6 +198,27 @@
                 <div class="upload-hint-text" id="upload-status-text">
                     <i class="fas fa-info-circle" style="color:#4a9eed"></i>
                     Click <b>⚡ Send directly to Co-pilot</b> above to load your articles
+                </div>
+            </div>
+
+            <!-- Column Extractor -->
+            <div class="col-extractor" id="col-extractor">
+                <div class="col-extractor-header">
+                    <span><i class="fas fa-table" style="color:#2b6cb0"></i> <b>Column Extractor</b> <span style="font-size:.72rem;color:#718096;font-weight:400">— define columns, AI scans every article</span></span>
+                    <button class="col-toggle-btn" onclick="toggleColExtractor()" id="col-toggle-btn"><i class="fas fa-chevron-down"></i></button>
+                </div>
+                <div id="col-extractor-body">
+                    <div class="col-chips" id="col-chips"></div>
+                    <div style="display:flex;gap:.4rem;align-items:center;margin-top:.5rem;flex-wrap:wrap">
+                        <input id="col-input" class="col-add-input" placeholder="Add column e.g. Country, Sample Size, Treatment..." 
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();addColumn();}">
+                        <button class="col-add-btn" onclick="addColumn()"><i class="fas fa-plus"></i> Add</button>
+                        <button class="col-add-btn" style="background:#f0f4f8;color:#4a5568;border:1px solid #e2e8f0" onclick="addPresets()"><i class="fas fa-magic"></i> Presets</button>
+                        <button class="col-extract-btn" id="col-extract-btn" onclick="extractColumns()">
+                            <i class="fas fa-bolt"></i> Extract All Articles
+                        </button>
+                    </div>
+                    <div id="col-extract-status" style="display:none;margin-top:.5rem;font-size:.78rem;color:#4a5568"></div>
                 </div>
             </div>
 
@@ -261,7 +321,98 @@ var fileSessionToken = null;
     }
 })();
 
-// ── Attachment handling ───────────────────────────────────────────────────
+// ── Column Extractor ─────────────────────────────────────────────────────
+var _columns = [];
+var _colExtractorOpen = true;
+
+var PRESET_COLUMNS = [
+    'Country','Sample Size','Study Design','Treatment / Drug',
+    'Outcome','Publication Year','Authors','Journal'
+];
+
+function toggleColExtractor() {
+    _colExtractorOpen = !_colExtractorOpen;
+    document.getElementById('col-extractor-body').style.display = _colExtractorOpen ? 'block' : 'none';
+    document.getElementById('col-toggle-btn').innerHTML = _colExtractorOpen
+        ? '<i class="fas fa-chevron-up"></i>' : '<i class="fas fa-chevron-down"></i>';
+}
+
+function addColumn(name) {
+    var val = name || document.getElementById('col-input').value.trim();
+    if (!val) return;
+    if (_columns.includes(val)) { document.getElementById('col-input').value = ''; return; }
+    _columns.push(val);
+    document.getElementById('col-input').value = '';
+    renderChips();
+}
+
+function removeColumn(name) {
+    _columns = _columns.filter(function(c){ return c !== name; });
+    renderChips();
+}
+
+function renderChips() {
+    var html = _columns.map(function(c) {
+        var safe = c.replace(/"/g, '&quot;');
+        return '<span class="col-chip">' + safe +
+               '<button onclick="removeColumn(\'' + safe.replace(/'/g,"\\'") + '\')" title="Remove"><i class="fas fa-times"></i></button>' +
+               '</span>';
+    }).join('');
+    document.getElementById('col-chips').innerHTML = html || '<span style="font-size:.75rem;color:#a0aec0;font-style:italic">No columns yet — add some above</span>';
+}
+
+function addPresets() {
+    PRESET_COLUMNS.forEach(function(c){ if (!_columns.includes(c)) _columns.push(c); });
+    renderChips();
+}
+
+async function extractColumns() {
+    if (_columns.length === 0) {
+        alert('Please add at least one column first.');
+        return;
+    }
+    if (!fileSessionToken) {
+        alert('Please load articles first using ⚡ Send directly to Co-pilot in Step 1.');
+        return;
+    }
+    var btn = document.getElementById('col-extract-btn');
+    var status = document.getElementById('col-extract-status');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting...';
+    status.style.display = 'block';
+    status.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#2b6cb0"></i> Scanning articles for: <b>' + _columns.join(', ') + '</b>...';
+
+    var question = 'Extract the following columns for EVERY article: ' + _columns.join(', ') +
+                   '. Return a markdown table with these exact columns. Include ALL articles, one row per article.';
+
+    try {
+        var fd = new FormData();
+        fd.append('session_token', fileSessionToken);
+        fd.append('history', '[]');
+        fd.append('question', question);
+        var r = await fetch('/api/copilot_file', {method:'POST', body:fd});
+        var d = await r.json();
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Extract All Articles';
+
+        if (d.error) {
+            status.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> Error: ' + d.error;
+        } else {
+            // Show result in chat
+            addMsg('user', '📊 Column extraction: ' + _columns.join(' | '));
+            addMsg('bot', fmt(d.answer));
+            status.innerHTML = '<i class="fas fa-check-circle" style="color:#276749"></i> Extraction complete — results in chat below with Download button.';
+        }
+    } catch(e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Extract All Articles';
+        status.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#c53030"></i> Network error: ' + e.message;
+    }
+}
+
+// Init chips
+renderChips();
 var _attachment = null;  // {type:'image'|'file', name, data:base64, mime, dataUrl}
 
 function showAttachPreview(name, isImage, dataUrl) {
