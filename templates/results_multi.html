@@ -363,10 +363,6 @@
                 style="background:linear-gradient(135deg,#276749,#1a4731);color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:.3rem">
             <i class="fas fa-bolt"></i> Extract
         </button>
-        <button onclick="resCurateDownload()" id="res-curate-dl-btn"
-                style="background:#2b6cb0;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:.3rem">
-            <i class="fas fa-download"></i> Download CSV
-        </button>
     </div>
 </div>
 <div id="res-extract-status" style="display:none;margin:.2rem .5rem .3rem;font-size:.75rem;color:#4a5568;padding:.35rem .7rem;background:#f7fafc;border-radius:6px;border:1px solid #e2e8f0"></div>
@@ -1730,7 +1726,7 @@ async function resExtractColumns() {
         applyFilters();
 
         status.innerHTML = '<i class="fas fa-check-circle" style="color:#276749"></i> <b>' + count + ' articles</b> updated with extracted columns inline. ' +
-            '<button onclick="resDownloadExtracted()" style="background:#276749;color:#fff;border:none;border-radius:5px;padding:.2rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer;margin-left:.4rem"><i class="fas fa-file-excel"></i> Download as Excel</button>';
+            '<button onclick="resDownloadExtracted()" style="background:#276749;color:#fff;border:none;border-radius:5px;padding:.2rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer;margin-left:.4rem"><i class="fas fa-file-csv"></i> Download as CSV</button>';
 
     } catch(e) {
         btn.disabled = false;
@@ -1739,34 +1735,30 @@ async function resExtractColumns() {
     }
 }
 
-async function resCurateDownload() {
-    // Download currently shown articles + extracted columns as CSV
-    var shown = _allArticles || [];
-    if (!shown.length) { alert('No articles shown to download.'); return; }
+function resDownloadExtracted() {
+    if (!Object.keys(_extractedData).length) { alert('No extracted data to download. Please run Extract first.'); return; }
 
-    var baseColsAll = ['pmid','title','abstract','authors','journal','publication_date','publication_type','country','url'];
-    var extraCols   = _resColumns || [];
-    var extraColsLower = extraCols.map(function(c){ return c.toLowerCase(); });
+    var cols = ['PMID','Title','Abstract'].concat(_resColumns);
+    var lines = [cols.join(',')];
 
-    // If the user extracted a column with the same name as a base field
-    // (e.g. "Country"), the extracted column wins — it keeps the user's
-    // label and value, and the redundant base field is dropped so the
-    // header and every data row always have the exact same column count.
-    var baseColsToShow = baseColsAll.filter(function(c){ return !extraColsLower.includes(c); });
-    var allCols = baseColsToShow.concat(extraCols);
+    // Use _allArticles to preserve display order and pull Title/Abstract;
+    // fall back to iterating _extractedData directly if _allArticles is empty.
+    var source = (_allArticles && _allArticles.length)
+        ? _allArticles.map(function(item){ return item.art || item; })
+        : Object.keys(_extractedData).map(function(pmid){ return {pmid: pmid}; });
 
-    var lines = [allCols.join(',')];
-    shown.forEach(function(item) {
-        var art = item.art || item;   // _allArticles entries are {art, keyword} — unwrap here
-        var row = baseColsToShow.map(function(c) {
-            var v = String(art[c] || '').replace(/"/g,'""').replace(/\n/g,' ');
-            return '"' + v + '"';
-        });
-        extraCols.forEach(function(col) {
-            var v = '';
-            if (_extractedData && _extractedData[art.pmid]) {
-                v = String(_extractedData[art.pmid][col] || '').replace(/"/g,'""').replace(/\n/g,' ');
-            }
+    source.forEach(function(art) {
+        var pmid = art.pmid;
+        var extracted = _extractedData[pmid];
+        if (!extracted) return;   // skip articles with no extracted data
+
+        var row = [
+            '"' + String(pmid || '').replace(/"/g,'""') + '"',
+            '"' + String(art.title || '').replace(/"/g,'""').replace(/\n/g,' ') + '"',
+            '"' + String(art.abstract || '').replace(/"/g,'""').replace(/\n/g,' ') + '"',
+        ];
+        _resColumns.forEach(function(col) {
+            var v = String(extracted[col] || '').replace(/"/g,'""').replace(/\n/g,' ');
             row.push('"' + v + '"');
         });
         lines.push(row.join(','));
@@ -1777,34 +1769,9 @@ async function resCurateDownload() {
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
     a.href   = url;
-    a.download = 'curate_export_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.download = 'extracted_columns_' + new Date().toISOString().slice(0,10) + '.csv';
     a.click();
     URL.revokeObjectURL(url);
-}
-
-async function resDownloadExtracted() {
-    if (!Object.keys(_extractedData).length) { alert('No extracted data to download. Please run Extract first.'); return; }
-
-    try {
-        var fd = new FormData();
-        fd.append('columns',  JSON.stringify(_resColumns));
-        fd.append('data',     JSON.stringify(_extractedData));  // send stored data
-        var r = await fetch('/api/extracted_to_excel', {method:'POST', body:fd});
-        if (r.ok) {
-            var blob = await r.blob();
-            var url  = URL.createObjectURL(blob);
-            var a    = document.createElement('a');
-            a.href   = url;
-            a.download = 'extracted_columns_' + new Date().toISOString().slice(0,10) + '.xlsx';
-            a.click();
-            URL.revokeObjectURL(url);
-        } else {
-            var d = await r.json();
-            alert('Download failed: ' + (d.error || 'Server error'));
-        }
-    } catch(e) {
-        alert('Download error: ' + e.message);
-    }
 }
 
 </script>
