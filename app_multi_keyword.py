@@ -2519,7 +2519,7 @@ def extract_columns():
                     f"Authors: {art.get('Authors','')[:80]}\n"
                     f"Journal: {art.get('Journal','')} | Date: {art.get('Publication Date','')} | Country: {art.get('Country','')}\n"
                     f"PMID: {art.get('PMID','')} | Type: {art.get('Publication Type','')[:60]}\n"
-                    f"Abstract: {art.get('Abstract','')[:800]}\n"
+                    f"Abstract: {art.get('Abstract','')}\n"
                 )
             ctx = '\n'.join(ctx_lines)
 
