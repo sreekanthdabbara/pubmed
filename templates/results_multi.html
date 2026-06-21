@@ -1804,7 +1804,7 @@ async function resExtractColumns() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting...';
     status.style.display = 'block';
-    status.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#2b6cb0"></i> Scanning articles for: <b>' + _resColumns.join(', ') + '</b>...';
+    status.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#2b6cb0"></i> Scanning articles (incl. full text for Free PMC) for: <b>' + _resColumns.join(', ') + '</b>...';
 
     var filterStr = typeof collectFilterParams === 'function' ? collectFilterParams() : '';
 

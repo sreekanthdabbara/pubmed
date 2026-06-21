@@ -2448,6 +2448,8 @@ def extract_columns():
                 'Publication Type': r.get('publication_type',''),
                 'Country':  r.get('country',''),
                 'PubMed URL': r.get('url',''),
+                'is_free_pmc': r.get('is_free_pmc', False),
+                'pdf_url':  r.get('pdf_url', ''),
             })
 
     return_json = request.form.get('return_json', '0') == '1'
@@ -2494,6 +2496,29 @@ def extract_columns():
     gpt_cols    = [c for c in columns if _get_direct(articles[0], c) is None]
     print(f"[extract_columns] direct={direct_cols}, gpt={gpt_cols}")
 
+    # ── Pre-fetch full PDF text for free-PMC articles (in parallel) ───────
+    # GPT only sees the abstract by default. When an article's full text is
+    # freely available, fetch it too so extraction can find values that
+    # only appear in the body (methods, results, tables) — not just the
+    # abstract. Fetching is I/O-bound (PMC API calls), so it's parallelized
+    # the same way the GPT batch calls are below.
+    FULLTEXT_CHAR_CAP = 6000  # keeps per-batch token usage reasonable
+    if gpt_cols:
+        free_pmc_articles = [a for a in articles if a.get('is_free_pmc') and a.get('pdf_url')]
+        if free_pmc_articles:
+            print(f"[extract_columns] fetching full text for {len(free_pmc_articles)} free-PMC articles")
+            def _fetch_one_fulltext(art):
+                try:
+                    ft = fetch_pdf_text(art['pdf_url'])
+                    if ft and not ft.startswith('Error') and not ft.startswith('Could not'):
+                        art['_fulltext'] = ft[:FULLTEXT_CHAR_CAP]
+                except Exception as e:
+                    print(f"[extract_columns] fulltext fetch failed for PMID {art.get('PMID')}: {e}")
+            with ThreadPoolExecutor(max_workers=10) as ft_executor:
+                list(ft_executor.map(_fetch_one_fulltext, free_pmc_articles))
+            got = sum(1 for a in free_pmc_articles if a.get('_fulltext'))
+            print(f"[extract_columns] full text retrieved for {got}/{len(free_pmc_articles)} articles")
+
     batches = [articles[i:i+BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
 
     def _process_batch(bn, batch):
@@ -2513,13 +2538,17 @@ def extract_columns():
             gpt_cols_str = ', '.join(gpt_cols)
             ctx_lines = []
             for idx, art in enumerate(batch, 1):
+                # Prefer full PDF text when available — gives GPT access to
+                # methods/results/tables, not just the abstract.
+                body_text = art.get('_fulltext') or art.get('Abstract','')
+                body_label = 'Full text' if art.get('_fulltext') else 'Abstract'
                 ctx_lines.append(
                     f"--- Article {idx} ---\n"
                     f"Title: {art.get('Title','')}\n"
                     f"Authors: {art.get('Authors','')[:80]}\n"
                     f"Journal: {art.get('Journal','')} | Date: {art.get('Publication Date','')} | Country: {art.get('Country','')}\n"
                     f"PMID: {art.get('PMID','')} | Type: {art.get('Publication Type','')[:60]}\n"
-                    f"Abstract: {art.get('Abstract','')}\n"
+                    f"{body_label}: {body_text}\n"
                 )
             ctx = '\n'.join(ctx_lines)
 
