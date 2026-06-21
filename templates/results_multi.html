@@ -49,6 +49,10 @@
         /* Extract Columns bar only visible in curate mode */
         .extract-cols-bar                { display: none; }
         body.curate-mode .extract-cols-bar { display: flex; }
+        /* Article type dropdown — Curate page only (Customize already has it in the sidebar) */
+        .curate-only-control                          { display: none; }
+        body.curate-mode .sb-div.curate-only-control   { display: block; }
+        body.curate-mode .sb-group.curate-only-control { display: flex; }
 
         /* ══ SEARCH MODE TABS ════════════════════════════════════════════ */
         .search-tabs {
@@ -477,8 +481,8 @@
                     <option value="journal">Journal</option>
                 </select>
             </div>
-            <div class="sb-div"></div>
-            <div class="sb-group">
+            <div class="sb-div curate-only-control"></div>
+            <div class="sb-group curate-only-control">
                 <label for="ctrl-article-type">Article type:</label>
                 <select id="ctrl-article-type" onchange="syncArticleTypeDropdown(this.value);applyFilters()">
                     <option value="">Any</option>
