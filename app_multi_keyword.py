@@ -2530,6 +2530,12 @@ def extract_columns():
                 f"- {n} articles in = {n} rows out — never fewer\n"
                 f"- Return ONLY valid JSON — no markdown, no explanation\n"
                 f"- Use null for missing values\n"
+                f"- If a column has multiple distinct values reported in the text for "
+                f"different sub-types or conditions (e.g. birth prevalence vs point/period "
+                f"prevalence, baseline vs follow-up, overall vs subgroup), include ALL of them "
+                f"with a short label for each, separated by '; '. "
+                f"Example: 'Birth: 31.5 per 100,000; Point/period: 23.1 per 100,000'. "
+                f"Do not pick just one value when more than one is reported — capture them all.\n"
             )
             template = {c: '' for c in gpt_cols}
             template['PMID'] = ''
