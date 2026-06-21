@@ -8,9 +8,21 @@
     <style>
         * { box-sizing:border-box; margin:0; padding:0; }
         body { font-family:'Segoe UI',system-ui,sans-serif; background:#f0f4f8; color:#2d3748; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
-        .topbar { background:linear-gradient(135deg,#1a365d,#2b6cb0); color:#fff; padding:.6rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-        .topbar-brand { font-size:1.05rem; font-weight:800; display:flex; align-items:center; gap:.5rem; }
-        .topbar-meta { font-size:.75rem; opacity:.85; }
+        /* ══ NAVBAR (matches results_multi.html / index page) ══════════════ */
+        .navbar {
+            background: #1a365d; padding: 0 1.5rem; height: 52px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 300; flex-shrink: 0;
+        }
+        .nav-brand { display: flex; align-items: center; gap: .6rem; text-decoration: none; color: #fff; }
+        .logo-img  { height: 34px; width: auto; object-fit: contain; }
+        .brand-title { font-size: 1.05rem; font-weight: 700; }
+        .brand-title span { color: #63b3ed; font-style: italic; }
+        .nav-right { display: flex; align-items: center; gap: 1rem; }
+        .nav-right a { color: #bee3f8; text-decoration: none; font-size: .85rem; display: flex; align-items: center; gap: .3rem; }
+        .nav-right a:hover { color: #fff; }
+        .btn-logout { background: #e53e3e; color: #fff !important; border: none; border-radius: 6px; padding: .32rem .8rem; font-size: .8rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: .3rem; }
+        .btn-logout:hover { background: #c53030 !important; }
         .action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; justify-content:center; }
         .action-tab { display:flex; align-items:center; gap:.4rem; padding:.4rem 1rem; border-radius:20px; font-size:.8rem; font-weight:600; color:#718096; border:1.5px solid #e2e8f0; text-decoration:none; transition:all .15s; }
         .action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
@@ -90,10 +102,19 @@
 </head>
 <body>
 
-<div class="topbar">
-    <div class="topbar-brand"><i class="fas fa-dna"></i> EpiLite AI Platform</div>
-    <div class="topbar-meta"><i class="fas fa-search"></i> {{ keywords_str }} &nbsp;&#183;&nbsp; <i class="fas fa-list"></i> {{ total_articles }} articles</div>
-</div>
+<nav class="navbar">
+    <a href="/" class="nav-brand">
+        <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
+             alt="EpiLite" class="logo-img" onerror="this.style.display='none'">
+        <span class="brand-title"><span>EpiLite</span> AI Platform</span>
+    </a>
+    <div class="nav-right">
+        <a href="/"><i class="fas fa-home"></i> Home</a>
+        <a href="#"><i class="fas fa-info-circle"></i></a>
+        <span style="color:#bee3f8;font-size:.8rem"><i class="fas fa-user-circle"></i> {{ session.get('user_name','User') }}</span>
+        <a href="/logout" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    </div>
+</nav>
 
 <div class="action-tabs">
     <a href="/" class="action-tab"><i class="fas fa-search"></i> Search</a>

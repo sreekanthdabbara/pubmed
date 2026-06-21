@@ -479,12 +479,21 @@
             </div>
             <div class="sb-div"></div>
             <div class="sb-group">
-                <label for="ctrl-text-avail">Abstract type:</label>
-                <select id="ctrl-text-avail" onchange="syncTextAvailDropdown(this.value);applyFilters()">
+                <label for="ctrl-article-type">Article type:</label>
+                <select id="ctrl-article-type" onchange="syncArticleTypeDropdown(this.value);applyFilters()">
                     <option value="">Any</option>
-                    <option value="abstract">Abstract</option>
-                    <option value="free-pmc">Free full text</option>
-                    <option value="full-text">Full text</option>
+                    <option value="clinical-study">Clinical Study</option>
+                    <option value="clinical">Clinical Trial</option>
+                    <option value="clinical-2">Clinical Trial, Phase II</option>
+                    <option value="clinical-3">Clinical Trial, Phase III</option>
+                    <option value="clinical-4">Clinical Trial, Phase IV</option>
+                    <option value="meta">Meta-Analysis</option>
+                    <option value="observational">Observational Study</option>
+                    <option value="rct">Randomized Controlled Trial</option>
+                    <option value="review">Review</option>
+                    <option value="systematic">Systematic Review</option>
+                    <option value="journal">Journal Article</option>
+                    <option value="case">Case Reports</option>
                 </select>
             </div>
             <div class="sb-div"></div>
@@ -676,12 +685,18 @@ const _ENTREZ_QUERY = {{ entrez_query | default('') | tojson }};
     if (p.get('free_pmc_only') === '1' && document.getElementById('ctrl-free-pmc')) {
         document.getElementById('ctrl-free-pmc').checked = true;
     }
-    // Sync the Abstract Type dropdown to whichever checkbox ended up checked
-    var textAvailEl = document.getElementById('ctrl-text-avail');
-    if (textAvailEl) {
-        if (document.getElementById('f-abstract')?.checked)       textAvailEl.value = 'abstract';
-        else if (document.getElementById('f-full-text')?.checked) textAvailEl.value = 'full-text';
-        else if (document.getElementById('f-free-pmc')?.checked)  textAvailEl.value = 'free-pmc';
+    // Sync the Article Type dropdown to whichever checkbox ended up checked
+    var articleTypeEl = document.getElementById('ctrl-article-type');
+    if (articleTypeEl) {
+        var typeMap = {
+            'f-type-clinical-study':'clinical-study', 'f-type-clinical':'clinical',
+            'f-type-clinical-2':'clinical-2', 'f-type-clinical-3':'clinical-3', 'f-type-clinical-4':'clinical-4',
+            'f-type-meta':'meta', 'f-type-observational':'observational', 'f-type-rct':'rct',
+            'f-type-review':'review', 'f-type-systematic':'systematic', 'f-type-journal':'journal', 'f-type-case':'case',
+        };
+        for (var cid in typeMap) {
+            if (document.getElementById(cid)?.checked) { articleTypeEl.value = typeMap[cid]; break; }
+        }
     }
     window._navFiltersApplied = anyApplied;  // checked by initial applyFilters() call at bottom of script
 })();
@@ -1374,27 +1389,38 @@ function syncTabLinks() {
     if (analyzeLink)   analyzeLink.href   = analyzeBase + (navParams ? '&' + navParams : '');
 }
 
-function syncTextAvailDropdown(value) {
-    // Mutually-exclusive dropdown drives the 3 sidebar Text Availability
-    // checkboxes (Abstract / Free full text / Full text) so both UIs stay
-    // in sync no matter which one the user interacts with.
-    var map = { 'abstract': 'f-abstract', 'free-pmc': 'f-free-pmc', 'full-text': 'f-full-text' };
-    ['f-abstract','f-free-pmc','f-full-text'].forEach(function(id) {
+function syncArticleTypeDropdown(value) {
+    // Mutually-exclusive dropdown drives the Article Type sidebar checkboxes
+    // so both UIs stay in sync no matter which one the user interacts with.
+    var map = {
+        'clinical-study':'f-type-clinical-study', 'clinical':'f-type-clinical',
+        'clinical-2':'f-type-clinical-2', 'clinical-3':'f-type-clinical-3', 'clinical-4':'f-type-clinical-4',
+        'meta':'f-type-meta', 'observational':'f-type-observational', 'rct':'f-type-rct',
+        'review':'f-type-review', 'systematic':'f-type-systematic', 'journal':'f-type-journal', 'case':'f-type-case',
+    };
+    Object.values(map).forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.checked = (map[value] === id);
     });
 }
 
 function applyFilters(){
-    // Keep the Abstract-type dropdown in sync with whichever sidebar
+    // Keep the Article-type dropdown in sync with whichever sidebar
     // checkbox is currently checked (covers the Customize page, where
     // both UIs are visible at once).
-    const textAvailEl = document.getElementById('ctrl-text-avail');
-    if (textAvailEl) {
-        if (document.getElementById('f-abstract')?.checked)       textAvailEl.value = 'abstract';
-        else if (document.getElementById('f-full-text')?.checked) textAvailEl.value = 'full-text';
-        else if (document.getElementById('f-free-pmc')?.checked)  textAvailEl.value = 'free-pmc';
-        else                                                       textAvailEl.value = '';
+    const articleTypeEl = document.getElementById('ctrl-article-type');
+    if (articleTypeEl) {
+        const typeMap = {
+            'f-type-clinical-study':'clinical-study', 'f-type-clinical':'clinical',
+            'f-type-clinical-2':'clinical-2', 'f-type-clinical-3':'clinical-3', 'f-type-clinical-4':'clinical-4',
+            'f-type-meta':'meta', 'f-type-observational':'observational', 'f-type-rct':'rct',
+            'f-type-review':'review', 'f-type-systematic':'systematic', 'f-type-journal':'journal', 'f-type-case':'case',
+        };
+        let matched = '';
+        for (const cid in typeMap) {
+            if (document.getElementById(cid)?.checked) { matched = typeMap[cid]; break; }
+        }
+        articleTypeEl.value = matched;
     }
 
     const limitRaw = document.getElementById('ctrl-limit')?.value?.trim();
@@ -1595,6 +1621,26 @@ function buildFlatArticleList(sorted, limit, artMode) {
     return { fc, freeCounts };
 }
 
+function setupSyncedScroll() {
+    // Make all article cards' extracted-columns regions scroll together as
+    // one — scrolling any single card horizontally moves all of them in
+    // sync, instead of each card needing its own independent scroll.
+    const scrollers = document.querySelectorAll('.extracted-cols-side');
+    if (!scrollers.length) return;
+    let syncing = false;
+    scrollers.forEach(function(el) {
+        el.addEventListener('scroll', function() {
+            if (syncing) return;
+            syncing = true;
+            const left = el.scrollLeft;
+            scrollers.forEach(function(other) {
+                if (other !== el) other.scrollLeft = left;
+            });
+            syncing = false;
+        });
+    });
+}
+
 function renderPage(pageNum) {
     _curPage = pageNum;
     const total = _allArticles.length;
@@ -1629,6 +1675,7 @@ function renderPage(pageNum) {
         });
     }
     document.getElementById('kw-sections').innerHTML = html;
+    setupSyncedScroll();
 
     // Pagination controls
     const wrap = document.getElementById('pagination-wrap');
