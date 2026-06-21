@@ -204,11 +204,14 @@
         .article-card.is-pmc   { border-left-color: #48bb78; }
         .article-card.multi-kw { border-left-color: #ed8936; }
         /* Side-by-side layout when columns extracted */
-        .article-card.has-extracted { display:flex; align-items:stretch; padding:0; overflow:hidden; }
-        .article-card.has-extracted .article-main { flex:1; min-width:0; padding:.75rem .9rem; }
-        .extracted-cols-side { display:flex; flex-shrink:0; border-left:2px solid #bee3f8; background:#f8fbff; }
-        .extracted-col-side { width:150px; padding:.6rem .65rem; border-right:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:flex-start; }
+        .article-card.has-extracted { display:flex; align-items:stretch; padding:0; }
+        .article-card.has-extracted .article-main { flex:0 0 30%; max-width:30%; min-width:0; padding:.75rem .9rem; box-sizing:border-box; overflow:hidden; }
+        .extracted-cols-side { display:flex; flex:0 0 70%; max-width:70%; box-sizing:border-box; border-left:2px solid #bee3f8; background:#f8fbff; overflow-x:auto; }
+        .extracted-col-side { width:170px; flex-shrink:0; padding:.6rem .65rem; border-right:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:flex-start; }
         .extracted-col-side:last-child { border-right:none; }
+        .extracted-cols-side::-webkit-scrollbar { height:6px; }
+        .extracted-cols-side::-webkit-scrollbar-thumb { background:#bee3f8; border-radius:3px; }
+        .extracted-cols-side::-webkit-scrollbar-track { background:#f0f7ff; }
         .extracted-col-label { font-size:.6rem; font-weight:800; color:#2b6cb0; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.3rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid #e2e8f0; padding-bottom:.2rem; }
         .extracted-col-value { font-size:.8rem; color:#1a202c; line-height:1.4; font-weight:500; }
         .extracted-na { color:#a0aec0; font-weight:400; }
@@ -365,7 +368,7 @@
         </button>
     </div>
 </div>
-<div id="res-extract-status" style="display:none;margin:.2rem .5rem .3rem;font-size:.75rem;color:#4a5568;padding:.35rem .7rem;background:#f7fafc;border-radius:6px;border:1px solid #e2e8f0"></div>
+<div id="res-extract-status" style="display:none;margin:.2rem .5rem .3rem;font-size:.75rem;color:#4a5568;padding:.35rem .7rem;background:#f7fafc;border-radius:6px;border:1px solid #e2e8f0;text-align:right"></div>
 
 <!-- PAGE BODY: LEFT | MIDDLE | RIGHT -->
 <div class="page-body">
@@ -472,6 +475,16 @@
                     <option value="pub_date">Publication date</option>
                     <option value="first_author">First author</option>
                     <option value="journal">Journal</option>
+                </select>
+            </div>
+            <div class="sb-div"></div>
+            <div class="sb-group">
+                <label for="ctrl-text-avail">Abstract type:</label>
+                <select id="ctrl-text-avail" onchange="syncTextAvailDropdown(this.value);applyFilters()">
+                    <option value="">Any</option>
+                    <option value="abstract">Abstract</option>
+                    <option value="free-pmc">Free full text</option>
+                    <option value="full-text">Full text</option>
                 </select>
             </div>
             <div class="sb-div"></div>
@@ -628,11 +641,12 @@ const _ENTREZ_QUERY = {{ entrez_query | default('') | tojson }};
 // (reads f_date, f_type_*, f_humans etc + sort_by + free_pmc_only from URL)
 (function restoreNavFilters() {
     var p = new URLSearchParams(window.location.search);
-    var checkIds = ['f-free-pmc','f-type-journal','f-type-review','f-type-systematic',
+    var checkIds = ['f-free-pmc','f-abstract','f-full-text','f-type-journal','f-type-review','f-type-systematic',
         'f-type-meta','f-type-rct','f-type-clinical','f-type-case','f-type-observational',
         'f-humans','f-animals','f-female','f-male','f-child','f-adult','f-aged','f-infant'];
     var paramMap = {
-        'f-free-pmc':'f_free_pmc','f-type-journal':'f_type_journal','f-type-review':'f_type_review',
+        'f-free-pmc':'f_free_pmc','f-abstract':'f_abstract','f-full-text':'f_full_text',
+        'f-type-journal':'f_type_journal','f-type-review':'f_type_review',
         'f-type-systematic':'f_type_systematic','f-type-meta':'f_type_meta','f-type-rct':'f_type_rct',
         'f-type-clinical':'f_type_clinical','f-type-case':'f_type_case','f-type-observational':'f_type_observational',
         'f-humans':'f_humans','f-animals':'f_animals','f-female':'f_female','f-male':'f_male',
@@ -661,6 +675,13 @@ const _ENTREZ_QUERY = {{ entrez_query | default('') | tojson }};
     }
     if (p.get('free_pmc_only') === '1' && document.getElementById('ctrl-free-pmc')) {
         document.getElementById('ctrl-free-pmc').checked = true;
+    }
+    // Sync the Abstract Type dropdown to whichever checkbox ended up checked
+    var textAvailEl = document.getElementById('ctrl-text-avail');
+    if (textAvailEl) {
+        if (document.getElementById('f-abstract')?.checked)       textAvailEl.value = 'abstract';
+        else if (document.getElementById('f-full-text')?.checked) textAvailEl.value = 'full-text';
+        else if (document.getElementById('f-free-pmc')?.checked)  textAvailEl.value = 'free-pmc';
     }
     window._navFiltersApplied = anyApplied;  // checked by initial applyFilters() call at bottom of script
 })();
@@ -934,6 +955,7 @@ function articlePassesSidebarFilters(art) {
 
     // ── Text availability ─────────────────────────────────────────────
     if (getChecked('f-free-pmc') && !art.is_free_pmc) return false;
+    if (getChecked('f-full-text') && !art.is_free_pmc) return false;
     if (document.getElementById('ctrl-free-pmc')?.checked && !art.is_free_pmc) return false;
     if (getChecked('f-abstract') && (!art.abstract||art.abstract==='N/A')) return false;
 
@@ -1077,7 +1099,7 @@ function renderArticle(art,uid){
     let hitsPanel='';
     if(art.per_keyword_hits){
         const rows=art.per_keyword_hits.split('; ').map(s=>{const ci=s.lastIndexOf(':');return ci===-1?null:{kw:s.slice(0,ci).trim(),count:parseInt(s.slice(ci+1).trim())||0};}).filter(Boolean);
-        if(rows.length){const mx=Math.max(...rows.map(r=>r.count),1);hitsPanel=`<div class="kw-hits-panel"><div class="kw-hits-panel-title"><i class="fas fa-chart-bar"></i> Keyword hits in title &amp; abstract</div>${rows.map(r=>`<div class="kw-hit-row"><span class="kw-hit-label" title="${esc(r.kw)}">${esc(r.kw)}</span><div class="kw-hit-bar-wrap"><div class="kw-hit-bar" style="width:${Math.round(r.count/mx*100)}%"></div></div><span class="kw-hit-count">${r.count}</span></div>`).join('')}</div>`;}
+        if(rows.length){hitsPanel=`<div class="kw-hits-panel"><div class="kw-hits-panel-title"><i class="fas fa-chart-bar"></i> Keyword hits in title &amp; abstract</div>${rows.map(r=>`<div class="kw-hit-row"><span class="kw-hit-label" title="${esc(r.kw)}">${esc(r.kw)}</span><div class="kw-hit-bar-wrap"><div class="kw-hit-bar" style="width:${Math.max(Math.round(r.count/_globalMaxKwHits*100),3)}%"></div></div><span class="kw-hit-count">${r.count}</span></div>`).join('')}</div>`;}
     }
     const absBlock=(art.abstract&&art.abstract!=='N/A')?`<div class="abstract-wrap"><div class="abstract-text" id="abs-${uid}">${esc(art.abstract)}</div><button class="toggle-abstract" onclick="toggleAbs('abs-${uid}',this)"><i class="fas fa-chevron-down"></i> Show more</button></div>`:'';
 
@@ -1148,6 +1170,8 @@ function collectFilterParams() {
     if (userChanged) {
         const checkMap = {
             'f-free-pmc':           'f_free_pmc',
+            'f-abstract':           'f_abstract',
+            'f-full-text':          'f_full_text',
             'f-type-journal':       'f_type_journal',
             'f-type-review':        'f_type_review',
             'f-type-systematic':    'f_type_systematic',
@@ -1350,7 +1374,29 @@ function syncTabLinks() {
     if (analyzeLink)   analyzeLink.href   = analyzeBase + (navParams ? '&' + navParams : '');
 }
 
+function syncTextAvailDropdown(value) {
+    // Mutually-exclusive dropdown drives the 3 sidebar Text Availability
+    // checkboxes (Abstract / Free full text / Full text) so both UIs stay
+    // in sync no matter which one the user interacts with.
+    var map = { 'abstract': 'f-abstract', 'free-pmc': 'f-free-pmc', 'full-text': 'f-full-text' };
+    ['f-abstract','f-free-pmc','f-full-text'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.checked = (map[value] === id);
+    });
+}
+
 function applyFilters(){
+    // Keep the Abstract-type dropdown in sync with whichever sidebar
+    // checkbox is currently checked (covers the Customize page, where
+    // both UIs are visible at once).
+    const textAvailEl = document.getElementById('ctrl-text-avail');
+    if (textAvailEl) {
+        if (document.getElementById('f-abstract')?.checked)       textAvailEl.value = 'abstract';
+        else if (document.getElementById('f-full-text')?.checked) textAvailEl.value = 'full-text';
+        else if (document.getElementById('f-free-pmc')?.checked)  textAvailEl.value = 'free-pmc';
+        else                                                       textAvailEl.value = '';
+    }
+
     const limitRaw = document.getElementById('ctrl-limit')?.value?.trim();
     const limit    = limitRaw ? Math.max(1,parseInt(limitRaw,10)) : DEFAULT_LIMIT;
     const kwOrder  = document.getElementById('ctrl-kw-sort')?.value || 'ascending';
@@ -1505,6 +1551,7 @@ const PAGE_SIZE = 20;
 var _curPage     = 1;
 var _totalPages  = 1;
 var _allArticles = [];
+var _globalMaxKwHits = 1;
 
 function buildFlatArticleList(sorted, limit, artMode) {
     _allArticles = [];
@@ -1527,6 +1574,22 @@ function buildFlatArticleList(sorted, limit, artMode) {
         articles.forEach(art => {
             _allArticles.push({ art, keyword: kw.keyword });
         });
+    });
+
+    // ── Global max hit count — used so bar lengths are proportional
+    // across ALL articles, not just within a single article's own rows.
+    // (Previously each article's bar scaled against its own max, which made
+    // every bar 100% wide whenever there was only one keyword/row.)
+    _globalMaxKwHits = 1;
+    _allArticles.forEach(({art}) => {
+        if (art.per_keyword_hits) {
+            art.per_keyword_hits.split('; ').forEach(s => {
+                const ci = s.lastIndexOf(':');
+                if (ci === -1) return;
+                const c = parseInt(s.slice(ci+1).trim()) || 0;
+                if (c > _globalMaxKwHits) _globalMaxKwHits = c;
+            });
+        }
     });
 
     return { fc, freeCounts };
