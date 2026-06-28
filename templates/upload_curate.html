@@ -226,16 +226,21 @@ async function processPdfs() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
     prog.style.display = 'block';
     label.textContent  = 'Extracting text from ' + _pendingFiles.length + ' PDF file(s)...';
-    bar.style.width    = '10%';
+    bar.style.width    = '5%';
+    var tick2 = 5;
+    var parseInterval = setInterval(function() {
+        if (tick2 < 70) { tick2 += (70 - tick2) * 0.1; bar.style.width = tick2 + '%'; }
+    }, 400);
 
     var fd = new FormData();
     _pendingFiles.forEach(function(f){ fd.append('pdfs', f); });
 
     try {
-        bar.style.width = '40%';
         var r = await fetch('/api/upload_pdfs', {method:'POST', body:fd});
-        bar.style.width = '80%';
+        clearInterval(parseInterval);
+        bar.style.width = '100%';
         var d = await r.json();
+        setTimeout(function(){ prog.style.display = 'none'; bar.style.width = '0%'; }, 500);
         if (!r.ok || d.error) {
             status.textContent = 'Error: ' + (d.error || 'Upload failed');
             btn.disabled = false;
@@ -255,9 +260,7 @@ async function processPdfs() {
         document.getElementById('empty-state').style.display = 'none';
         renderChips();
     } catch(e) {
-        status.textContent = 'Network error: ' + e.message;
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-cog"></i> Process PDFs';
+        clearInterval(parseInterval);
         prog.style.display = 'none';
     }
 }
@@ -368,7 +371,20 @@ async function runExtract() {
     var status = document.getElementById('extract-status');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting...';
-    status.textContent = 'Scanning full text of ' + _articles.length + ' articles for: ' + _columns.join(', ') + '...';
+    status.textContent = '';
+
+    // Animate a fake progress bar so it doesn't feel frozen
+    var prog   = document.getElementById('progress-wrap');
+    var bar    = document.getElementById('progress-bar');
+    var label  = document.getElementById('progress-label');
+    prog.style.display = 'block';
+    label.textContent  = 'Scanning full text of ' + _articles.length + ' articles for: ' + _columns.join(', ') + '...';
+    bar.style.width    = '5%';
+    var tick = 5;
+    var progressInterval = setInterval(function() {
+        // Slowly creep to 85% while waiting for server
+        if (tick < 85) { tick += (85 - tick) * 0.07; bar.style.width = tick + '%'; }
+    }, 600);
 
     var fd = new FormData();
     fd.append('upload_id', _uploadId);
@@ -376,7 +392,11 @@ async function runExtract() {
 
     try {
         var r = await fetch('/api/extract_columns_upload', {method:'POST', body:fd});
+        clearInterval(progressInterval);
+        bar.style.width = '100%';
         var d = await r.json();
+        setTimeout(function(){ prog.style.display = 'none'; bar.style.width = '0%'; }, 600);
+
         if (!r.ok || d.error) {
             status.textContent = 'Error: ' + (d.error || 'Extraction failed');
             btn.disabled = false;
@@ -390,6 +410,8 @@ async function runExtract() {
             ' articles extracted. <button onclick="downloadCsv()" style="background:#276749;color:#fff;border:none;border-radius:5px;padding:.18rem .5rem;font-size:.7rem;font-weight:600;cursor:pointer;margin-left:.3rem"><i class="fas fa-download"></i> Download CSV</button>';
         renderTable();
     } catch(e) {
+        clearInterval(progressInterval);
+        prog.style.display = 'none';
         status.textContent = 'Network error: ' + e.message;
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
