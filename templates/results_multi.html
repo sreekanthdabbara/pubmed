@@ -640,13 +640,12 @@
         var t = document.getElementById('tab-customize');
         if (t) t.classList.add('active');
     }
-    // Persist search session so the home page can restore Customize/Curate/Analyze tabs
-    if (SEARCH_ID) {
-        try {
-            sessionStorage.setItem('last_search_id', SEARCH_ID);
-            sessionStorage.setItem('last_keywords',  KEYWORDS_STR);
-        } catch(e) {}
-    }
+    // Persist search session using Jinja values (JS consts not yet declared here)
+    try {
+        var sid = {{ search_id | tojson }};
+        var kw  = {{ keywords_str | tojson }};
+        if (sid) { sessionStorage.setItem('last_search_id', sid); sessionStorage.setItem('last_keywords', kw); }
+    } catch(e) {}
 })();
 
 const ALL_DATA     = {{ keyword_summary | tojson }};
