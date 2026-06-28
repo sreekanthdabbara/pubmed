@@ -2859,6 +2859,32 @@ def _extract_key_sections(text: str, char_limit: int = 4000) -> str:
     return ' | '.join(parts)
 
 
+@app.route('/api/register_upload', methods=['POST'])
+@login_required
+def register_upload():
+    """Receive articles already parsed client-side (PDF.js) and store in session.
+    Payload is tiny JSON text — no raw PDF bytes, no server-side pdfplumber needed."""
+    import uuid as _uuid
+    try:
+        articles_json = request.form.get('articles_json', '[]')
+        articles = json.loads(articles_json)
+        if not articles:
+            return jsonify({'error': 'No articles received'}), 400
+
+        upload_id = _uuid.uuid4().hex[:12]
+        _upload_sessions[upload_id] = {
+            'articles':  articles,
+            'timestamp': datetime.now().timestamp(),
+        }
+        if len(_upload_sessions) > UPLOAD_SESSION_MAX:
+            oldest = min(_upload_sessions, key=lambda k: _upload_sessions[k]['timestamp'])
+            del _upload_sessions[oldest]
+
+        return jsonify({'upload_id': upload_id, 'count': len(articles)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/upload_pdfs', methods=['POST'])
 @login_required
 def upload_pdfs():

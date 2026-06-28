@@ -5,107 +5,84 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Upload & Curate — EpiLite AI Platform</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- PDF.js — client-side text extraction, no server CPU needed -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #2d3748; display:flex; flex-direction:column; min-height:100vh; }
-
-/* ── Navbar ───────────────────────────────────────────────────────── */
-.navbar { background:#1a365d; padding:0 1.5rem; height:52px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(0,0,0,.3); position:sticky; top:0; z-index:300; }
-.nav-brand { display:flex; align-items:center; gap:.6rem; text-decoration:none; color:#fff; }
-.logo-img  { height:34px; width:auto; object-fit:contain; }
-.brand-title { font-size:1.05rem; font-weight:700; }
-.brand-title span { color:#63b3ed; font-style:italic; }
-.nav-right { display:flex; align-items:center; gap:1rem; }
-.nav-right a { color:#bee3f8; text-decoration:none; font-size:.85rem; display:flex; align-items:center; gap:.3rem; }
-.nav-right a:hover { color:#fff; }
-.btn-logout { background:#e53e3e; color:#fff !important; border:none; border-radius:6px; padding:.32rem .8rem; font-size:.8rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:.3rem; }
-.btn-logout:hover { background:#c53030 !important; }
-
-/* ── Action tabs ──────────────────────────────────────────────────── */
-.action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; justify-content:center; }
-.action-tab  { display:inline-flex; align-items:center; gap:.4rem; padding:.42rem 1.1rem; font-size:.82rem; font-weight:600; border:1.5px solid #e2e8f0; border-radius:8px; text-decoration:none; color:#4a5568; background:#f7fafc; transition:.15s; }
-.action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
-
-/* ── Main layout ──────────────────────────────────────────────────── */
-.main { flex:1; padding:1rem 1.2rem; max-width:1500px; width:100%; margin:0 auto; }
-
-/* ── Upload zone ──────────────────────────────────────────────────── */
-.upload-zone { border:2.5px dashed #90cdf4; border-radius:14px; background:#fff; padding:2.5rem 2rem; text-align:center; cursor:pointer; transition:.2s; margin-bottom:1rem; }
-.upload-zone:hover,.upload-zone.drag-over { border-color:#2b6cb0; background:#ebf8ff; }
-.upload-zone i { font-size:2.8rem; color:#63b3ed; margin-bottom:.75rem; display:block; }
-.upload-zone h3 { font-size:1.05rem; color:#2b6cb0; margin-bottom:.3rem; }
-.upload-zone p  { font-size:.8rem; color:#718096; }
-#pdf-file-input { display:none; }
-
-.upload-actions { display:flex; gap:.75rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
-.btn-upload { background:linear-gradient(135deg,#2b6cb0,#1a4a8a); color:#fff; border:none; border-radius:8px; padding:.55rem 1.4rem; font-size:.85rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:.4rem; }
-.btn-upload:hover { opacity:.9; }
-.btn-upload:disabled { opacity:.5; cursor:not-allowed; }
-.upload-status { font-size:.8rem; color:#4a5568; }
-
-/* ── Extract columns bar ──────────────────────────────────────────── */
-.extract-bar { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:.6rem 1rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; }
-.extract-bar-label { font-size:.78rem; font-weight:700; color:#2b6cb0; white-space:nowrap; }
-.col-chips-wrap { display:flex; flex-wrap:wrap; gap:.25rem; align-items:center; min-height:1.5rem; }
-.col-chip { display:inline-flex; align-items:center; gap:.3rem; background:#ebf8ff; border:1px solid #bee3f8; color:#2b6cb0; border-radius:20px; padding:.2rem .65rem; font-size:.73rem; font-weight:600; }
-.col-chip button { background:none; border:none; cursor:pointer; color:#4a9eed; padding:0; font-size:.7rem; }
-.col-chip button:hover { color:#c53030; }
-.col-input { width:160px; border:1.5px solid #e2e8f0; border-radius:6px; padding:.28rem .6rem; font-size:.75rem; outline:none; }
-.col-input:focus { border-color:#2b6cb0; }
-.btn-small { background:#edf2f7; border:1px solid #e2e8f0; border-radius:6px; padding:.28rem .65rem; font-size:.72rem; font-weight:600; cursor:pointer; }
-.btn-small:hover { background:#e2e8f0; }
-.btn-extract { background:linear-gradient(135deg,#276749,#1a4731); color:#fff; border:none; border-radius:6px; padding:.3rem .85rem; font-size:.75rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:.3rem; }
-.btn-extract:disabled { opacity:.5; cursor:not-allowed; }
-.extract-status { font-size:.75rem; color:#4a5568; margin-left:.5rem; }
-
-/* ── Article table ────────────────────────────────────────────────── */
-.table-wrap { background:#fff; border-radius:12px; border:1px solid #e2e8f0; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.05); }
-.table-header { display:flex; align-items:center; justify-content:space-between; padding:.65rem 1rem; border-bottom:1px solid #e2e8f0; background:#f7fafc; }
-.table-header-left { font-size:.82rem; font-weight:700; color:#2b6cb0; }
-.btn-dl-csv { background:#276749; color:#fff; border:none; border-radius:6px; padding:.28rem .75rem; font-size:.73rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:.3rem; }
-
-table { width:100%; border-collapse:collapse; font-size:.75rem; }
-thead { position:sticky; top:0; z-index:10; }
-thead th { background:#1a365d; color:#fff; padding:.5rem .75rem; text-align:left; font-size:.72rem; font-weight:700; border-right:1px solid rgba(255,255,255,.1); white-space:nowrap; }
-thead th:last-child { border-right:none; }
-tbody tr:nth-child(even) { background:#f7fafc; }
-tbody tr:hover { background:#ebf8ff; }
-tbody td { padding:.5rem .75rem; border-bottom:1px solid #e2e8f0; border-right:1px solid #f0f4f8; vertical-align:top; line-height:1.4; }
-tbody td:last-child { border-right:none; }
-
-/* Fixed column widths */
-.col-id     { width:90px; }
-.col-title  { min-width:200px; max-width:280px; }
-.col-abs    { min-width:300px; }
-.col-author { width:160px; }
-.col-year   { width:60px; }
-.col-url    { width:80px; }
-.col-ext    { min-width:150px; }
-
-.abs-cell   { max-height:80px; overflow:hidden; font-size:.72rem; color:#4a5568; position:relative; }
-.abs-cell.expanded { max-height:none; }
-.abs-toggle { color:#2b6cb0; cursor:pointer; font-size:.68rem; display:block; margin-top:.15rem; text-decoration:underline; }
-.ext-value  { color:#276749; font-weight:600; }
-.ext-empty  { color:#a0aec0; font-style:italic; font-size:.68rem; }
-.filename-badge { font-size:.65rem; color:#718096; background:#f0f4f8; border-radius:4px; padding:.1rem .3rem; display:inline-block; margin-top:.2rem; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-.empty-state { text-align:center; padding:3rem 1rem; color:#a0aec0; }
-.empty-state i { font-size:3rem; margin-bottom:.75rem; display:block; }
-
-/* ── Progress bar ─────────────────────────────────────────────────── */
-.progress-wrap { display:none; background:#fff; border-radius:8px; border:1px solid #e2e8f0; padding:.65rem 1rem; margin-bottom:.75rem; }
-.progress-bar-outer { background:#e2e8f0; border-radius:6px; height:8px; overflow:hidden; margin:.4rem 0; }
-.progress-bar-inner { background:linear-gradient(90deg,#2b6cb0,#63b3ed); height:100%; transition:width .4s; border-radius:6px; }
-.progress-label { font-size:.75rem; color:#4a5568; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#2d3748;display:flex;flex-direction:column;min-height:100vh}
+.navbar{background:#1a365d;padding:0 1.5rem;height:52px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.3);position:sticky;top:0;z-index:300}
+.nav-brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:#fff}
+.logo-img{height:34px;width:auto;object-fit:contain}
+.brand-title{font-size:1.05rem;font-weight:700}
+.brand-title span{color:#63b3ed;font-style:italic}
+.nav-right{display:flex;align-items:center;gap:1rem}
+.nav-right a{color:#bee3f8;text-decoration:none;font-size:.85rem;display:flex;align-items:center;gap:.3rem}
+.nav-right a:hover{color:#fff}
+.btn-logout{background:#e53e3e;color:#fff!important;border:none;border-radius:6px;padding:.32rem .8rem;font-size:.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:.3rem}
+.btn-logout:hover{background:#c53030!important}
+.action-tabs{display:flex;gap:.5rem;padding:.55rem 1.5rem;background:#fff;border-bottom:2px solid #e2e8f0;justify-content:center;flex-wrap:wrap}
+.action-tab{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem 1.1rem;font-size:.82rem;font-weight:600;border:1.5px solid #e2e8f0;border-radius:8px;text-decoration:none;color:#4a5568;background:#f7fafc;transition:.15s}
+.action-tab.active,.action-tab:hover{background:#ebf8ff;border-color:#2b6cb0;color:#2b6cb0}
+.main{flex:1;padding:1rem 1.2rem;max-width:1500px;width:100%;margin:0 auto}
+.upload-zone{border:2.5px dashed #90cdf4;border-radius:14px;background:#fff;padding:2.5rem 2rem;text-align:center;cursor:pointer;transition:.2s;margin-bottom:1rem}
+.upload-zone:hover,.upload-zone.drag-over{border-color:#2b6cb0;background:#ebf8ff}
+.upload-zone i{font-size:2.8rem;color:#63b3ed;margin-bottom:.75rem;display:block}
+.upload-zone h3{font-size:1.05rem;color:#2b6cb0;margin-bottom:.3rem}
+.upload-zone p{font-size:.8rem;color:#718096}
+#pdf-file-input{display:none}
+.upload-actions{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem}
+.btn-primary{background:linear-gradient(135deg,#2b6cb0,#1a4a8a);color:#fff;border:none;border-radius:8px;padding:.52rem 1.3rem;font-size:.85rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.upload-status{font-size:.8rem;color:#4a5568}
+.progress-wrap{display:none;background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:.65rem 1rem;margin-bottom:.75rem}
+.progress-bar-outer{background:#e2e8f0;border-radius:6px;height:10px;overflow:hidden;margin:.4rem 0}
+.progress-bar-inner{background:linear-gradient(90deg,#2b6cb0,#63b3ed);height:100%;transition:width .3s;border-radius:6px;width:0%}
+.progress-label{font-size:.75rem;color:#4a5568}
+.file-list{margin-bottom:.75rem;display:flex;flex-wrap:wrap;gap:.4rem}
+.file-chip{display:inline-flex;align-items:center;gap:.35rem;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:.25rem .7rem;font-size:.72rem;color:#4a5568}
+.file-chip.done{border-color:#276749;color:#276749;background:#f0fff4}
+.file-chip.error{border-color:#c53030;color:#c53030;background:#fff5f5}
+.extract-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.6rem 1rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem}
+.extract-bar-label{font-size:.78rem;font-weight:700;color:#2b6cb0;white-space:nowrap}
+.col-chips-wrap{display:flex;flex-wrap:wrap;gap:.25rem;align-items:center;min-height:1.5rem}
+.col-chip{display:inline-flex;align-items:center;gap:.3rem;background:#ebf8ff;border:1px solid #bee3f8;color:#2b6cb0;border-radius:20px;padding:.2rem .65rem;font-size:.73rem;font-weight:600}
+.col-chip button{background:none;border:none;cursor:pointer;color:#4a9eed;padding:0;font-size:.7rem}
+.col-chip button:hover{color:#c53030}
+.col-input{width:160px;border:1.5px solid #e2e8f0;border-radius:6px;padding:.28rem .6rem;font-size:.75rem;outline:none}
+.col-input:focus{border-color:#2b6cb0}
+.btn-small{background:#edf2f7;border:1px solid #e2e8f0;border-radius:6px;padding:.28rem .65rem;font-size:.72rem;font-weight:600;cursor:pointer}
+.btn-small:hover{background:#e2e8f0}
+.btn-extract{background:linear-gradient(135deg,#276749,#1a4731);color:#fff;border:none;border-radius:6px;padding:.3rem .85rem;font-size:.75rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem}
+.btn-extract:disabled{opacity:.5;cursor:not-allowed}
+.extract-status{font-size:.75rem;color:#4a5568;margin-left:.5rem}
+.table-wrap{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.table-header{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;border-bottom:1px solid #e2e8f0;background:#f7fafc}
+.table-header-left{font-size:.82rem;font-weight:700;color:#2b6cb0}
+.btn-dl{background:#276749;color:#fff;border:none;border-radius:6px;padding:.28rem .75rem;font-size:.73rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem}
+table{width:100%;border-collapse:collapse;font-size:.75rem}
+thead{position:sticky;top:0;z-index:10}
+thead th{background:#1a365d;color:#fff;padding:.5rem .75rem;text-align:left;font-size:.72rem;font-weight:700;border-right:1px solid rgba(255,255,255,.1);white-space:nowrap}
+thead th:last-child{border-right:none}
+tbody tr:nth-child(even){background:#f7fafc}
+tbody tr:hover{background:#ebf8ff}
+tbody td{padding:.5rem .75rem;border-bottom:1px solid #e2e8f0;border-right:1px solid #f0f4f8;vertical-align:top;line-height:1.4}
+tbody td:last-child{border-right:none}
+.abs-cell{max-height:80px;overflow:hidden;font-size:.72rem;color:#4a5568}
+.abs-cell.expanded{max-height:none}
+.abs-toggle{color:#2b6cb0;cursor:pointer;font-size:.68rem;display:block;margin-top:.15rem;text-decoration:underline}
+.ext-value{color:#276749;font-weight:600}
+.ext-empty{color:#a0aec0;font-style:italic;font-size:.68rem}
+.filename-badge{font-size:.65rem;color:#718096;background:#f0f4f8;border-radius:4px;padding:.1rem .3rem;display:inline-block;margin-top:.2rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty-state{text-align:center;padding:3rem 1rem;color:#a0aec0}
+.empty-state i{font-size:3rem;margin-bottom:.75rem;display:block}
 </style>
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav class="navbar">
     <a href="/" class="nav-brand">
-        <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
-             alt="EpiLite" class="logo-img" onerror="this.style.display='none'">
+        <img src="{{ url_for('static', filename='images/epilogosmall.png') }}" alt="EpiLite" class="logo-img" onerror="this.style.display='none'">
         <span class="brand-title"><span>EpiLite</span> AI Platform</span>
     </a>
     <div class="nav-right">
@@ -116,41 +93,52 @@ tbody td:last-child { border-right:none; }
     </div>
 </nav>
 
-<!-- ACTION TABS -->
 <div class="action-tabs">
     <a href="/" class="action-tab"><i class="fas fa-search"></i> Search</a>
-    <a href="#" class="action-tab active"><i class="fas fa-file-upload"></i> Upload and curate</a>
-    <a href="#" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+    <a href="#" class="action-tab" id="tab-customize"><i class="fas fa-sliders-h"></i> Customize and extract</a>
+    <a href="#" class="action-tab" id="tab-curate"><i class="fas fa-filter"></i> Curate and extract</a>
+    <a href="/upload" class="action-tab active"><i class="fas fa-file-upload"></i> Upload and curate</a>
+    <a href="#" class="action-tab" id="tab-analyze"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
 </div>
+<script>
+(function(){
+    var p=new URLSearchParams(window.location.search);
+    var sid=p.get('search_id')||sessionStorage.getItem('last_search_id')||'';
+    var kw=p.get('keywords')||sessionStorage.getItem('last_keywords')||'';
+    if(sid){
+        var base='?search_id='+encodeURIComponent(sid)+'&keywords='+encodeURIComponent(kw)+'&max_results=1000&sort_order=ascending';
+        document.getElementById('tab-customize').href='/results'+base+'&view=customize';
+        document.getElementById('tab-curate').href='/results'+base+'&view=curate';
+        document.getElementById('tab-analyze').href='/analyze'+base;
+    }
+})();
+</script>
 
 <div class="main">
 
-    <!-- UPLOAD ZONE -->
-    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-file-input').click()"
+    <div class="upload-zone" id="upload-zone"
+         onclick="document.getElementById('pdf-file-input').click()"
          ondragover="event.preventDefault();this.classList.add('drag-over')"
          ondragleave="this.classList.remove('drag-over')"
          ondrop="event.preventDefault();this.classList.remove('drag-over');handleFiles(event.dataTransfer.files)">
         <i class="fas fa-file-pdf"></i>
         <h3>Drop PDF files here or click to browse</h3>
-        <p>Upload single or multiple PDF articles — text will be extracted automatically</p>
+        <p>Upload single or multiple PDF articles — text is extracted instantly in your browser (no server wait)</p>
     </div>
-    <input type="file" id="pdf-file-input" multiple accept=".pdf"
-           onchange="handleFiles(this.files)">
+    <input type="file" id="pdf-file-input" multiple accept=".pdf" onchange="handleFiles(this.files)">
+
+    <div class="file-list" id="file-list"></div>
+
+    <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-label" id="progress-label">Reading PDFs...</div>
+        <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
+    </div>
 
     <div class="upload-actions">
-        <button class="btn-upload" id="btn-process" onclick="processPdfs()" disabled>
-            <i class="fas fa-cog"></i> Process PDFs
-        </button>
         <span class="upload-status" id="upload-status"></span>
     </div>
 
-    <!-- PROGRESS BAR -->
-    <div class="progress-wrap" id="progress-wrap">
-        <div class="progress-label" id="progress-label">Extracting text from PDFs...</div>
-        <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar" style="width:0%"></div></div>
-    </div>
-
-    <!-- EXTRACT COLUMNS BAR (hidden until articles loaded) -->
+    <!-- Extract columns bar -->
     <div class="extract-bar" id="extract-bar" style="display:none">
         <span class="extract-bar-label"><i class="fas fa-table"></i> Extract Columns:</span>
         <div class="col-chips-wrap" id="col-chips"></div>
@@ -164,290 +152,313 @@ tbody td:last-child { border-right:none; }
         <span class="extract-status" id="extract-status"></span>
     </div>
 
-    <!-- ARTICLES TABLE -->
+    <!-- Table -->
     <div class="table-wrap" id="table-wrap" style="display:none">
         <div class="table-header">
             <span class="table-header-left" id="table-header-label">0 articles</span>
-            <button class="btn-dl-csv" onclick="downloadCsv()"><i class="fas fa-download"></i> Download CSV</button>
+            <button class="btn-dl" onclick="downloadCsv()"><i class="fas fa-download"></i> Download CSV</button>
         </div>
-        <div style="overflow-x:auto; max-height:70vh; overflow-y:auto;">
-            <table id="article-table">
-                <thead id="table-head"></thead>
-                <tbody id="table-body"></tbody>
-            </table>
+        <div style="overflow-x:auto;max-height:70vh;overflow-y:auto">
+            <table><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
         </div>
     </div>
 
     <div class="empty-state" id="empty-state">
         <i class="fas fa-file-upload"></i>
         <p style="font-size:.95rem;color:#718096">Upload PDF articles to get started</p>
-        <p style="font-size:.78rem;color:#a0aec0;margin-top:.4rem">
-            Text-based PDFs work best. Scanned/image PDFs may not extract correctly.
-        </p>
+        <p style="font-size:.78rem;color:#a0aec0;margin-top:.4rem">Text-based PDFs work best. Scanned/image-only PDFs may not extract correctly.</p>
     </div>
-
 </div>
 
 <script>
-var _pendingFiles = [];  // files staged but not yet processed
-var _articles     = [];  // parsed articles from backend
-var _uploadId     = '{{ upload_id }}' || '';
-var _columns      = [];  // user-defined extraction columns
-var _extracted    = {};  // article_id → {col: value}
-
-var PRESET_COLUMNS = ['Country','Sample Size','Study Design','Treatment / Drug',
+var _articles  = [];
+var _uploadId  = '';
+var _columns   = [];
+var _extracted = {};
+var PRESETS = ['Country','Sample Size','Study Design','Treatment / Drug',
     'Outcome','Prevalence','Incidence','Mortality','Population','Follow-up Duration'];
 
-// ── File staging ──────────────────────────────────────────────────────
-function handleFiles(files) {
-    _pendingFiles = Array.from(files).filter(function(f){ return f.name.toLowerCase().endsWith('.pdf'); });
-    var statusEl = document.getElementById('upload-status');
-    var btnEl    = document.getElementById('btn-process');
-    if (_pendingFiles.length === 0) {
-        statusEl.textContent = 'No PDF files selected.';
-        btnEl.disabled = true;
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Client-side PDF text extraction with PDF.js ───────────────────────────
+async function handleFiles(fileList) {
+    var files = Array.from(fileList).filter(function(f){ return f.name.toLowerCase().endsWith('.pdf'); });
+    if (!files.length) { document.getElementById('upload-status').textContent = 'No PDF files selected.'; return; }
+
+    // Show file chips
+    var listEl = document.getElementById('file-list');
+    listEl.innerHTML = files.map(function(f,i){
+        return '<span class="file-chip" id="fc-'+i+'"><i class="fas fa-file-pdf"></i>'+esc(f.name)+'</span>';
+    }).join('');
+
+    // Show progress
+    var prog  = document.getElementById('progress-wrap');
+    var bar   = document.getElementById('progress-bar');
+    var label = document.getElementById('progress-label');
+    prog.style.display = 'block';
+    document.getElementById('upload-status').textContent = '';
+    document.getElementById('empty-state').style.display = 'none';
+
+    _articles  = [];
+    _extracted = {};
+
+    for (var i = 0; i < files.length; i++) {
+        var f    = files[i];
+        var chip = document.getElementById('fc-'+i);
+        label.textContent = 'Reading ' + (i+1) + ' of ' + files.length + ': ' + f.name;
+        bar.style.width   = Math.round(((i) / files.length) * 100) + '%';
+
+        try {
+            var art = await extractPdf(f);
+            if (art) {
+                _articles.push(art);
+                chip.classList.add('done');
+                chip.innerHTML = '<i class="fas fa-check"></i>' + esc(f.name);
+            } else {
+                chip.classList.add('error');
+                chip.innerHTML = '<i class="fas fa-times"></i>' + esc(f.name) + ' (no text)';
+            }
+        } catch(e) {
+            chip.classList.add('error');
+            chip.innerHTML = '<i class="fas fa-times"></i>' + esc(f.name) + ' (error)';
+            console.error('PDF error', f.name, e);
+        }
+    }
+
+    bar.style.width = '100%';
+    label.textContent = 'Done — ' + _articles.length + ' of ' + files.length + ' extracted';
+    setTimeout(function(){ prog.style.display = 'none'; }, 800);
+
+    if (!_articles.length) {
+        document.getElementById('upload-status').textContent = 'Could not extract text. Make sure files are text-based PDFs (not scanned images).';
         return;
     }
-    statusEl.textContent = _pendingFiles.length + ' file' + (_pendingFiles.length > 1 ? 's' : '') + ' selected: ' +
-        _pendingFiles.map(function(f){ return f.name; }).join(', ');
-    btnEl.disabled = false;
+
+    // Send extracted text to server to get upload_id
+    await registerWithServer();
 }
 
-// ── Upload + parse ────────────────────────────────────────────────────
-async function processPdfs() {
-    if (!_pendingFiles.length) return;
-    var btn    = document.getElementById('btn-process');
-    var status = document.getElementById('upload-status');
-    var prog   = document.getElementById('progress-wrap');
-    var bar    = document.getElementById('progress-bar');
-    var label  = document.getElementById('progress-label');
+// ── Extract text + metadata from one PDF file entirely in the browser ──
+async function extractPdf(file) {
+    var arrayBuffer = await file.arrayBuffer();
+    var pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
 
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    prog.style.display = 'block';
-    label.textContent  = 'Extracting text from ' + _pendingFiles.length + ' PDF file(s)...';
-    bar.style.width    = '5%';
-    var tick2 = 5;
-    var parseInterval = setInterval(function() {
-        if (tick2 < 70) { tick2 += (70 - tick2) * 0.1; bar.style.width = tick2 + '%'; }
-    }, 400);
+    var pages = [];
+    var maxPages = Math.min(pdf.numPages, 12);   // first 12 pages is enough
+    for (var p = 1; p <= maxPages; p++) {
+        var page    = await pdf.getPage(p);
+        var content = await page.getTextContent();
+        var str     = content.items.map(function(item){ return item.str; }).join(' ');
+        pages.push(str);
+    }
+    var text = pages.join('\n');
+    if (!text.trim()) return null;
 
-    var fd = new FormData();
-    _pendingFiles.forEach(function(f){ fd.append('pdfs', f); });
+    var lines = text.split(/\n+/).map(function(l){ return l.trim(); }).filter(Boolean);
 
+    // Title
+    var title = lines[0] ? lines[0].substring(0,200) : file.name;
+
+    // Authors: comma-rich line near top
+    var authors = '';
+    for (var i = 1; i < Math.min(lines.length, 10); i++) {
+        if (lines[i].split(',').length >= 2 && lines[i].length < 300) { authors = lines[i]; break; }
+    }
+
+    // Year
+    var year = '';
+    var ym = text.match(/\b(19|20)\d{2}\b/);
+    if (ym) year = ym[0];
+
+    // DOI
+    var doi = '';
+    var dm = text.match(/\b10\.\d{4,9}\/[^\s"<>]+/);
+    if (dm) doi = 'https://doi.org/' + dm[0].replace(/[.)]+$/, '');
+
+    // Abstract
+    var abstract = '';
+    var abm = text.match(/Abstract[:\s]+([\s\S]{50,2000})(?=\s+(Introduction|Background|Keywords|Methods|1\.|Results)\b)/i);
+    if (abm) {
+        abstract = abm[1].replace(/\s+/g,' ').trim().substring(0,2000);
+    } else {
+        abstract = lines.slice(2, 14).join(' ').substring(0,800);
+    }
+
+    // Smart text: Abstract + Results + Conclusion sections for GPT
+    var smartText = extractSections(text, 3500);
+
+    return {
+        article_id: Math.random().toString(36).slice(2,12),
+        title:    title,
+        abstract: abstract,
+        authors:  authors,
+        year:     year,
+        url:      doi,
+        filename: file.name,
+        fulltext: smartText,
+    };
+}
+
+function extractSections(text, cap) {
+    var sections = [
+        /Abstract[:\s]+([\s\S]{50,1200})(?=\s+(?:Introduction|Background|Keywords|1\.))/i,
+        /Results?[:\s]+([\s\S]{50,1500})(?=\s+(?:Discussion|Conclusion|Limitations|References))/i,
+        /Conclusion[s]?[:\s]+([\s\S]{50,800})(?=\s+(?:References|Acknowledgements|Funding))/i,
+    ];
+    var parts = [];
+    var remaining = cap;
+    sections.forEach(function(pat) {
+        if (remaining <= 100) return;
+        var m = text.match(pat);
+        if (m) {
+            var chunk = m[1].replace(/\s+/g,' ').trim().substring(0, remaining);
+            parts.push(chunk);
+            remaining -= chunk.length;
+        }
+    });
+    return parts.length ? parts.join(' | ') : text.replace(/\s+/g,' ').trim().substring(0, cap);
+}
+
+// ── Send extracted text to server (tiny payload, no PDF bytes) ───────────
+async function registerWithServer() {
+    document.getElementById('upload-status').textContent = 'Registering with server...';
     try {
-        var r = await fetch('/api/upload_pdfs', {method:'POST', body:fd});
-        clearInterval(parseInterval);
-        bar.style.width = '100%';
+        var fd = new FormData();
+        fd.append('articles_json', JSON.stringify(_articles));
+        var r = await fetch('/api/register_upload', {method:'POST', body:fd});
         var d = await r.json();
-        setTimeout(function(){ prog.style.display = 'none'; bar.style.width = '0%'; }, 500);
         if (!r.ok || d.error) {
-            status.textContent = 'Error: ' + (d.error || 'Upload failed');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-cog"></i> Process PDFs';
-            prog.style.display = 'none';
+            document.getElementById('upload-status').textContent = 'Server error: ' + (d.error||'unknown');
             return;
         }
-        bar.style.width = '100%';
-        _articles  = d.articles;
-        _uploadId  = d.upload_id;
-        _extracted = {};
-        status.textContent = d.count + ' articles extracted successfully.';
-        btn.innerHTML = '<i class="fas fa-cog"></i> Process PDFs';
-        prog.style.display = 'none';
-        renderTable();
+        _uploadId = d.upload_id;
+        document.getElementById('upload-status').textContent = '';
         document.getElementById('extract-bar').style.display = 'flex';
-        document.getElementById('empty-state').style.display = 'none';
+        document.getElementById('table-wrap').style.display  = 'block';
+        document.getElementById('table-header-label').textContent = _articles.length + ' articles loaded';
         renderChips();
+        renderTable();
     } catch(e) {
-        clearInterval(parseInterval);
-        prog.style.display = 'none';
+        document.getElementById('upload-status').textContent = 'Network error: ' + e.message;
     }
 }
 
-// ── Column chips ──────────────────────────────────────────────────────
+// ── Column chips ──────────────────────────────────────────────────────────
 function addCol(name) {
     var val = name || document.getElementById('col-input').value.trim();
-    if (!val || _columns.includes(val)) { document.getElementById('col-input').value = ''; return; }
+    if (!val || _columns.includes(val)) { document.getElementById('col-input').value=''; return; }
     _columns.push(val);
     document.getElementById('col-input').value = '';
-    renderChips();
-    updateExtractedHeaders();
+    renderChips(); renderTable();
 }
-
 function removeCol(name) {
-    _columns = _columns.filter(function(c){ return c !== name; });
-    delete _extracted;
+    _columns = _columns.filter(function(c){ return c!==name; });
     _extracted = {};
-    renderChips();
-    renderTable();
+    renderChips(); renderTable();
 }
-
 function renderChips() {
     var el = document.getElementById('col-chips');
     el.innerHTML = _columns.length
-        ? _columns.map(function(c) {
-            return '<span class="col-chip">' + esc(c) +
-                '<button onclick="removeCol(\'' + esc(c).replace(/'/g,"\\'") + '\')"><i class="fas fa-times"></i></button></span>';
+        ? _columns.map(function(c){
+            return '<span class="col-chip">'+esc(c)+'<button onclick="removeCol(\''+esc(c).replace(/'/g,"\\'")+'\')" title="Remove"><i class="fas fa-times"></i></button></span>';
         }).join('')
         : '<span style="font-size:.72rem;color:#a0aec0;font-style:italic">No columns — add some above</span>';
 }
-
 function addPresets() {
-    PRESET_COLUMNS.forEach(function(c){ if (!_columns.includes(c)) _columns.push(c); });
-    renderChips();
-    updateExtractedHeaders();
+    PRESETS.forEach(function(c){ if(!_columns.includes(c)) _columns.push(c); });
+    renderChips(); renderTable();
 }
 
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-// ── Render table ──────────────────────────────────────────────────────
+// ── Render table ──────────────────────────────────────────────────────────
 function renderTable() {
     if (!_articles.length) return;
-    var wrap = document.getElementById('table-wrap');
-    wrap.style.display = 'block';
-    document.getElementById('table-header-label').textContent =
-        _articles.length + ' article' + (_articles.length > 1 ? 's' : '') + ' loaded';
-
-    // Build header
-    var baseCols = ['#','Article ID','Title','Abstract','Authors','Year','URL / DOI'];
+    var baseCols = ['#','Filename','Title','Abstract','Authors','Year','URL/DOI'];
     var allCols  = baseCols.concat(_columns);
-    var thead = document.getElementById('table-head');
-    thead.innerHTML = '<tr>' + allCols.map(function(c,i){
-        var cls = ['','col-id','col-title','col-abs','col-author','col-year','col-url'][i] || 'col-ext';
-        return '<th class="' + cls + '">' + esc(c) + '</th>';
-    }).join('') + '</tr>';
-
-    // Build rows
-    var tbody = document.getElementById('table-body');
-    tbody.innerHTML = _articles.map(function(art, idx) {
+    document.getElementById('table-head').innerHTML = '<tr>'+allCols.map(function(c){
+        return '<th>'+esc(c)+'</th>';
+    }).join('')+'</tr>';
+    document.getElementById('table-body').innerHTML = _articles.map(function(art, idx){
         var ext = _extracted[art.article_id] || {};
-        var absId = 'abs-' + art.article_id;
-        var urlHtml = art.url
-            ? '<a href="' + esc(art.url) + '" target="_blank" style="color:#2b6cb0;font-size:.7rem">DOI</a>'
-            : '<span style="color:#a0aec0;font-size:.7rem">—</span>';
+        var aid = 'abs-'+art.article_id;
+        var urlHtml = art.url ? '<a href="'+esc(art.url)+'" target="_blank" style="color:#2b6cb0;font-size:.7rem">DOI ↗</a>' : '<span style="color:#a0aec0">—</span>';
         var cells = [
-            '<td>' + (idx+1) + '</td>',
-            '<td><span style="font-size:.68rem;color:#2b6cb0;font-weight:600">' + esc(art.article_id) + '</span>' +
-                '<br><span class="filename-badge">' + esc(art.filename) + '</span></td>',
-            '<td class="col-title" style="font-weight:600;font-size:.73rem">' + esc(art.title) + '</td>',
-            '<td class="col-abs"><div class="abs-cell" id="' + absId + '">' + esc(art.abstract || '—') + '</div>' +
-                (art.abstract && art.abstract.length > 120
-                    ? '<span class="abs-toggle" onclick="toggleAbs(\'' + absId + '\', this)">Show more</span>'
-                    : '') + '</td>',
-            '<td style="font-size:.7rem">' + esc(art.authors || '—') + '</td>',
-            '<td>' + esc(art.year || '—') + '</td>',
-            '<td>' + urlHtml + '</td>',
+            '<td style="color:#718096;font-size:.7rem">'+(idx+1)+'</td>',
+            '<td><span class="filename-badge">'+esc(art.filename)+'</span></td>',
+            '<td style="font-weight:600;font-size:.73rem;min-width:200px">'+esc(art.title)+'</td>',
+            '<td style="min-width:300px"><div class="abs-cell" id="'+aid+'">'+esc(art.abstract||'—')+'</div>'+
+                (art.abstract&&art.abstract.length>120?'<span class="abs-toggle" onclick="toggleAbs(\''+aid+'\',this)">Show more</span>':'')+'</td>',
+            '<td style="font-size:.7rem;min-width:130px">'+esc(art.authors||'—')+'</td>',
+            '<td>'+esc(art.year||'—')+'</td>',
+            '<td>'+urlHtml+'</td>',
         ];
-        _columns.forEach(function(col) {
+        _columns.forEach(function(col){
             var v = ext[col];
-            cells.push('<td>' + (v && v !== 'null'
-                ? '<span class="ext-value">' + esc(v) + '</span>'
-                : '<span class="ext-empty">—</span>') + '</td>');
+            cells.push('<td style="min-width:150px">'+(v&&v!=='null'?'<span class="ext-value">'+esc(v)+'</span>':'<span class="ext-empty">—</span>')+'</td>');
         });
-        return '<tr>' + cells.join('') + '</tr>';
+        return '<tr>'+cells.join('')+'</tr>';
     }).join('');
 }
-
-function toggleAbs(id, el) {
-    var el2 = document.getElementById(id);
-    if (el2.classList.contains('expanded')) {
-        el2.classList.remove('expanded');
-        el.textContent = 'Show more';
-    } else {
-        el2.classList.add('expanded');
-        el.textContent = 'Show less';
-    }
+function toggleAbs(id,el){
+    var d=document.getElementById(id);
+    var exp=d.classList.toggle('expanded');
+    el.textContent=exp?'Show less':'Show more';
 }
 
-function updateExtractedHeaders() { renderTable(); }
-
-// ── Run GPT extraction ────────────────────────────────────────────────
+// ── GPT extraction ────────────────────────────────────────────────────────
 async function runExtract() {
-    if (!_columns.length)  { alert('Please add at least one column first.'); return; }
-    if (!_uploadId)        { alert('Please upload PDFs first.'); return; }
+    if (!_columns.length) { alert('Please add at least one column first.'); return; }
+    if (!_uploadId)       { alert('Please upload PDFs first.'); return; }
+    var btn=document.getElementById('btn-extract'), status=document.getElementById('extract-status');
+    btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Extracting...';
+    status.textContent='';
 
-    var btn    = document.getElementById('btn-extract');
-    var status = document.getElementById('extract-status');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting...';
-    status.textContent = '';
+    var prog=document.getElementById('progress-wrap'), bar=document.getElementById('progress-bar'), label=document.getElementById('progress-label');
+    prog.style.display='block';
+    label.textContent='AI scanning '+_articles.length+' articles for: '+_columns.join(', ')+'...';
+    bar.style.width='5%';
+    var tick=5;
+    var iv=setInterval(function(){ if(tick<85){tick+=(85-tick)*0.06; bar.style.width=tick+'%';} },700);
 
-    // Animate a fake progress bar so it doesn't feel frozen
-    var prog   = document.getElementById('progress-wrap');
-    var bar    = document.getElementById('progress-bar');
-    var label  = document.getElementById('progress-label');
-    prog.style.display = 'block';
-    label.textContent  = 'Scanning full text of ' + _articles.length + ' articles for: ' + _columns.join(', ') + '...';
-    bar.style.width    = '5%';
-    var tick = 5;
-    var progressInterval = setInterval(function() {
-        // Slowly creep to 85% while waiting for server
-        if (tick < 85) { tick += (85 - tick) * 0.07; bar.style.width = tick + '%'; }
-    }, 600);
-
-    var fd = new FormData();
+    var fd=new FormData();
     fd.append('upload_id', _uploadId);
     fd.append('columns',   JSON.stringify(_columns));
-
     try {
-        var r = await fetch('/api/extract_columns_upload', {method:'POST', body:fd});
-        clearInterval(progressInterval);
-        bar.style.width = '100%';
-        var d = await r.json();
-        setTimeout(function(){ prog.style.display = 'none'; bar.style.width = '0%'; }, 600);
-
-        if (!r.ok || d.error) {
-            status.textContent = 'Error: ' + (d.error || 'Extraction failed');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
-            return;
-        }
-        _extracted = d.data || {};
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
-        status.innerHTML = '<i class="fas fa-check-circle" style="color:#276749"></i> ' + d.count +
-            ' articles extracted. <button onclick="downloadCsv()" style="background:#276749;color:#fff;border:none;border-radius:5px;padding:.18rem .5rem;font-size:.7rem;font-weight:600;cursor:pointer;margin-left:.3rem"><i class="fas fa-download"></i> Download CSV</button>';
+        var r=await fetch('/api/extract_columns_upload',{method:'POST',body:fd});
+        clearInterval(iv); bar.style.width='100%';
+        var d=await r.json();
+        setTimeout(function(){prog.style.display='none';bar.style.width='0%';},600);
+        if(!r.ok||d.error){status.textContent='Error: '+(d.error||'Extraction failed'); btn.disabled=false; btn.innerHTML='<i class="fas fa-bolt"></i> Extract'; return;}
+        _extracted=d.data||{};
+        btn.disabled=false; btn.innerHTML='<i class="fas fa-bolt"></i> Extract';
+        status.innerHTML='<i class="fas fa-check-circle" style="color:#276749"></i> '+d.count+' articles extracted. '+
+            '<button onclick="downloadCsv()" style="background:#276749;color:#fff;border:none;border-radius:5px;padding:.18rem .5rem;font-size:.7rem;font-weight:600;cursor:pointer;margin-left:.3rem"><i class="fas fa-download"></i> Download CSV</button>';
         renderTable();
     } catch(e) {
-        clearInterval(progressInterval);
-        prog.style.display = 'none';
-        status.textContent = 'Network error: ' + e.message;
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
+        clearInterval(iv); prog.style.display='none';
+        status.textContent='Network error: '+e.message;
+        btn.disabled=false; btn.innerHTML='<i class="fas fa-bolt"></i> Extract';
     }
 }
 
-// ── Download CSV ──────────────────────────────────────────────────────
+// ── Download CSV ──────────────────────────────────────────────────────────
 function downloadCsv() {
     if (!_articles.length) { alert('No articles to download.'); return; }
-    var baseCols = ['article_id','title','abstract','authors','year','url','filename'];
-    var allCols  = baseCols.concat(_columns);
-    var lines = [allCols.join(',')];
-
-    _articles.forEach(function(art) {
-        var ext = _extracted[art.article_id] || {};
-        var row = baseCols.map(function(c) {
-            return '"' + String(art[c] || '').replace(/"/g,'""').replace(/\n/g,' ') + '"';
-        });
-        _columns.forEach(function(col) {
-            var v = String(ext[col] || '').replace(/"/g,'""').replace(/\n/g,' ');
-            row.push('"' + v + '"');
-        });
+    var base=['article_id','filename','title','abstract','authors','year','url'];
+    var cols=base.concat(_columns);
+    var lines=[cols.join(',')];
+    _articles.forEach(function(art){
+        var ext=_extracted[art.article_id]||{};
+        var row=base.map(function(c){ return '"'+String(art[c]||'').replace(/"/g,'""').replace(/\n/g,' ')+'"'; });
+        _columns.forEach(function(col){ row.push('"'+String(ext[col]||'').replace(/"/g,'""').replace(/\n/g,' ')+'"'); });
         lines.push(row.join(','));
     });
-
-    var csv  = '\uFEFF' + lines.join('\n');
-    var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
-    var url  = URL.createObjectURL(blob);
-    var a    = document.createElement('a');
-    a.href   = url;
-    a.download = 'uploaded_articles_' + new Date().toISOString().slice(0,10) + '.csv';
+    var csv='\uFEFF'+lines.join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    a.download='uploaded_articles_'+new Date().toISOString().slice(0,10)+'.csv';
     a.click();
-    URL.revokeObjectURL(url);
 }
 
-// Re-render chips on load
 renderChips();
 </script>
 </body>

@@ -292,7 +292,32 @@
     </div>
 </nav>
 
-<!-- Hero -->
+<!-- TOP ACTION TABS -->
+<style>
+.action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; justify-content:center; }
+.action-tab  { display:inline-flex; align-items:center; gap:.4rem; padding:.42rem 1.1rem; font-size:.82rem; font-weight:600; border:1.5px solid #e2e8f0; border-radius:8px; text-decoration:none; color:#4a5568; background:#f7fafc; transition:.15s; }
+.action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
+</style>
+<div class="action-tabs">
+    <a href="/" class="action-tab active"><i class="fas fa-search"></i> Search</a>
+    <a href="#" class="action-tab" id="tab-customize"><i class="fas fa-sliders-h"></i> Customize and extract</a>
+    <a href="#" class="action-tab" id="tab-curate"><i class="fas fa-filter"></i> Curate and extract</a>
+    <a href="/upload" class="action-tab"><i class="fas fa-file-upload"></i> Upload and curate</a>
+    <a href="#" class="action-tab" id="tab-analyze"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+</div>
+<script>
+// Restore last search session into Customize/Curate/Analyze tab links if available
+(function() {
+    var sid = sessionStorage.getItem('last_search_id') || '';
+    var kw  = sessionStorage.getItem('last_keywords')  || '';
+    if (sid) {
+        var base = '?search_id=' + encodeURIComponent(sid) + '&keywords=' + encodeURIComponent(kw) + '&max_results=1000&sort_order=ascending';
+        document.getElementById('tab-customize').href = '/results' + base + '&view=customize';
+        document.getElementById('tab-curate').href    = '/results' + base + '&view=curate';
+        document.getElementById('tab-analyze').href   = '/analyze' + base;
+    }
+})();
+</script>
 <div class="hero">
     <div class="hero-logo">
         <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
@@ -508,6 +533,12 @@ function escHtml(str) {
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pubmed_url').addEventListener('input', previewUrl);
     document.getElementById('pubmed_url').addEventListener('paste', () => setTimeout(previewUrl, 50));
+
+    // Auto-switch to URL Search tab if server says so (e.g. after an error in search_url)
+    const activeTab = '{{ active_tab | default("kw") }}';
+    if (activeTab === 'url_search') {
+        switchTab('url');
+    }
 });
 </script>
 </body>

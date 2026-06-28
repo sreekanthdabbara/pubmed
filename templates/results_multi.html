@@ -640,6 +640,13 @@
         var t = document.getElementById('tab-customize');
         if (t) t.classList.add('active');
     }
+    // Persist search session so the home page can restore Customize/Curate/Analyze tabs
+    if (SEARCH_ID) {
+        try {
+            sessionStorage.setItem('last_search_id', SEARCH_ID);
+            sessionStorage.setItem('last_keywords',  KEYWORDS_STR);
+        } catch(e) {}
+    }
 })();
 
 const ALL_DATA     = {{ keyword_summary | tojson }};
