@@ -908,6 +908,8 @@ recent_searches = []
 import hashlib
 _search_cache: dict = {}
 CACHE_MAX = 20   # keep last 20 searches in memory
+_upload_sessions: dict = {}   # upload_id → {articles: [...], timestamp}
+UPLOAD_SESSION_MAX = 20
 
 
 # ── Auth routes ──────────────────────────────────────────────────────────────
@@ -2818,6 +2820,201 @@ def export_to_copilot():
 
     print(f"[copilot] Session: {len(articles)} articles, mode={mode}, filters={any_filter}")
     return jsonify({'token': token, 'count': len(articles), 'filename': fname})
+
+
+@app.route('/upload')
+@login_required
+def upload_page():
+    """Upload & Curate page — user uploads their own PDFs for extraction."""
+    upload_id = request.args.get('upload_id', '')
+    return render_template('upload_curate.html', upload_id=upload_id)
+
+
+@app.route('/api/upload_pdfs', methods=['POST'])
+@login_required
+def upload_pdfs():
+    """Accept uploaded PDF files, extract text + metadata, return structured article list."""
+    import uuid as _uuid
+    files = request.files.getlist('pdfs')
+    if not files:
+        return jsonify({'error': 'No files uploaded'}), 400
+
+    articles = []
+
+    def _parse_pdf(f):
+        """Extract text + metadata from one PDF file. Returns article dict."""
+        name = f.filename or 'unknown.pdf'
+        try:
+            raw = f.read()
+            text = ''
+            try:
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(raw)) as pdf:
+                    pages = []
+                    for page in pdf.pages[:40]:   # cap at 40 pages
+                        t = page.extract_text() or ''
+                        pages.append(t)
+                    text = '\n'.join(pages)
+            except Exception as e:
+                print(f"[upload] pdfplumber failed for {name}: {e}")
+                return None
+
+            if not text.strip():
+                return None
+
+            # ── Extract metadata heuristically ──────────────────────────────
+            lines = [l.strip() for l in text.split('\n') if l.strip()]
+
+            # Title: first non-empty line (often all-caps or longer)
+            title = lines[0][:200] if lines else name
+
+            # Authors: look for line with comma-separated names near the top
+            authors = ''
+            for line in lines[1:8]:
+                # Rough heuristic: contains multiple commas and looks like names
+                if 2 <= line.count(',') <= 10 and len(line) < 300:
+                    authors = line
+                    break
+
+            # Year: first 4-digit year found in first 20 lines
+            year = ''
+            for line in lines[:20]:
+                m = re.search(r'\b(19|20)\d{2}\b', line)
+                if m:
+                    year = m.group()
+                    break
+
+            # DOI / URL
+            doi = ''
+            doi_m = re.search(r'\b10\.\d{4,9}/[^\s"<>]+', text)
+            if doi_m:
+                doi = 'https://doi.org/' + doi_m.group().rstrip('.')
+
+            # Abstract: look for "Abstract" header
+            abstract = ''
+            abs_m = re.search(
+                r'(?i)\bAbstract\b[:\s\n]*(.*?)(?=\n\s*(?:Introduction|Background|Keywords|Methods|1\.|Results)\b)',
+                text, re.DOTALL)
+            if abs_m:
+                abstract = re.sub(r'\s+', ' ', abs_m.group(1)).strip()[:3000]
+            else:
+                # Fallback: first 800 chars of body after title
+                abstract = re.sub(r'\s+', ' ', ' '.join(lines[2:12])).strip()[:800]
+
+            uid = _uuid.uuid4().hex[:10]
+            return {
+                'article_id':   uid,
+                'title':        title,
+                'abstract':     abstract,
+                'authors':      authors,
+                'year':         year,
+                'url':          doi,
+                'filename':     name,
+                'fulltext':     text[:8000],   # for GPT extraction
+                'is_free_pmc':  False,
+                'pdf_url':      '',
+            }
+        except Exception as e:
+            print(f"[upload] error parsing {name}: {e}")
+            return None
+
+    # Parse all uploaded PDFs in parallel
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        results = list(ex.map(_parse_pdf, files))
+
+    articles = [r for r in results if r]
+    if not articles:
+        return jsonify({'error': 'Could not extract text from any uploaded PDF. Make sure files are text-based (not scanned images).'}), 400
+
+    upload_id = _uuid.uuid4().hex[:12]
+    _upload_sessions[upload_id] = {
+        'articles':  articles,
+        'timestamp': datetime.now().timestamp(),
+    }
+    # Evict oldest if over limit
+    if len(_upload_sessions) > UPLOAD_SESSION_MAX:
+        oldest = min(_upload_sessions, key=lambda k: _upload_sessions[k]['timestamp'])
+        del _upload_sessions[oldest]
+
+    return jsonify({'upload_id': upload_id, 'articles': articles, 'count': len(articles)})
+
+
+@app.route('/api/extract_columns_upload', methods=['POST'])
+@login_required
+def extract_columns_upload():
+    """Extract columns from uploaded-PDF articles (uses full text, not just abstract)."""
+    upload_id = request.form.get('upload_id', '')
+    columns   = json.loads(request.form.get('columns', '[]'))
+
+    if not upload_id or upload_id not in _upload_sessions:
+        return jsonify({'error': 'Upload session expired. Please upload your files again.'}), 404
+    if not columns:
+        return jsonify({'error': 'No columns specified'}), 400
+
+    articles  = _upload_sessions[upload_id]['articles']
+    total     = len(articles)
+    BATCH_SIZE = 10   # slightly smaller since full text is larger per article
+
+    def _process_batch(bn, batch):
+        n = len(batch)
+        ctx_lines = []
+        for idx, art in enumerate(batch, 1):
+            body = art.get('fulltext') or art.get('abstract','')
+            ctx_lines.append(
+                f"--- Article {idx} ---\n"
+                f"ID: {art.get('article_id','')}\n"
+                f"Title: {art.get('title','')}\n"
+                f"Authors: {art.get('authors','')[:80]}\n"
+                f"Year: {art.get('year','')}\n"
+                f"Full text: {body}\n"
+            )
+        ctx = '\n'.join(ctx_lines)
+        cols_str = ', '.join(columns)
+        sys_msg = (
+            f"You are a clinical data extractor. Extract EXACTLY {n} rows from {n} articles.\n"
+            f"Columns to extract: {cols_str}\n"
+            f"RULES:\n"
+            f"- {n} articles in = {n} rows out — never fewer\n"
+            f"- Search the FULL TEXT provided, not just the abstract\n"
+            f"- Return ONLY valid JSON — no markdown, no explanation\n"
+            f"- Use null for missing values\n"
+            f"- If multiple distinct sub-values exist for a column (e.g. birth vs period prevalence), "
+            f"include all with short labels separated by '; '\n"
+        )
+        template = {c: '' for c in columns}
+        template['article_id'] = ''
+        user_msg = f"Extract {cols_str} from these {n} articles:\n{ctx}\n\nReturn JSON: {{\"rows\": [{json.dumps(template)}, ...]}}"
+        msgs = [{'role':'system','content':sys_msg}, {'role':'user','content':user_msg}]
+        raw, err = call_azure_openai(msgs, max_tokens=min(n*200+500, 8000), temperature=0)
+        rows = []
+        if not err and raw:
+            try:
+                clean = re.sub(r'^```[a-z]*\n?','',raw.strip())
+                clean = re.sub(r'\n?```$','',clean.strip())
+                jm    = re.search(r'\{.*\}', clean, re.DOTALL)
+                data  = json.loads(jm.group()) if jm else {}
+                rows  = data.get('rows', [])
+            except Exception as e:
+                print(f"[extract_upload] parse error batch {bn}: {e}")
+        return bn, batch, rows
+
+    batches = [articles[i:i+BATCH_SIZE] for i in range(0, total, BATCH_SIZE)]
+    data_by_id = {}
+    with ThreadPoolExecutor(max_workers=min(8, len(batches))) as executor:
+        futures = {executor.submit(_process_batch, bn, batch): bn
+                   for bn, batch in enumerate(batches, 1)}
+        for future in as_completed(futures):
+            try:
+                bn, batch, rows = future.result()
+                for i, art in enumerate(batch):
+                    aid = art.get('article_id','')
+                    if aid:
+                        extracted = rows[i] if i < len(rows) else {}
+                        data_by_id[aid] = {c: str(extracted.get(c,'') or '') for c in columns}
+            except Exception as e:
+                print(f"[extract_upload] batch failed: {e}")
+
+    return jsonify({'data': data_by_id, 'count': len(data_by_id)})
 
 
 @app.route('/analyze')

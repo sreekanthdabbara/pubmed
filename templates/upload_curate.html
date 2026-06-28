@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Upload & Curate — EpiLite AI Platform</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #2d3748; display:flex; flex-direction:column; min-height:100vh; }
+
+/* ── Navbar ───────────────────────────────────────────────────────── */
+.navbar { background:#1a365d; padding:0 1.5rem; height:52px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(0,0,0,.3); position:sticky; top:0; z-index:300; }
+.nav-brand { display:flex; align-items:center; gap:.6rem; text-decoration:none; color:#fff; }
+.logo-img  { height:34px; width:auto; object-fit:contain; }
+.brand-title { font-size:1.05rem; font-weight:700; }
+.brand-title span { color:#63b3ed; font-style:italic; }
+.nav-right { display:flex; align-items:center; gap:1rem; }
+.nav-right a { color:#bee3f8; text-decoration:none; font-size:.85rem; display:flex; align-items:center; gap:.3rem; }
+.nav-right a:hover { color:#fff; }
+.btn-logout { background:#e53e3e; color:#fff !important; border:none; border-radius:6px; padding:.32rem .8rem; font-size:.8rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:.3rem; }
+.btn-logout:hover { background:#c53030 !important; }
+
+/* ── Action tabs ──────────────────────────────────────────────────── */
+.action-tabs { display:flex; gap:.5rem; padding:.55rem 1.5rem; background:#fff; border-bottom:2px solid #e2e8f0; flex-shrink:0; justify-content:center; }
+.action-tab  { display:inline-flex; align-items:center; gap:.4rem; padding:.42rem 1.1rem; font-size:.82rem; font-weight:600; border:1.5px solid #e2e8f0; border-radius:8px; text-decoration:none; color:#4a5568; background:#f7fafc; transition:.15s; }
+.action-tab.active,.action-tab:hover { background:#ebf8ff; border-color:#2b6cb0; color:#2b6cb0; }
+
+/* ── Main layout ──────────────────────────────────────────────────── */
+.main { flex:1; padding:1rem 1.2rem; max-width:1500px; width:100%; margin:0 auto; }
+
+/* ── Upload zone ──────────────────────────────────────────────────── */
+.upload-zone { border:2.5px dashed #90cdf4; border-radius:14px; background:#fff; padding:2.5rem 2rem; text-align:center; cursor:pointer; transition:.2s; margin-bottom:1rem; }
+.upload-zone:hover,.upload-zone.drag-over { border-color:#2b6cb0; background:#ebf8ff; }
+.upload-zone i { font-size:2.8rem; color:#63b3ed; margin-bottom:.75rem; display:block; }
+.upload-zone h3 { font-size:1.05rem; color:#2b6cb0; margin-bottom:.3rem; }
+.upload-zone p  { font-size:.8rem; color:#718096; }
+#pdf-file-input { display:none; }
+
+.upload-actions { display:flex; gap:.75rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
+.btn-upload { background:linear-gradient(135deg,#2b6cb0,#1a4a8a); color:#fff; border:none; border-radius:8px; padding:.55rem 1.4rem; font-size:.85rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:.4rem; }
+.btn-upload:hover { opacity:.9; }
+.btn-upload:disabled { opacity:.5; cursor:not-allowed; }
+.upload-status { font-size:.8rem; color:#4a5568; }
+
+/* ── Extract columns bar ──────────────────────────────────────────── */
+.extract-bar { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:.6rem 1rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.75rem; }
+.extract-bar-label { font-size:.78rem; font-weight:700; color:#2b6cb0; white-space:nowrap; }
+.col-chips-wrap { display:flex; flex-wrap:wrap; gap:.25rem; align-items:center; min-height:1.5rem; }
+.col-chip { display:inline-flex; align-items:center; gap:.3rem; background:#ebf8ff; border:1px solid #bee3f8; color:#2b6cb0; border-radius:20px; padding:.2rem .65rem; font-size:.73rem; font-weight:600; }
+.col-chip button { background:none; border:none; cursor:pointer; color:#4a9eed; padding:0; font-size:.7rem; }
+.col-chip button:hover { color:#c53030; }
+.col-input { width:160px; border:1.5px solid #e2e8f0; border-radius:6px; padding:.28rem .6rem; font-size:.75rem; outline:none; }
+.col-input:focus { border-color:#2b6cb0; }
+.btn-small { background:#edf2f7; border:1px solid #e2e8f0; border-radius:6px; padding:.28rem .65rem; font-size:.72rem; font-weight:600; cursor:pointer; }
+.btn-small:hover { background:#e2e8f0; }
+.btn-extract { background:linear-gradient(135deg,#276749,#1a4731); color:#fff; border:none; border-radius:6px; padding:.3rem .85rem; font-size:.75rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:.3rem; }
+.btn-extract:disabled { opacity:.5; cursor:not-allowed; }
+.extract-status { font-size:.75rem; color:#4a5568; margin-left:.5rem; }
+
+/* ── Article table ────────────────────────────────────────────────── */
+.table-wrap { background:#fff; border-radius:12px; border:1px solid #e2e8f0; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.table-header { display:flex; align-items:center; justify-content:space-between; padding:.65rem 1rem; border-bottom:1px solid #e2e8f0; background:#f7fafc; }
+.table-header-left { font-size:.82rem; font-weight:700; color:#2b6cb0; }
+.btn-dl-csv { background:#276749; color:#fff; border:none; border-radius:6px; padding:.28rem .75rem; font-size:.73rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:.3rem; }
+
+table { width:100%; border-collapse:collapse; font-size:.75rem; }
+thead { position:sticky; top:0; z-index:10; }
+thead th { background:#1a365d; color:#fff; padding:.5rem .75rem; text-align:left; font-size:.72rem; font-weight:700; border-right:1px solid rgba(255,255,255,.1); white-space:nowrap; }
+thead th:last-child { border-right:none; }
+tbody tr:nth-child(even) { background:#f7fafc; }
+tbody tr:hover { background:#ebf8ff; }
+tbody td { padding:.5rem .75rem; border-bottom:1px solid #e2e8f0; border-right:1px solid #f0f4f8; vertical-align:top; line-height:1.4; }
+tbody td:last-child { border-right:none; }
+
+/* Fixed column widths */
+.col-id     { width:90px; }
+.col-title  { min-width:200px; max-width:280px; }
+.col-abs    { min-width:300px; }
+.col-author { width:160px; }
+.col-year   { width:60px; }
+.col-url    { width:80px; }
+.col-ext    { min-width:150px; }
+
+.abs-cell   { max-height:80px; overflow:hidden; font-size:.72rem; color:#4a5568; position:relative; }
+.abs-cell.expanded { max-height:none; }
+.abs-toggle { color:#2b6cb0; cursor:pointer; font-size:.68rem; display:block; margin-top:.15rem; text-decoration:underline; }
+.ext-value  { color:#276749; font-weight:600; }
+.ext-empty  { color:#a0aec0; font-style:italic; font-size:.68rem; }
+.filename-badge { font-size:.65rem; color:#718096; background:#f0f4f8; border-radius:4px; padding:.1rem .3rem; display:inline-block; margin-top:.2rem; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.empty-state { text-align:center; padding:3rem 1rem; color:#a0aec0; }
+.empty-state i { font-size:3rem; margin-bottom:.75rem; display:block; }
+
+/* ── Progress bar ─────────────────────────────────────────────────── */
+.progress-wrap { display:none; background:#fff; border-radius:8px; border:1px solid #e2e8f0; padding:.65rem 1rem; margin-bottom:.75rem; }
+.progress-bar-outer { background:#e2e8f0; border-radius:6px; height:8px; overflow:hidden; margin:.4rem 0; }
+.progress-bar-inner { background:linear-gradient(90deg,#2b6cb0,#63b3ed); height:100%; transition:width .4s; border-radius:6px; }
+.progress-label { font-size:.75rem; color:#4a5568; }
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <a href="/" class="nav-brand">
+        <img src="{{ url_for('static', filename='images/epilogosmall.png') }}"
+             alt="EpiLite" class="logo-img" onerror="this.style.display='none'">
+        <span class="brand-title"><span>EpiLite</span> AI Platform</span>
+    </a>
+    <div class="nav-right">
+        <a href="/"><i class="fas fa-home"></i> Home</a>
+        <a href="#"><i class="fas fa-info-circle"></i></a>
+        <span style="color:#bee3f8;font-size:.8rem"><i class="fas fa-user-circle"></i> {{ session.get('user_name','User') }}</span>
+        <a href="/logout" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    </div>
+</nav>
+
+<!-- ACTION TABS -->
+<div class="action-tabs">
+    <a href="/" class="action-tab"><i class="fas fa-search"></i> Search</a>
+    <a href="#" class="action-tab active"><i class="fas fa-file-upload"></i> Upload and curate</a>
+    <a href="#" class="action-tab"><i class="fas fa-chart-bar"></i> Analyze and create report</a>
+</div>
+
+<div class="main">
+
+    <!-- UPLOAD ZONE -->
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-file-input').click()"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="event.preventDefault();this.classList.remove('drag-over');handleFiles(event.dataTransfer.files)">
+        <i class="fas fa-file-pdf"></i>
+        <h3>Drop PDF files here or click to browse</h3>
+        <p>Upload single or multiple PDF articles — text will be extracted automatically</p>
+    </div>
+    <input type="file" id="pdf-file-input" multiple accept=".pdf"
+           onchange="handleFiles(this.files)">
+
+    <div class="upload-actions">
+        <button class="btn-upload" id="btn-process" onclick="processPdfs()" disabled>
+            <i class="fas fa-cog"></i> Process PDFs
+        </button>
+        <span class="upload-status" id="upload-status"></span>
+    </div>
+
+    <!-- PROGRESS BAR -->
+    <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-label" id="progress-label">Extracting text from PDFs...</div>
+        <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <!-- EXTRACT COLUMNS BAR (hidden until articles loaded) -->
+    <div class="extract-bar" id="extract-bar" style="display:none">
+        <span class="extract-bar-label"><i class="fas fa-table"></i> Extract Columns:</span>
+        <div class="col-chips-wrap" id="col-chips"></div>
+        <input id="col-input" class="col-input" placeholder="Add column..."
+               onkeydown="if(event.key==='Enter'){event.preventDefault();addCol();}">
+        <button class="btn-small" onclick="addCol()"><i class="fas fa-plus"></i></button>
+        <button class="btn-small" onclick="addPresets()"><i class="fas fa-magic"></i> Presets</button>
+        <button class="btn-extract" id="btn-extract" onclick="runExtract()">
+            <i class="fas fa-bolt"></i> Extract
+        </button>
+        <span class="extract-status" id="extract-status"></span>
+    </div>
+
+    <!-- ARTICLES TABLE -->
+    <div class="table-wrap" id="table-wrap" style="display:none">
+        <div class="table-header">
+            <span class="table-header-left" id="table-header-label">0 articles</span>
+            <button class="btn-dl-csv" onclick="downloadCsv()"><i class="fas fa-download"></i> Download CSV</button>
+        </div>
+        <div style="overflow-x:auto; max-height:70vh; overflow-y:auto;">
+            <table id="article-table">
+                <thead id="table-head"></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="empty-state" id="empty-state">
+        <i class="fas fa-file-upload"></i>
+        <p style="font-size:.95rem;color:#718096">Upload PDF articles to get started</p>
+        <p style="font-size:.78rem;color:#a0aec0;margin-top:.4rem">
+            Text-based PDFs work best. Scanned/image PDFs may not extract correctly.
+        </p>
+    </div>
+
+</div>
+
+<script>
+var _pendingFiles = [];  // files staged but not yet processed
+var _articles     = [];  // parsed articles from backend
+var _uploadId     = '{{ upload_id }}' || '';
+var _columns      = [];  // user-defined extraction columns
+var _extracted    = {};  // article_id → {col: value}
+
+var PRESET_COLUMNS = ['Country','Sample Size','Study Design','Treatment / Drug',
+    'Outcome','Prevalence','Incidence','Mortality','Population','Follow-up Duration'];
+
+// ── File staging ──────────────────────────────────────────────────────
+function handleFiles(files) {
+    _pendingFiles = Array.from(files).filter(function(f){ return f.name.toLowerCase().endsWith('.pdf'); });
+    var statusEl = document.getElementById('upload-status');
+    var btnEl    = document.getElementById('btn-process');
+    if (_pendingFiles.length === 0) {
+        statusEl.textContent = 'No PDF files selected.';
+        btnEl.disabled = true;
+        return;
+    }
+    statusEl.textContent = _pendingFiles.length + ' file' + (_pendingFiles.length > 1 ? 's' : '') + ' selected: ' +
+        _pendingFiles.map(function(f){ return f.name; }).join(', ');
+    btnEl.disabled = false;
+}
+
+// ── Upload + parse ────────────────────────────────────────────────────
+async function processPdfs() {
+    if (!_pendingFiles.length) return;
+    var btn    = document.getElementById('btn-process');
+    var status = document.getElementById('upload-status');
+    var prog   = document.getElementById('progress-wrap');
+    var bar    = document.getElementById('progress-bar');
+    var label  = document.getElementById('progress-label');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    prog.style.display = 'block';
+    label.textContent  = 'Extracting text from ' + _pendingFiles.length + ' PDF file(s)...';
+    bar.style.width    = '10%';
+
+    var fd = new FormData();
+    _pendingFiles.forEach(function(f){ fd.append('pdfs', f); });
+
+    try {
+        bar.style.width = '40%';
+        var r = await fetch('/api/upload_pdfs', {method:'POST', body:fd});
+        bar.style.width = '80%';
+        var d = await r.json();
+        if (!r.ok || d.error) {
+            status.textContent = 'Error: ' + (d.error || 'Upload failed');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-cog"></i> Process PDFs';
+            prog.style.display = 'none';
+            return;
+        }
+        bar.style.width = '100%';
+        _articles  = d.articles;
+        _uploadId  = d.upload_id;
+        _extracted = {};
+        status.textContent = d.count + ' articles extracted successfully.';
+        btn.innerHTML = '<i class="fas fa-cog"></i> Process PDFs';
+        prog.style.display = 'none';
+        renderTable();
+        document.getElementById('extract-bar').style.display = 'flex';
+        document.getElementById('empty-state').style.display = 'none';
+        renderChips();
+    } catch(e) {
+        status.textContent = 'Network error: ' + e.message;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-cog"></i> Process PDFs';
+        prog.style.display = 'none';
+    }
+}
+
+// ── Column chips ──────────────────────────────────────────────────────
+function addCol(name) {
+    var val = name || document.getElementById('col-input').value.trim();
+    if (!val || _columns.includes(val)) { document.getElementById('col-input').value = ''; return; }
+    _columns.push(val);
+    document.getElementById('col-input').value = '';
+    renderChips();
+    updateExtractedHeaders();
+}
+
+function removeCol(name) {
+    _columns = _columns.filter(function(c){ return c !== name; });
+    delete _extracted;
+    _extracted = {};
+    renderChips();
+    renderTable();
+}
+
+function renderChips() {
+    var el = document.getElementById('col-chips');
+    el.innerHTML = _columns.length
+        ? _columns.map(function(c) {
+            return '<span class="col-chip">' + esc(c) +
+                '<button onclick="removeCol(\'' + esc(c).replace(/'/g,"\\'") + '\')"><i class="fas fa-times"></i></button></span>';
+        }).join('')
+        : '<span style="font-size:.72rem;color:#a0aec0;font-style:italic">No columns — add some above</span>';
+}
+
+function addPresets() {
+    PRESET_COLUMNS.forEach(function(c){ if (!_columns.includes(c)) _columns.push(c); });
+    renderChips();
+    updateExtractedHeaders();
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Render table ──────────────────────────────────────────────────────
+function renderTable() {
+    if (!_articles.length) return;
+    var wrap = document.getElementById('table-wrap');
+    wrap.style.display = 'block';
+    document.getElementById('table-header-label').textContent =
+        _articles.length + ' article' + (_articles.length > 1 ? 's' : '') + ' loaded';
+
+    // Build header
+    var baseCols = ['#','Article ID','Title','Abstract','Authors','Year','URL / DOI'];
+    var allCols  = baseCols.concat(_columns);
+    var thead = document.getElementById('table-head');
+    thead.innerHTML = '<tr>' + allCols.map(function(c,i){
+        var cls = ['','col-id','col-title','col-abs','col-author','col-year','col-url'][i] || 'col-ext';
+        return '<th class="' + cls + '">' + esc(c) + '</th>';
+    }).join('') + '</tr>';
+
+    // Build rows
+    var tbody = document.getElementById('table-body');
+    tbody.innerHTML = _articles.map(function(art, idx) {
+        var ext = _extracted[art.article_id] || {};
+        var absId = 'abs-' + art.article_id;
+        var urlHtml = art.url
+            ? '<a href="' + esc(art.url) + '" target="_blank" style="color:#2b6cb0;font-size:.7rem">DOI</a>'
+            : '<span style="color:#a0aec0;font-size:.7rem">—</span>';
+        var cells = [
+            '<td>' + (idx+1) + '</td>',
+            '<td><span style="font-size:.68rem;color:#2b6cb0;font-weight:600">' + esc(art.article_id) + '</span>' +
+                '<br><span class="filename-badge">' + esc(art.filename) + '</span></td>',
+            '<td class="col-title" style="font-weight:600;font-size:.73rem">' + esc(art.title) + '</td>',
+            '<td class="col-abs"><div class="abs-cell" id="' + absId + '">' + esc(art.abstract || '—') + '</div>' +
+                (art.abstract && art.abstract.length > 120
+                    ? '<span class="abs-toggle" onclick="toggleAbs(\'' + absId + '\', this)">Show more</span>'
+                    : '') + '</td>',
+            '<td style="font-size:.7rem">' + esc(art.authors || '—') + '</td>',
+            '<td>' + esc(art.year || '—') + '</td>',
+            '<td>' + urlHtml + '</td>',
+        ];
+        _columns.forEach(function(col) {
+            var v = ext[col];
+            cells.push('<td>' + (v && v !== 'null'
+                ? '<span class="ext-value">' + esc(v) + '</span>'
+                : '<span class="ext-empty">—</span>') + '</td>');
+        });
+        return '<tr>' + cells.join('') + '</tr>';
+    }).join('');
+}
+
+function toggleAbs(id, el) {
+    var el2 = document.getElementById(id);
+    if (el2.classList.contains('expanded')) {
+        el2.classList.remove('expanded');
+        el.textContent = 'Show more';
+    } else {
+        el2.classList.add('expanded');
+        el.textContent = 'Show less';
+    }
+}
+
+function updateExtractedHeaders() { renderTable(); }
+
+// ── Run GPT extraction ────────────────────────────────────────────────
+async function runExtract() {
+    if (!_columns.length)  { alert('Please add at least one column first.'); return; }
+    if (!_uploadId)        { alert('Please upload PDFs first.'); return; }
+
+    var btn    = document.getElementById('btn-extract');
+    var status = document.getElementById('extract-status');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting...';
+    status.textContent = 'Scanning full text of ' + _articles.length + ' articles for: ' + _columns.join(', ') + '...';
+
+    var fd = new FormData();
+    fd.append('upload_id', _uploadId);
+    fd.append('columns',   JSON.stringify(_columns));
+
+    try {
+        var r = await fetch('/api/extract_columns_upload', {method:'POST', body:fd});
+        var d = await r.json();
+        if (!r.ok || d.error) {
+            status.textContent = 'Error: ' + (d.error || 'Extraction failed');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
+            return;
+        }
+        _extracted = d.data || {};
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
+        status.innerHTML = '<i class="fas fa-check-circle" style="color:#276749"></i> ' + d.count +
+            ' articles extracted. <button onclick="downloadCsv()" style="background:#276749;color:#fff;border:none;border-radius:5px;padding:.18rem .5rem;font-size:.7rem;font-weight:600;cursor:pointer;margin-left:.3rem"><i class="fas fa-download"></i> Download CSV</button>';
+        renderTable();
+    } catch(e) {
+        status.textContent = 'Network error: ' + e.message;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Extract';
+    }
+}
+
+// ── Download CSV ──────────────────────────────────────────────────────
+function downloadCsv() {
+    if (!_articles.length) { alert('No articles to download.'); return; }
+    var baseCols = ['article_id','title','abstract','authors','year','url','filename'];
+    var allCols  = baseCols.concat(_columns);
+    var lines = [allCols.join(',')];
+
+    _articles.forEach(function(art) {
+        var ext = _extracted[art.article_id] || {};
+        var row = baseCols.map(function(c) {
+            return '"' + String(art[c] || '').replace(/"/g,'""').replace(/\n/g,' ') + '"';
+        });
+        _columns.forEach(function(col) {
+            var v = String(ext[col] || '').replace(/"/g,'""').replace(/\n/g,' ');
+            row.push('"' + v + '"');
+        });
+        lines.push(row.join(','));
+    });
+
+    var csv  = '\uFEFF' + lines.join('\n');
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href   = url;
+    a.download = 'uploaded_articles_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Re-render chips on load
+renderChips();
+</script>
+</body>
+</html>
